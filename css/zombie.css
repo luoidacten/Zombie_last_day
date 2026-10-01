@@ -17,6 +17,171 @@ canvas {
     display: block;
     width: 100vw;
     height: 100vh;
+    height: 100dvh; /* điện thoại: không bị thanh địa chỉ che mất mép dưới */
+}
+
+/* ---------- ĐIỆN THOẠI: cho phép cuộn dọc trong các màn hình phủ ---------- */
+#menu,
+#routeShop,
+#guideModal,
+#guideModal>div,
+#onlineModal,
+#pauseOverlay {
+    touch-action: pan-y;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
+button,
+.cursor-pointer,
+label {
+    touch-action: manipulation; /* không phóng to khi chạm đúp, vẫn cuộn được */
+}
+
+/* Menu cao hơn màn hình vẫn cuộn được tới đầu (căn giữa bằng margin thay vì justify-center) */
+#menu {
+    justify-content: flex-start !important;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+#menu> :first-child {
+    margin-top: auto;
+}
+
+#menu> :last-child {
+    margin-bottom: auto;
+}
+
+/* Cửa hàng: nút TIẾP TỤC luôn dính ở mép dưới, không cần cuộn mới thấy */
+#shopContinueBar {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 20px -20px -20px;
+    padding: 10px 20px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(2, 6, 23, 0.97);
+    border-top: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 0 0 12px 12px;
+}
+
+#shopContinueBar button {
+    min-height: 48px;
+    font-size: 16px;
+}
+
+@media (max-width: 640px),
+(max-height: 500px) {
+    #routeShop {
+        padding: 6px !important;
+    }
+
+    #routeShop>div {
+        padding: 12px !important;
+    }
+
+    #routeShop>div> :not([hidden])~ :not([hidden]) {
+        margin-top: 12px !important;
+    }
+
+    #routeShop h2 {
+        font-size: 1.05rem !important;
+        line-height: 1.3 !important;
+    }
+
+    #routeShop .grid {
+        gap: 8px !important;
+    }
+
+    #routeShop .grid>* {
+        padding: 8px !important;
+    }
+
+    #shopContinueBar {
+        margin: 12px -12px -12px;
+        padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    }
+
+    #menuTitle {
+        font-size: 1.9rem !important;
+    }
+
+    #menuInfo {
+        margin-bottom: 12px !important;
+        padding-bottom: 8px !important;
+    }
+
+    #menu .grid {
+        margin-bottom: 12px !important;
+    }
+
+    #menu .grid button {
+        padding-top: 12px !important;
+        padding-bottom: 12px !important;
+    }
+}
+
+/* Điện thoại cầm ngang: xếp 4 cột để đỡ phải cuộn */
+@media (min-width: 560px) and (max-height: 500px) {
+
+    #routeShop .grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+
+    #menu .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+/* Màn chọn thẻ: nút đủ to để bấm bằng ngón tay */
+#upgradeScreen button {
+    min-height: 38px;
+    min-width: 130px;
+}
+
+/* Chỉ có một nửa màn hình (1 người / online): chữ thẻ to, mô tả hiện đủ không bị cắt */
+#upgradeScreen.one-half .upg-type {
+    font-size: 11px;
+}
+
+#upgradeScreen.one-half .upg-name {
+    font-size: 15px;
+    white-space: normal;
+}
+
+#upgradeScreen.one-half .upg-desc {
+    font-size: 12.5px;
+    line-height: 1.35;
+    height: auto;
+    max-height: none;
+}
+
+#upgradeScreen.one-half .upg-tag {
+    font-size: 10px;
+}
+
+#upgradeScreen.one-half .upg-card {
+    padding: 10px;
+    overflow-y: auto;
+    touch-action: pan-y;
+}
+
+#upgradeScreen.one-half #p1Cards,
+#upgradeScreen.one-half #p2Cards {
+    height: 62%;
+    max-width: 44rem;
+    gap: 8px;
+}
+
+#upgradeScreen.one-half button {
+    min-height: 46px;
+    min-width: 180px;
+    font-size: 15px;
+}
+
+#pauseBtn {
+    bottom: calc(8px + env(safe-area-inset-bottom)) !important;
 }
 
 input {

@@ -1280,7 +1280,7 @@ function draw() {
 function drawHud(T) {
     const solo = soloControls();
     const p = localPlayer();
-    const small = W < 640;
+    const small = W < 640 || H < 480; // điện thoại (kể cả khi cầm ngang)
     ctx.textBaseline = 'middle';
     let bannerY = 14;
 

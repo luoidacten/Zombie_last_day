@@ -1,5 +1,7 @@
+// Chỉ chặn vuốt khi đang chơi (hoặc chạm vào canvas). Trong menu / cửa hàng / hướng dẫn phải cho vuốt để cuộn được trên điện thoại.
 document.addEventListener('touchmove', e => {
-    if (e.cancelable) e.preventDefault();
+    let playing = typeof gameState !== 'undefined' && gameState === 'PLAYING';
+    if ((playing || e.target === canvas) && e.cancelable) e.preventDefault();
 }, { passive: false });
 document.addEventListener('contextmenu', e => e.preventDefault());
 

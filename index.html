@@ -4,7 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <link rel="icon" href="data:,">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Zombie Survival PC & Mobile</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link rel="stylesheet" href="css/zombie.css">
@@ -297,8 +300,10 @@
                 <h2 class="text-2xl font-bold text-blue-400 mb-1">CỬA HÀNG TIẾP TẾ</h2>
                 <div id="dynamicShopItems" class="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2"></div>
             </div>
-            <button class="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl transition shadow"
-                onclick="continueAfterShop()">TIẾP TỤC</button>
+            <div id="shopContinueBar">
+                <button class="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl transition shadow"
+                    onclick="continueAfterShop()">TIẾP TỤC ▶</button>
+            </div>
         </div>
     </div>
 

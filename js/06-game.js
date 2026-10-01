@@ -207,7 +207,12 @@ function quitToMenu() {
 window.addEventListener('keydown', e => {
     if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat && !(e.target && e.target.tagName === 'INPUT') && (gameState === 'PLAYING' || gameState === 'PAUSED')) { e.preventDefault(); togglePause(); }
 });
-setInterval(() => { let b = document.getElementById('pauseBtn'); if (b) b.style.display = gameState === 'PLAYING' ? 'block' : 'none'; }, 250);
+setInterval(() => {
+    let b = document.getElementById('pauseBtn'); if (b) b.style.display = gameState === 'PLAYING' ? 'block' : 'none';
+    // Màn chọn thẻ chỉ có một nửa (1 người / online): bật kiểu chữ to, dễ bấm trên điện thoại
+    let us = document.getElementById('upgradeScreen'), h1 = document.getElementById('p1Half'), h2 = document.getElementById('p2Half');
+    if (us && h1 && h2) us.classList.toggle('one-half', h1.style.display === 'none' || h2.style.display === 'none');
+}, 250);
 
 function gameLoop(time) {
     if (gameState !== 'PLAYING') return;
@@ -1345,13 +1350,13 @@ function renderCards(pid, containerId) {
         let isExclusiveBreak = sc.exclusiveBreak; // Thẻ sắp đột phá Độc Tôn (Mốc tím bậc 5)
 
         let card = document.createElement('div');
-        card.className = `animate-card-open flex-1 h-full max-w-[32%] bg-gray-800 rounded-xl p-2 text-center flex flex-col justify-between border-2 shadow-lg cursor-pointer transition transform active:scale-95 ${isExclusiveBreak ? 'border-purple-600 bg-purple-950/30' : (sc.cost > 0 ? 'border-amber-500' : 'border-gray-700')}`;
+        card.className = `upg-card animate-card-open flex-1 h-full max-w-[32%]bg-gray-800 rounded-xl p-2 text-center flex flex-col justify-between border-2 shadow-lg cursor-pointer transition transform active:scale-95 ${isExclusiveBreak ? 'border-purple-600 bg-purple-950/30' : (sc.cost > 0 ? 'border-amber-500' : 'border-gray-700')}`;
         card.id = `p${pid}Card${index}`;
 
         let tagsHtml = '';
         if (upg.tags.length > 0) {
             tagsHtml = '<div class="flex gap-1 flex-wrap justify-center mt-1">';
-            for (let t of upg.tags) tagsHtml += `<span class="text-[8px] px-1 py-0.5 rounded bg-black font-semibold" style="color:${TAG_DEFS[t] ? TAG_DEFS[t].color : '#fff'}">${tagLabel(t)} ${(p.tags[t] || 0) + 1}</span>`;
+            for (let t of upg.tags) tagsHtml += `<span class="upg-tag text-[8px] px-1 py-0.5 rounded bg-black font-semibold" style="color:${TAG_DEFS[t] ? TAG_DEFS[t].color : '#fff'}">${tagLabel(t)} ${(p.tags[t] || 0) + 1}</span>`;
             tagsHtml += '</div>';
         }
         let extra = '';
@@ -1361,9 +1366,9 @@ function renderCards(pid, containerId) {
 
         card.innerHTML = `
             <div>
-                <div class="text-[9px] font-bold uppercase tracking-wider ${isExclusiveBreak ? 'text-purple-400' : 'text-yellow-500'}">${upg.type}</div>
-                <div class="text-xs font-bold text-white mt-0.5 truncate">${upg.name}</div>
-                <div class="text-[9px] text-gray-400 leading-tight mt-1 h-12 overflow-hidden text-ellipsis">${upg.desc}</div>
+                <div class="upg-type text-[9px] font-bold uppercase tracking-wider ${isExclusiveBreak ? 'text-purple-400' : 'text-yellow-500'}">${upg.type}</div>
+                <div class="upg-name text-xs font-bold text-white mt-0.5 truncate">${upg.name}</div>
+                <div class="upg-desc text-[9px] text-gray-400 leading-tight mt-1 h-12 overflow-hidden text-ellipsis">${upg.desc}</div>
                 ${extra}
             </div>
             ${tagsHtml}
