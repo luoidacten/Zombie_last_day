@@ -141,6 +141,8 @@ class Player {
         let m = this.armorMult;
         if (this.tags['ĐẶC BIỆT'] >= 2) m *= 0.8;
         if (this.tags['CHỈ SỐ'] >= 4) m *= 0.9;
+        // Link ĐỒNG MINH mốc 3: có lính còn sống đứng gần thì giảm 15% sát thương nhận
+        if ((this.tags['DONG_MINH'] || 0) >= 3 && allies.some(a => a.hp > 0 && Math.hypot(a.x - this.x, a.y - this.y) < 320)) m *= 0.85;
         return m;
     }
 
@@ -153,6 +155,7 @@ class Player {
             Sound.play('level');
             return;
         }
+        if (arsenalRewind(this)) return; // thẻ Tua Ngược
         this.hp = 0; this.isDowned = true; this.weapon = null; this.pullingPin = false; this.chargeTime = 0; this.status = {};
         createParticles(this.x, this.y, '#c0392b', 20, 200);
         addDecal(this.x, this.y, '#7b1a12', 26, 0.55);
@@ -191,7 +194,7 @@ class Player {
         }
         if (this.tempShield > 0) { this.tempShield--; createParticles(this.x, this.y, '#3498db', 10, 150); spawnRing(this.x, this.y, '#3498db', 55, 0.25); return; }
 
-        let finalDmg = amount * this.getDefenseMult();
+        let finalDmg = amount * this.getDefenseMult() * enemyDmgScale(); // map đầu đỡ đau, map sau đau dần
 
         // San Sẻ Sát Thương: chuyển 20% sang lính Tiên Phong gần nhất
         if (this.perks.a_share_pain) {
@@ -213,6 +216,7 @@ class Player {
     onKill(zombieType) {
         killCount++;
         recordMissionKill(zombieType);
+        arsenalAddRage(this, isBossType(zombieType) ? 40 : 4); // Nộ [D] của vũ khí
         if (this.tags['MAY MẮN'] >= 2) {
             this.luckyKills++;
             if (this.luckyKills >= 30) {
@@ -226,7 +230,7 @@ class Player {
         if ((this.perks.reload || this.tags['ĐẠN'] >= 2) && this.weapon && this.weapon.type !== 'special' && this.weapon.type !== 'explosive' && Math.random() < 0.20) { let max = this.weapon.maxAmmo || 30; this.weapon.ammo = Math.min(max, this.weapon.ammo + Math.ceil(max * 0.1)); vfxList.push({ type: 'text', text: '+Đạn', x: this.x, y: this.y - 30, life: 0.5, color: '#95a5a6' }); }
 
         if (this.weapon && this.weapon.type === 'melee') {
-            let isKatana = (this.weapon.name === 'Kiếm' || this.weapon.name === 'Katana Huyền Thoại');
+            let isKatana = isKatanaW(this.weapon);
             if (isKatana && this.perks.m_hoi) {
                 this.weapon.ammo = Math.min(this.weapon.maxAmmo, this.weapon.ammo + 1);
                 if (Math.random() < 0.02) this.applyHeal(this.maxHp * 0.01);
@@ -251,7 +255,7 @@ class Player {
         let baseXP = 15;
         if (zombieType === 0) baseXP = 10; else if (zombieType === 1) baseXP = 25; else if (zombieType === 4) baseXP = 150; else if (zombieType === 6) baseXP = 50;
         else if (zombieType === 9 || zombieType === 10 || zombieType === 11) baseXP = 30;
-        else if (zombieType >= 30 && zombieType <= 32) baseXP = 600;
+        else if (isBossType(zombieType) && zombieType !== 46) baseXP = 600;
         else if (zombieType === 27 || zombieType === 28) baseXP = 120;
         else if (zombieType === 13 || zombieType === 14 || zombieType === 15 || zombieType === 20) baseXP = 60;
         let xpMult = 1.0 + (this.tags['TĂNG TIẾN'] * 0.15); if (this.perks.fastLearn) xpMult += 0.5;
@@ -268,7 +272,7 @@ class Player {
         }
     }
 
-    onHitEnemy() { if (this.perks.rain) { this.perks.rainStacks = Math.min(50, this.perks.rainStacks + 2); this.perks.rainTimer = 2.0; } }
+    onHitEnemy() { arsenalAddRage(this, 0.3); if (this.perks.rain) { this.perks.rainStacks = Math.min(50, this.perks.rainStacks + 2); this.perks.rainTimer = 2.0; } }
     getTotalDamageMult() {
         let mult = this.dmgMult;
         if (this.tags['TIẾN CÔNG'] >= 2) mult += 0.15;
@@ -289,10 +293,12 @@ class Player {
         if (chiSo >= 4) mult += 0.15; else if (chiSo >= 2) mult += 0.08;
         // Buff từ Drone Tiến Công / Truyền Cảm Hứng
         mult += this.auraDmg || 0;
+        if ((this.tags['BẬC THẦY'] || 0) >= 1) mult += 0.1; // Link BẬC THẦY: +10% sát thương
 
         return mult;
     }
     update(dt) {
+        arsenalPlayerTick(this, dt);
         if (this.swordWaveTimer > 0) this.swordWaveTimer -= dt;
         if (this.xpShowTimer > 0) this.xpShowTimer -= dt;
         if (this.perks.invulnTimer > 0) this.perks.invulnTimer -= dt;
@@ -307,7 +313,7 @@ class Player {
         if (!this.isDowned) updateStatusEffects(this, dt, true);
         if (this.tags['HỒI MÁU'] >= 4 && !this.isDowned && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.01 * HEALING_MULT * dt);
 
-        if (this.perks.heartSword && !this.isDowned && this.weapon && (this.weapon.name === 'Kiếm' || this.weapon.name === 'Katana Huyền Thoại')) {
+        if (this.perks.heartSword && !this.isDowned && this.weapon && isKatanaW(this.weapon)) {
             for (let b of enemyBullets) { if (b.active && Math.hypot(b.x - this.x, b.y - this.y) < this.radius + 30) { b.active = false; createParticles(b.x, b.y, '#00ffff', 5, 100); } }
         }
 
@@ -324,6 +330,7 @@ class Player {
         if (this.perks.p_thoatHiem && heliSupport.active) speed *= 1.3; // Tăng tốc khi gọi trực thăng
         if (this.weapon && this.weapon.slowDown) speed *= this.weapon.slowDown;
         if (this.weapon && this.weapon.speedBoost) speed *= this.weapon.speedBoost; // Dao tăng tốc
+        speed *= arsenalPlayerSpeed(this);
         if (this.netTimer > 0) { this.netTimer -= dt; speed *= 0.4; }
         if (this.stunTimer > 0) speed = 0;
         if (this.perks.p_lucOnDinh && this.weapon && this.weapon.name === 'Lục') {
@@ -411,11 +418,19 @@ class Player {
                         if (d.type === 'SUPERBOX' && this.perks.m_legendary && Math.random() < 0.3) {
                             wepName = 'LEGENDARY_KATANA';
                         }
-                        if (hasTeamPerk('t_radio') && !tank.active && Math.random() < 0.2) {
+                        // Song Kiếm: Luyện Kiếm (chỉ rớt cận chiến) + Hòm Thính, hoặc thẻ Song Kiếm với hộp thường
+                        if (d.type === 'SUPERBOX' && this.perks.luyenKiem && Math.random() < 0.4) wepName = 'DUAL_KATANA';
+                        if (d.type === 'BLINDBOX' && this.perks.m_songKiem && Math.random() < 0.25) wepName = 'DUAL_KATANA';
+                        // Song Katana Huyền Thoại: cần cả Thanh Kiếm Truyền Thuyết lẫn Song Kiếm
+                        if (wepName === 'LEGENDARY_KATANA' && this.perks.m_songKiem) wepName = 'DUAL_LEGEND';
+                        // Liềm: chỉ có trong Hòm Thính sau khi đã hạ The Dead
+                        if (d.type === 'SUPERBOX' && deadSlain && wepName !== 'DUAL_LEGEND' && wepName !== 'LEGENDARY_KATANA' && Math.random() < 0.22) wepName = 'SCYTHE';
+                        if (d.forceWeapon) wepName = d.forceWeapon;
+                        if (hasTeamPerk('t_radio') && !tank.active && !d.forceWeapon && Math.random() < 0.2) {
                             wepName = 'RADIO';
                         }
                         // Nếu có Link Kiếm Sư và nhặt Hộp Mù (Blindbox)
-                        if (d.type === 'BLINDBOX' && this.tags && this.tags['KIẾM SƯ'] >= 1 && Math.random() < 0.6 && !this.perks.luyenKiem && wepName !== 'RADIO') {
+                        if (d.type === 'BLINDBOX' && this.tags && this.tags['KIẾM SƯ'] >= 1 && Math.random() < 0.6 && !this.perks.luyenKiem && wepName !== 'RADIO' && wepName !== 'DUAL_KATANA' && !d.forceWeapon) {
                             wepName = 'KATANA';
                         }
 
@@ -488,6 +503,7 @@ class Player {
             }
         }
 
+        if (objState === 'TRAIN') railInput(this);   // trên nóc tàu: B / C / D là lệnh pháo, tăng tốc, chuyển ray
         let isPressedA = getButtonState(this.id, 'A', 'pressed');
         let justReleasedA = getButtonState(this.id, 'A', 'released');
         let isPressedC = getButtonState(this.id, 'C', 'justPressed');
@@ -496,7 +512,7 @@ class Player {
 
         if (isSinglePlayer && this.perks.instRevive && !this.perks.instReviveUsed && this.hp < this.maxHp * 0.2) { if (getButtonState(this.id, 'B', 'justPressed')) { this.applyHeal(this.maxHp); this.perks.instReviveUsed = true; vfxList.push({ type: 'text', text: 'CẤP CỨU!', x: this.x, y: this.y - 30, life: 1.5, color: '#2ecc71' }); return; } }
 
-        let isKatanas = this.weapon && (this.weapon.name === 'Kiếm' || this.weapon.name === 'Katana Huyền Thoại');
+        let isKatanas = this.weapon && isKatanaW(this.weapon);
         if (canUseWeapon && isPressedC && this.perks.nhatKiem && isKatanas && this.skillC_CD <= 0) {
             this.cKills++;
             let isGiantWave = (this.cKills % 5 === 0);
@@ -512,10 +528,11 @@ class Player {
 
             let angle = Math.atan2(this.facingY, this.facingX);
             bullets.push(new Bullet(this.x, this.y, angle, { range: isGiantWave ? 900 : 450, dmg: this.weapon.dmg * (isGiantWave ? 5 : 2), isSwordWave: true, pierce: 99 }, this));
-            this.skillC_CD = 3.0;
+            this.skillC_CD = (this.tags['NHẤT KIẾM'] || 0) >= 1 ? 2.0 : 3.0; // Link NHẤT KIẾM: lướt hồi nhanh hơn
             createParticles(this.x, this.y, '#00ffff', 20, 400);
             addScreenShake(isGiantWave ? 15 : 5);
         }
+        else if (canUseWeapon && isPressedC && this.perks.tk_blink && !(this.perks.nhatKiem && isKatanas) && !(this.blinkCD > 0)) arsenalBlink(this);
 
         if (canUseWeapon && isPressedD && this.tags['KIẾM SƯ'] >= 5 && this.dCharge >= 50 && isKatanas) {
             addScreenShake(20); createParticles(this.x, this.y, '#e056fd', 100, 800);
@@ -533,6 +550,7 @@ class Player {
             }
             this.dCharge = 0;
         }
+        else if (canUseWeapon && isPressedD) arsenalRage(this); // Kỹ năng Nộ của Minigun / Ngắm / Búa-Rìu / Cung / Phun Lửa
 
         if (canUseWeapon && this.weapon) {
             if (this.weapon.type === 'explosive') {
@@ -667,7 +685,7 @@ class Player {
     }
 
     shoot() {
-        if (!this.weapon) return;
+        if (!this.weapon || arsenalBlockShot(this)) return;
         if (empStorm.active && this.weapon.type !== 'melee') {
             if (!(this.empTextCD > Date.now())) { this.empTextCD = Date.now() + 500; vfxList.push({ type: 'text', text: 'BỊ NHIỄU ĐIỆN TỪ!', x: this.x, y: this.y - 35, life: 0.5, color: '#48dbfb' }); }
             return;
@@ -725,10 +743,10 @@ class Player {
             let wep = wepClone;
             if (this.perks.meleeTech) { wep.dmg *= 1.3; wep.range *= 1.3; }
             let kLvl = this.tags['KIẾM SƯ'] || 0;
-            let isKatana = (wep.name === 'Kiếm' || wep.name === 'Katana Huyền Thoại');
+            let isKatana = isKatanaW(wep);
 
             // THIÊU ĐỐT
-            if (isKatana && (this.perks.m_thieu || wep.name === 'Katana Huyền Thoại')) {
+            if (isKatana && (this.perks.m_thieu || wep.isLegendary)) {
                 wep.isFire = true;
             }
             // CHÉM VÒNG TRÒN (PHÁ)
@@ -736,7 +754,7 @@ class Player {
                 wep.spread = Math.PI * 2;
             }
             // NHÁT CẮT THẾ GIỚI
-            if (wep.name === 'Katana Huyền Thoại' && Math.random() < 0.10) {
+            if (wep.isLegendary && Math.random() < 0.10) {
                 wep.spread = Math.PI * 2;
                 wep.range *= 3.0; // Phạm vi khổng lồ
                 addScreenShake(20);
@@ -755,11 +773,11 @@ class Player {
             }
 
             let isThrust = wep.isThrust || false;
-            if (wep.name === 'Kiếm' && this.tags['KIẾM SƯ'] >= 2) {
+            if (isKatanaW(wep) && !wep.isLegendary && this.tags['KIẾM SƯ'] >= 2) {
                 isThrust = Math.random() > 0.5;
                 bullets.push(new Bullet(this.x, this.y, angle, { range: 450, dmg: wep.dmg * 0.8, isSwordWave: true, pierce: 3 }, this));
             }
-            if (wep.name === 'Kiếm' && this.tags['KIẾM SƯ'] >= 5) {
+            if (isKatanaW(wep) && !wep.isLegendary && this.tags['KIẾM SƯ'] >= 5) {
                 bullets.push(new Bullet(this.x, this.y, angle + (Math.random() - 0.5) * 0.3, { range: 500, dmg: wep.dmg * 1.2, isFire: true, pierce: 1 }, this));
             }
             if (wep.isLegendary || wep.name === 'Laser') spawnRing(this.x, this.y, wep.color, wep.range, 0.2, 3);
@@ -767,8 +785,26 @@ class Player {
             if (isThrust) { wep.range *= 1.5; wep.spread = 0.4; let lunge = wep.name === 'Giáo' ? 10 : (wep.name === 'Dao Quân Sự' ? 12 : 25); this.x += this.facingX * lunge; this.y += this.facingY * lunge; }
             else { this.x += this.facingX * 10; this.y += this.facingY * 10; }
 
+            if (wep.isScythe && this.perks.sc_reap) wep.range *= 1.25;
+            if (wep.isScythe && (this.tags['LIỀM'] || 0) >= 3) wep.spread = Math.PI * 2; // Link LIỀM mốc 3: chém trọn vòng
+            if (wep.isDual) {
+                // SONG KIẾM: hai tay chém luân phiên trái - phải; cứ 3 nhát (Kiếm Sư 5+: 2 nhát) tung một vòng chém lớn
+                this.dualSide = -(this.dualSide || 1); wep.dirSign = this.dualSide;
+                wep.dmg *= 1 + kLvl * 0.06;                                   // mỗi Link Kiếm Sư: +6% sát thương song kiếm
+                if (kLvl >= 2 && !wep.isLegendary) bullets.push(new Bullet(this.x, this.y, angle + this.dualSide * 0.22, { range: 450, dmg: wep.dmg * 0.6, isSwordWave: true, pierce: 3 }, this)); // sóng kiếm thứ hai
+                this.dualCombo = (this.dualCombo || 0) + 1;
+                if (this.dualCombo >= (kLvl >= 5 ? 2 : 3)) {
+                    this.dualCombo = 0;
+                    let big = { ...wep, spread: Math.PI * 2, range: wep.range * (wep.isLegendary ? 1.35 : 1.9), dmg: wep.dmg * 1.6, kb: (wep.kb || 150) * 1.6, dirSign: this.dualSide };
+                    slashes.push(new Slash(this.x, this.y, angle, big, this));
+                    spawnRing(this.x, this.y, wep.isLegendary ? '#ff9f43' : '#dfe6e9', big.range, 0.25, 4); addScreenShake(6);
+                    if (kLvl >= 8) for (let i = 0; i < 8; i++) bullets.push(new Bullet(this.x, this.y, angle + i * Math.PI / 4, { range: 520, dmg: wep.dmg * 0.8, isSwordWave: true, pierce: 5 }, this)); // Kiếm Sư 8+: vòng chém toả 8 sóng kiếm
+                }
+            }
+
             slashes.push(new Slash(this.x, this.y, angle, wep, this));
-            Sound.play(wep.name === 'Laser' || wep.isElectric ? 'saber' : (wep.name === 'Rìu' || wep.name === 'Búa') ? 'slash_heavy' : isThrust ? 'stab' : 'slash');
+            arsenalMeleeSwing(this, wep, angle);
+            Sound.play(wep.name === 'Laser' || wep.isElectric ? 'saber' : (wep.name === 'Rìu' || wep.name === 'Búa' || wep.isScythe) ? 'slash_heavy' : isThrust ? 'stab' : 'slash');
             if (wep.name === 'Búa') addScreenShake(5); if (wep.name === 'Laser') addScreenShake(2);
         } else {
             let mz = gunMuzzleDist(this.weapon, this.radius); // chớp lửa nằm đúng đầu nòng của từng loại súng
@@ -795,6 +831,7 @@ class Player {
                 addScreenShake(3);
             }
             else {
+                arsenalPreShot(this, wepClone, now);
                 bullets.push(new Bullet(this.x, this.y, angle, wepClone, this));
                 // Sniper có tiếng nổ riêng; Minigun dùng tiếng lặp; súng điện bắn chậm dùng tiếng plasma
                 let wk = this.weapon.key;
@@ -819,7 +856,7 @@ class Player {
                 }
             }
         }
-        this.lastFireTime = now; this.weapon.ammo--; if (this.weapon.ammo <= 0) this.throwWeapon();
+        this.lastFireTime = now; if (!arsenalFreeShot(this)) this.weapon.ammo--; if (this.weapon.ammo <= 0) this.throwWeapon();
     }
     throwWeapon() {
         if (!this.weapon) return;
@@ -858,6 +895,7 @@ function applyRangedPerks(p, w) {
 // Trả về true nếu quái vừa bị hạ gục thật sự trong lần gọi này.
 function zombieDown(z, source = null) {
     if (z && z.type >= 45) antDamageFilter(z); // Kiến Chúa / Xúc Tu: lọc sát thương trước khi xét hạ gục
+    else if (z && z.type >= 36 && z.type <= 38) zapDamageFilter(z);
     if (!z || z.hp > 0) return false;
     if (z.type === 11 && !z.hasRevived) {
         z.hasRevived = true; z.hp = z.maxHp * 0.5;
@@ -867,6 +905,7 @@ function zombieDown(z, source = null) {
     }
     if (z._credited) return false;
     z._credited = true;
+    arsenalOnZombieDeath(z);
     playKillSound(z.x, z.y, z.type >= 40 && z.type <= 46 ? 1 : 0); // âm lượng giảm dần theo khoảng cách; kiến có tiếng riêng
     let src = (source && typeof source.onKill === 'function') ? source : (z.lastHitBy || players.find(p => !p.isDowned) || players[0]);
     if (src && typeof src.onKill === 'function') src.onKill(z.type);
@@ -931,14 +970,15 @@ function calcDamage(baseDmg, wepData, x, y, playerSource, targetZombie = null) {
     }
 
     if (targetZombie && playerSource instanceof Player) targetZombie.lastHitBy = playerSource;
-    return finalDmg;
+    return arsenalOnDamage(finalDmg, wepData, playerSource, targetZombie);
 }
 
 class Bullet {
     constructor(x, y, angle, wepData, sourcePlayer) {
         this.x = x; this.y = y; this.startX = x; this.startY = y; this.wepData = wepData; this.source = sourcePlayer;
         let speed = 1500;
-        if (wepData.isTankShell) speed = 1000;
+        if (wepData.homing) speed = 640;
+        else if (wepData.isTankShell) speed = 1000;
         else if (wepData.isExplosiveProj) speed = 800;
         else if (wepData.isSwordWave) speed = 900;
         else if (wepData.type === 'charge') speed = 2500;
@@ -966,13 +1006,14 @@ class Bullet {
             if (this.lifeTime <= 0) { this.active = false; return; }
             if (fireZones.length > 110) { /* đủ nhiều vùng lửa rồi */ }
             else if (this.wepData.isFlamethrower && Math.random() < dt * 2.4) {
-                fireZones.push({ x: this.x + (Math.random() - 0.5) * 20, y: this.y + (Math.random() - 0.5) * 20, life: 1.5, dmg: this.dmg * 0.4, source: this.source, radius: 25 + Math.random() * 15 });
+                fireZones.push({ kind: 'oil', x: this.x + (Math.random() - 0.5) * 20, y: this.y + (Math.random() - 0.5) * 20, life: 3.2, dmg: this.dmg * 0.2, source: this.source, radius: 30 + Math.random() * 16 }); // Dầu Nhớt: vũng lửa trừ % máu tối đa
             }
             else if (this.wepData.isAcidSprayer && Math.random() < dt * 3) {
                 fireZones.push({ kind: 'acid', x: this.x + (Math.random() - 0.5) * 24, y: this.y + (Math.random() - 0.5) * 24, life: 2.6, dmg: this.dmg * 0.15, source: this.source, radius: 22 + Math.random() * 18 });
             }
         }
 
+        if (this.wepData.homing) arsenalHome(this, dt);
         this.x += this.vx * dt; this.y += this.vy * dt;
 
         if (!this.isFire && Math.hypot(this.x - this.startX, this.y - this.startY) > this.range) { this.triggerHit(); return; }
@@ -1030,6 +1071,7 @@ class Bullet {
         lastHitInfo.crit = false; lastHitInfo.headshot = false;
         let actualDmg = this.isHeli ? this.dmg : calcDamage(this.dmg, wd, z.x, z.y, src, z);
         let wasCrit = lastHitInfo.crit, wasHeadshot = lastHitInfo.headshot;
+        if (z.vulnT > 0) actualDmg *= 1.5; // bị sóng âm Búa / Rìu làm giảm giáp
         z.hp -= actualDmg;
 
         // Chỉ đạn do CHÍNH người chơi bắn mới đánh dấu mục tiêu cho lính
@@ -1050,6 +1092,7 @@ class Bullet {
         if (wd.isFire) applyStatus(z, STATUS.BURN, { duration: 3.0, dpsPercent: 0.014, source: src });
         if (wd.isElectric) applyStatus(z, STATUS.ELECTRIC, { duration: 2.2, stacks: 1, dps: Math.max(4, this.dmg * 0.06), maxStacks: 8, source: src });
         if (wd.isAcid) applyStatus(z, STATUS.CORROSION, { duration: 3.0, stacks: 1, dpsPercent: 0.0045, maxStacks: 8, source: src });
+        let arsHeld = arsenalBulletHit(this, z); // đạn lửa Minigun, mũi tên Ghim Kẹp
 
         // 3. GIẬT SÉT LAN (chỉ vũ khí nhóm Điện)
         if (wd.isElectric) {
@@ -1139,6 +1182,7 @@ class Bullet {
             if (sniperShot) this.pierce = 99; else this.pierce = Math.max(this.pierce, 1) + 1;
         }
 
+        if (arsHeld) return;
         if (this.pierce > 0) {
             this.pierce--;
             this.dmg *= (sniperShot ? 0.85 : 0.5); // Sniper giữ lực tốt hơn khi xuyên qua vật thể
@@ -1157,11 +1201,12 @@ class Slash {
         // VFX quét: lưỡi chém quét qua cung đánh rồi để lại vệt trăng khuyết mờ dần (đồng bộ sang máy khách qua vfxList)
         let sweepCol = this.isSaber ? '0,255,255' : (this.isFire ? '255,159,67' : (wepData.isElectric ? '72,219,251' : (wepData.isLegendary ? '255,200,90' : '236,240,241')));
         // Mỗi vũ khí một kiểu chém riêng (vẽ ở drawSweep)
-        let nm = wepData.name, st = nm === 'Rìu' ? 'axe' : nm === 'Búa' ? 'hammer' : nm === 'Laser' ? 'saber' : wepData.isLegendary ? 'legend' : wepData.isElectric ? 'whip' : 'katana';
+        let nm = wepData.name, st = nm === 'Rìu' ? 'axe' : nm === 'Búa' ? 'hammer' : nm === 'Laser' ? 'saber' : wepData.isLegendary ? 'legend' : wepData.isElectric ? 'whip' : wepData.isScythe ? 'axe' : 'katana';
+        if (wepData.isScythe) sweepCol = '255,70,80';
         if ((this.spread || 1) <= 0.45 || nm === 'Giáo') st = 'spear';
         if (st === 'axe') sweepCol = '255,140,110'; else if (st === 'hammer') sweepCol = '214,196,170';
         let swLife = st === 'hammer' ? 0.45 : (st === 'axe' ? 0.38 : (st === 'knife' || st === 'spear' ? 0.22 : 0.3));
-        vfxList.push({ type: 'sweep', st, pi: sourcePlayer && sourcePlayer.id ? sourcePlayer.id - 1 : undefined, thin: nm === 'Dao Quân Sự' ? 1 : 0, x, y, angle, r: this.range, spread: Math.min(Math.PI * 2, this.spread || 1), dir: Math.random() < 0.5 ? 1 : -1, col: sweepCol, life: swLife, max: swLife });
+        vfxList.push({ type: 'sweep', st, pi: sourcePlayer && sourcePlayer.id ? sourcePlayer.id - 1 : undefined, thin: nm === 'Dao Quân Sự' ? 1 : 0, x, y, angle, r: this.range, spread: Math.min(Math.PI * 2, this.spread || 1), dir: (this.dirSign = wepData.dirSign || (Math.random() < 0.5 ? 1 : -1)), col: sweepCol, life: swLife, max: swLife });
         if (NET.mode === 'host') NET.ev.push(['sl', sourcePlayer && sourcePlayer.id === 2 ? 2 : 1, +angle.toFixed(2), Math.round(this.range), +(+this.spread).toFixed(2), this.isSaber ? 1 : 0, this.isFire ? 1 : 0]);
     }
     update(dt, pX, pY) {
@@ -1185,8 +1230,9 @@ class Slash {
             if (this.isFire) applyStatus(z, STATUS.BURN, { duration: 3.0, dpsPercent: 0.016, source: this.source });
 
             if (z.hp <= 0 && zombieDown(z, this.source)) {
+                if (this.wepData.isScythe) scytheKill(z, this.source); // Liềm: 2% hoá Tế Phẩm lao vào kẻ địch phát nổ
                 // TUYỆT DIỆT: TẠO PHÂN ẢNH CHỮ V
-                let isKatana = (this.wepData.name === 'Kiếm' || this.wepData.name === 'Katana Huyền Thoại');
+                let isKatana = isKatanaW(this.wepData);
                 if (isKatana && this.source.perks.m_diet && Math.random() < 0.05) {
                     bullets.push(new Bullet(z.x, z.y, this.angle - 0.6, { range: 600, dmg: this.wepData.dmg, isSwordWave: true, pierce: 99, isCloneWave: true }, this.source));
                     bullets.push(new Bullet(z.x, z.y, this.angle + 0.6, { range: 600, dmg: this.wepData.dmg, isSwordWave: true, pierce: 99, isCloneWave: true }, this.source));
@@ -1619,7 +1665,7 @@ class Ally {
     constructor(x, y, kind = 'rifleman', owner = players[0]) {
         this.x = x; this.y = y; this.kind = kind; this.owner = owner;
         this.radius = kind === 'vanguard' ? 19 : 15;
-        this.maxHp = kind === 'vanguard' ? 240 : (kind === 'medic' ? 130 : 150);
+        this.maxHp = (kind === 'vanguard' ? 320 : (kind === 'medic' ? 150 : 170)) * allyPowerScale();
         if (getTeamTagLevel('QUAN_DOI') >= 5) this.maxHp *= 1.5;
         this.hp = this.maxHp; this.atkCD = Math.random(); this.skillCD = 3; this.facingX = 1; this.facingY = 0;
         this.elite = false; this.tempShield = 0; this.shieldTimer = 0; this.noDamageTimer = 0; this.droneCD = 0;
@@ -1659,33 +1705,55 @@ class Ally {
                 this.droneCD = 0.6;
             }
         }
-        let anchor = this.owner && !this.owner.isDowned ? this.owner : players[0];
+        let owner = this.owner && !this.owner.isDowned ? this.owner : (players.find(p => !p.isDowned) || players[0]);
+        let anchor = owner;
         let desiredDist = this.kind === 'vanguard' ? 85 : 145;
-        if (target && this.kind === 'vanguard') anchor = target;
-        let a = Math.atan2(anchor.y - this.y, anchor.x - this.x);
+        if (target && this.kind === 'vanguard' && Math.hypot(owner.x - this.x, owner.y - this.y) < 420) anchor = target; // xông lên nhưng không bỏ chủ quá xa
         let distAnchor = Math.hypot(anchor.x - this.x, anchor.y - this.y);
-        let speed = 115 * (summon >= 5 ? 1.4 : 1) * (hasTeamPerk('a_overdrive_matrix') ? 1.25 : 1);
-        if (distAnchor > desiredDist) { this.x += Math.cos(a) * speed * dt; this.y += Math.sin(a) * speed * dt; resolveCollision(this); }
+        let speed = 175 * (summon >= 5 ? 1.3 : 1) * (hasTeamPerk('a_overdrive_matrix') ? 1.25 : 1);
+        // Bị bỏ lại quá xa (kẹt, qua tầng...): nhảy về cạnh chủ
+        if (Math.hypot(owner.x - this.x, owner.y - this.y) > 1000) { let sp = findSafePoint(owner.x + (Math.random() - 0.5) * 120, owner.y + (Math.random() - 0.5) * 120, this.radius); this.x = sp.x; this.y = sp.y; createParticles(this.x, this.y, '#ecf0f1', 12, 140); }
+        // Lính bắn súng / cứu thương: quái áp sát thì lùi ra giữ khoảng cách (vừa lùi vừa bắn) thay vì đứng chịu cắn
+        let threat = this.kind === 'vanguard' ? null : getNearestZombie(this.x, this.y, 120, false);
+        if (threat) {
+            let fa = Math.atan2(this.y - threat.y, this.x - threat.x);
+            this.x += Math.cos(fa) * speed * 0.85 * dt; this.y += Math.sin(fa) * speed * 0.85 * dt; resolveCollision(this);
+        } else if (distAnchor > desiredDist) friendlyMoveTo(this, anchor.x, anchor.y, speed, dt);
 
         if (this.kind === 'medic') {
-            let hurt = [...players, ...allies].filter(e => e && !e.isDowned && e.hp > 0 && e.hp < e.maxHp).sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
-            if (hurt && this.skillCD <= 0 && Math.hypot(hurt.x - this.x, hurt.y - this.y) < 220) {
-                hurt.hp = Math.min(hurt.maxHp, hurt.hp + 15);
+            // Cứu thương: 5 giây hồi một lần cho người yếu nhất trong tầm, lượng hồi theo % máu tối đa
+            let hurt = [...players, ...allies, ...rescueNPCs].filter(e => e && !e.isDowned && e.hp > 0 && e.hp < e.maxHp && Math.hypot(e.x - this.x, e.y - this.y) < 300).sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+            if (hurt && this.skillCD <= 0) {
+                hurt.hp = Math.min(hurt.maxHp, hurt.hp + Math.max(15, hurt.maxHp * 0.08));
                 createParticles(hurt.x, hurt.y, '#2ecc71', 12, 100);
-                this.skillCD = 12;
+                vfxList.push({ type: 'laser_beam', x: this.x, y: this.y, tx: hurt.x, ty: hurt.y, life: 0.15 });
+                this.skillCD = 5;
             }
+            separateFriendly(this, allies, dt, 38, 160);
             return;
+        }
+        // Tiên Phong: khiêu khích quái quanh mình để chúng bỏ người chơi mà đánh nó
+        if (this.kind === 'vanguard') {
+            this.tauntCD = (this.tauntCD || 0) - dt;
+            if (this.tauntCD <= 0) { this.tauntCD = 1.0; for (let z of zombies) if (z.hp > 0 && !isBossType(z.type) && Math.hypot(z.x - this.x, z.y - this.y) < 240) z.lockTarget = this; }
         }
 
         if (target && this.atkCD <= 0) {
             let ang = Math.atan2(target.y - this.y, target.x - this.x);
             this.facingX = Math.cos(ang); this.facingY = Math.sin(ang);
-            let dmg = (this.kind === 'vanguard' ? 55 : 38) * (army >= 5 ? 1.35 : 1) * (this.elite ? 1.6 : 1) * (hasTeamPerk('a_overdrive_matrix') ? 1.25 : 1);
-            if (this.kind === 'vanguard' && Math.hypot(target.x - this.x, target.y - this.y) < 95) {
-                target.hp -= dmg * players[0].getTotalDamageMult();
-                target.lastHitBy = players[0];
-                target.knockback(Math.cos(ang) * 320, Math.sin(ang) * 320);
-                this.atkCD = 0.9;
+            let dmg = (this.kind === 'vanguard' ? 55 : 38) * allyPowerScale() * (army >= 5 ? 1.35 : 1) * (this.elite ? 1.6 : 1) * (hasTeamPerk('a_overdrive_matrix') ? 1.25 : 1);
+            if (this.kind === 'vanguard') {
+                // Quét một vòng: trúng MỌI quái trong tầm tay chứ không chỉ một con
+                if (Math.hypot(target.x - this.x, target.y - this.y) < 105) {
+                    for (let z of zombies) {
+                        if (z.hp <= 0 || z.flying || Math.hypot(z.x - this.x, z.y - this.y) > 110 + z.radius) continue;
+                        let za = Math.atan2(z.y - this.y, z.x - this.x);
+                        z.hp -= dmg * players[0].getTotalDamageMult(); z.lastHitBy = players[0];
+                        z.knockback(Math.cos(za) * 320, Math.sin(za) * 320);
+                    }
+                    vfxList.push({ type: 'sweep', st: 'axe', x: this.x, y: this.y, angle: ang, r: 110, spread: Math.PI * 2, dir: 1, col: '200,214,229', life: 0.3, max: 0.3 });
+                    this.atkCD = 0.9;
+                }
             } else {
                 let spread = hasTeamPerk('a_fire_discipline') || army >= 2 ? 0 : 0.16;
                 let pierce = hasTeamPerk('a_piercing_rounds') || army >= 3 ? 1 : 0;
@@ -1701,6 +1769,7 @@ class Ally {
         this.noDamageTimer = 0;
         if (this.hp <= 0) return;
         if (this.tempShield > 0) { this.tempShield--; return; }
+        if (getTeamTagLevel('DONG_MINH') >= 2) dmg *= 0.75; // Link ĐỒNG MINH mốc 2: lính giảm 25% sát thương nhận
         this.hp -= dmg;
         if (this.hp <= 0) {
             createParticles(this.x, this.y, '#3498db', 16, 180);
@@ -1722,6 +1791,12 @@ class Ally {
     }
 
 }
+// Lính / NPC đi tới một điểm: thấy thẳng thì đi thẳng, bị tường che thì bám theo lưới dẫn đường về phía người chơi
+function friendlyMoveTo(e, tx, ty, speed, dt) {
+    let a = Math.atan2(ty - e.y, tx - e.x);
+    if (!hasLineOfSight(e.x, e.y, tx, ty)) { let nx = navNext(NAV.field, e.x, e.y); if (nx) a = Math.atan2(nx.y - e.y, nx.x - e.x); }
+    e.x += Math.cos(a) * speed * dt; e.y += Math.sin(a) * speed * dt; resolveCollision(e);
+}
 function separateFriendly(entity, list, dt, minDist = 34, force = 140) {
     for (let other of list) {
         if (!other || other === entity || other.hp <= 0) continue;
@@ -1736,15 +1811,28 @@ function separateFriendly(entity, list, dt, minDist = 34, force = 140) {
 }
 class RescueNPC {
     constructor(x, y) {
-        this.x = x; this.y = y; this.radius = 13; this.hp = 80 + currentLevel * 10; this.maxHp = this.hp;
+        this.x = x; this.y = y; this.radius = 13; this.hp = 150 + currentLevel * 28; this.maxHp = this.hp;
         this.atkCD = Math.random(); this.facingX = 1; this.facingY = 0; this.rescueProgress = 0;
         this.rescued = false;
         this.safe = false;
     }
-    takeDamage(dmg) { if (this.hp > 0) { this.hp -= dmg; if (this.hp <= 0) createParticles(this.x, this.y, '#c0392b', 16, 160); } }
+    // Chưa được cứu: đang nấp nên chỉ nhận 30% sát thương
+    takeDamage(dmg) { if (this.hp > 0) { this.hp -= this.rescued ? dmg : dmg * 0.3; if (this.hp <= 0) createParticles(this.x, this.y, '#c0392b', 16, 160); } }
+    // Tự vệ: bắn con quái gần nhất (dùng cho cả lúc chưa được cứu)
+    selfDefend(dt, range, cd) {
+        this.atkCD -= dt;
+        if (this.atkCD > 0) return;
+        let target = getNearestZombie(this.x, this.y, range, true);
+        if (!target) return;
+        let a = Math.atan2(target.y - this.y, target.x - this.x);
+        this.facingX = Math.cos(a); this.facingY = Math.sin(a);
+        bullets.push(new Bullet(this.x, this.y, a, { range: range + 40, dmg: 32 * allyPowerScale(), pierce: getTeamTagLevel('QUAN_DOI') >= 3 ? 1 : 0, fromAlly: true }, players[0]));
+        this.atkCD = cd;
+    }
     update(dt) {
         if (this.hp <= 0) return;
         if (!this.rescued) {
+            this.selfDefend(dt, 320, 0.8); // trước đây đứng im chịu chết
             let rescuers = players.filter(p => !p.isDowned && Math.hypot(p.x - this.x, p.y - this.y) < 95);
             if (rescuers.length > 0) {
                 this.rescueProgress += dt;
@@ -1761,25 +1849,19 @@ class RescueNPC {
             }
             return;
         }
-        this.atkCD -= dt;
-        let target = getNearestZombie(this.x, this.y, 420, true);
+        let threat = getNearestZombie(this.x, this.y, 110, false);
         let follow = rescueMission.heliArrived && evacZone ? evacZone : (players.filter(p => !p.isDowned).sort((a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y))[0] || players[0]);
-        let fleeAng = target ? Math.atan2(this.y - target.y, this.x - target.x) : 0;
-        let followAng = Math.atan2(follow.y - this.y, follow.x - this.x);
-        let speed = 95;
-        let dx = Math.cos(followAng), dy = Math.sin(followAng);
-        if (target && Math.hypot(target.x - this.x, target.y - this.y) < 150) {
-            dx = Math.cos(fleeAng); dy = Math.sin(fleeAng); speed = 130;
+        let dFollow = Math.hypot(follow.x - this.x, follow.y - this.y);
+        // Đi theo người chơi đủ nhanh để không bị bỏ lại, biết vòng qua tường; chỉ né khi quái đã sát bên và mình không ở quá xa
+        if (threat && dFollow < 260) {
+            let fa = Math.atan2(this.y - threat.y, this.x - threat.x);
+            this.x += Math.cos(fa) * 150 * dt; this.y += Math.sin(fa) * 150 * dt; resolveCollision(this);
+        } else if (dFollow > 90) {
+            if (follow === evacZone) { let a = Math.atan2(follow.y - this.y, follow.x - this.x); this.x += Math.cos(a) * 170 * dt; this.y += Math.sin(a) * 170 * dt; resolveCollision(this); }
+            else friendlyMoveTo(this, follow.x, follow.y, dFollow > 320 ? 215 : 170, dt);
         }
-        if (Math.hypot(follow.x - this.x, follow.y - this.y) > 90) {
-            this.x += dx * speed * dt; this.y += dy * speed * dt; resolveCollision(this);
-        }
-        if (target && this.atkCD <= 0) {
-            let a = Math.atan2(target.y - this.y, target.x - this.x);
-            this.facingX = Math.cos(a); this.facingY = Math.sin(a);
-            bullets.push(new Bullet(this.x, this.y, a, { range: 420, dmg: 22, pierce: getTeamTagLevel('QUAN_DOI') >= 3 ? 1 : 0, fromAlly: true }, players[0]));
-            this.atkCD = 1.4;
-        }
+        if (dFollow > 1100 && follow !== evacZone) { let sp = findSafePoint(follow.x + (Math.random() - 0.5) * 140, follow.y + (Math.random() - 0.5) * 140, this.radius); this.x = sp.x; this.y = sp.y; }
+        this.selfDefend(dt, 440, 1.0);
         separateFriendly(this, rescueNPCs, dt, 30, 120);
         separateFriendly(this, allies, dt, 32, 100);
     }
@@ -1813,14 +1895,14 @@ class Outpost {
             if (this.destroyTimer <= 0) {
                 this.dead = true;
                 explode(this.x + this.w / 2, this.y + this.h / 2, 240, 600);
-                beginEvacCountdown();
+                outpostDestroyed(this);   // (trước đây gọi thẳng trực thăng -> bỏ ngang nhiệm vụ đang làm)
             }
             return;
         }
         this.spawnTimer -= dt;
         if (this.spawnTimer <= 0) { // Đẻ cướp, càng lâu càng đông
             let count = 1 + Math.floor(survivalTime / 80) + Math.floor(currentLevel / 4);
-            for (let i = 0; i < count; i++) zombies.push(new Zombie(this.x + this.w / 2 + (Math.random() - 0.5) * 220, this.y + this.h / 2 + (Math.random() - 0.5) * 220, 12));
+            for (let i = 0; i < count; i++) zombies.push(new Zombie(this.x + this.w / 2 + (Math.random() - 0.5) * 220, this.y + this.h / 2 + (Math.random() - 0.5) * 220, this.raid ? banditRandomType() : 12));
             this.spawnTimer = Math.max(0.9, 3.0 - survivalTime / 180);
         }
     }
@@ -1847,6 +1929,7 @@ class Zombie {
         let maxSpecial = 15 + currentLevel * 2; // Tăng giới hạn quái đặc biệt
 
         if (forcedType === -1 && currentMapType === 14) forcedType = antRandomType(); // Hầm Mỏ: chỉ có loài kiến
+        if (forcedType === -1 && currentMapType === 5) forcedType = banditRandomType(); // Thị Trấn Cướp: chỉ có băng cướp
         if (forcedType !== -1) {
             this.type = forcedType;
         } else {
@@ -1959,6 +2042,11 @@ class Zombie {
             case 30: this.radius = 62; this.color = '#ff9f43'; this.maxHp = 10000 + currentLevel * 850; this.baseSpeed = 52; this.spCD = 3.0; break; // Khong Lo
             case 31: this.radius = 48; this.color = '#00d2d3'; this.maxHp = 7450 + currentLevel * 780; this.baseSpeed = 76; this.spCD = 2.4; break; // Loi Qua Tai
             case 32: this.radius = 34; this.color = '#ff4757'; this.maxHp = 5000 + currentLevel * 720; this.baseSpeed = 68; this.spCD = 2.6; break; // The Leader
+            // --- QUÁI CỦA CỐT TRUYỆN — AI nằm ở 12-story.js / 13-labz.js ---
+            case 35: this.radius = 46; this.color = '#9b59b6'; this.maxHp = 9500 + currentLevel * 900; this.baseSpeed = 125; this.spCD = 2.2; break;   // Tàn Vết Chớp
+            case 36: this.radius = 56; this.color = '#f9ca24'; this.maxHp = 15000 + currentLevel * 1400; this.baseSpeed = 0; this.spCD = 3.0; this.armor = this.maxArmor = 2600 + currentLevel * 260; break; // ZAP-1624 "Kình Lôi"
+            case 37: this.radius = 52; this.color = '#e17055'; this.maxHp = 10000 + currentLevel * 900; this.baseSpeed = 72; this.spCD = 3.0; break;    // The Hucker
+            case 38: this.radius = 15; this.color = '#a29bfe'; this.maxHp = 380 + currentLevel * 45; this.baseSpeed = 0; this.noLoot = true; break;    // Thương Sét
             case 33: // Miner
                 this.radius = 15;
                 this.color = '#6b5b45';
@@ -1986,9 +2074,13 @@ class Zombie {
                 this.dashTimer = 0;
                 break;
         }
+        // Đường cong về sau: các loại trước đây không tăng máu theo map giờ cũng tăng; từ map 7 mọi quái trâu & nhanh dần
+        if ([13, 14, 15, 26, 27, 28, 29].includes(this.type)) this.maxHp *= 1 + (currentLevel - 1) * 0.3;
+        this.maxHp *= enemyLateHpMult();
+        if (this.type < 30 || (this.type >= 40 && this.type <= 43)) this.baseSpeed *= enemyLateSpeedMult();
         this.hp = this.maxHp;
     }
-    knockback(vx, vy) { if (this.type >= 45 && this.type !== 51) return; if (this.type === 4 || this.type === 6) { vx *= 0.2; vy *= 0.2; } this.kbX = vx; this.kbY = vy; }
+    knockback(vx, vy) { if ((this.type >= 45 && this.type !== 51) || (this.type >= 35 && this.type <= 38)) return; if (this.type === 4 || this.type === 6) { vx *= 0.2; vy *= 0.2; } this.kbX = vx; this.kbY = vy; }
     update(dt) {
         this.kbX *= 0.85; this.kbY *= 0.85; this.atkCD -= dt; this.spCD -= dt;
         let target = players[0];
@@ -2020,7 +2112,7 @@ class Zombie {
         updateStatusEffects(this, dt, false);
 
         let speed = this.baseSpeed * envMult;
-        speed *= getStatusMoveMult(this);
+        speed *= getStatusMoveMult(this) * arsenalZombieTick(this, dt);
         if (isBossType(this.type)) this.stunTimer = 0; // Boss miễn choáng
         if (this.stunTimer > 0 && !getStatus(this, STATUS.OVERLOAD)) {
             // Choáng thật sự: không di chuyển, không đánh, huỷ luôn đòn đang gồng
@@ -2038,7 +2130,7 @@ class Zombie {
             this.y = this.shieldBoss.y + Math.sin(a) * (this.shieldBoss.radius + this.radius + 12);
             return;
         }
-        if (isCaveMap()) ang = caveSteer(this, target, ang, dist); // trong hang: đi vòng qua vách đá theo lưới dẫn đường
+        ang = caveSteer(this, target, ang, dist); // mọi map: không thấy mục tiêu thì đi vòng qua tường/nhà theo lưới dẫn đường
         if (updateSpecialZombie(this, target, dist, ang, dt, speed)) return;
 
         // ĐÃ NERF QUÁI TẦM XA Ở CÁC DÒNG BÊN DƯỚI
@@ -2214,6 +2306,7 @@ function updateSpecialZombie(z, target, dist, ang, dt, speed) {
     }
     if (z.type >= 50) return updateDeadFamily(z, target, dist, ang, dt, speed); // The Dead & Tế Phẩm (10-thedead.js)
     if (z.type >= 40) return updateAnt(z, target, dist, ang, dt, speed); // loài kiến & Kiến Chúa (09-cave.js)
+    if (z.type >= 35) return updateStoryZombie(z, target, dist, ang, dt, speed); // Tàn Vết Chớp, ZAP-1624, The Hucker, Thương Sét
     const moveToward = (spd) => {
         z.x += (Math.cos(ang) * spd + z.kbX) * dt;
         z.y += (Math.sin(ang) * spd + z.kbY) * dt;
@@ -2660,6 +2753,7 @@ function explode(x, y, radius, dmg, source = null, friendly = false) {
 
     let finalDmg = dmg * dmgMult;
     caveOnExplosion(x, y, finalRadius, finalDmg); // hang/hầm mỏ: nổ lan thùng thuốc nổ, phá đá chặn, lở đá
+    storyOnExplosion(x, y, finalRadius, finalDmg); // Rừng Sét: vụ nổ làm hỏng Trạm Điện Cao Áp
 
     // Tag Nổ Cấp 4: Nổ để lại vệt lửa
     if (expTagLvl >= 4 && Math.random() < 0.5) {

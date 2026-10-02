@@ -71,7 +71,7 @@ function updateStatusEffects(target, dt, isPlayer = false) {
         const dot = (amt) => { if (isPlayer) target.takeDot(amt); else { target.hp -= amt; if (s.source instanceof Player) target.lastHitBy = s.source; } };
         if (id === STATUS.BURN) {
             // Boss chỉ chịu 1/4 thiêu đốt theo % máu
-            dot(target.maxHp * (s.dpsPercent || 0) * dt * (!isPlayer && isBossType(target.type) ? 0.25 : 1));
+            dot(target.maxHp * (s.dpsPercent || 0) * dt * (!isPlayer && isBossType(target.type) ? 0.25 : 1) * (isPlayer ? 1 : arsenalDotMult(s)));
             if (Math.random() < 0.12) createParticles(target.x, target.y, '#e67e22', 1, 50);
         } else if (id === STATUS.ELECTRIC) {
             let dps = (s.dps || 6) * Math.max(1, s.stacks || 1);
@@ -80,7 +80,7 @@ function updateStatusEffects(target, dt, isPlayer = false) {
             if (!isPlayer && !ELECTRIC_IMMUNE_ZOMBIES.has(target.type)) target.stunTimer = Math.max(target.stunTimer || 0, 0.08);
         } else if (id === STATUS.CORROSION) {
             let resist = isPlayer && target.perks && target.perks.a_chongAnMon ? 0.65 : 1;
-            dot(target.maxHp * (s.dpsPercent || 0.006) * Math.max(1, s.stacks || 1) * resist * dt * (!isPlayer && isBossType(target.type) ? 0.25 : 1));
+            dot(target.maxHp * (s.dpsPercent || 0.006) * Math.max(1, s.stacks || 1) * resist * dt * (!isPlayer && isBossType(target.type) ? 0.25 : 1) * (isPlayer ? 1 : arsenalDotMult(s)));
             if (Math.random() < 0.15) createParticles(target.x, target.y, '#2ecc71', 1, 60);
         } else if (id === STATUS.OVERLOAD) {
             if (!isPlayer) target.stunTimer = 0;
@@ -148,7 +148,43 @@ function addScreenFlash(amount, cdMs = 180) {
 
 function getXpRequired(level) {
     let base = Math.floor(140 + Math.pow(level, 2.05) * 95 + Math.pow(level, 1.35) * 45);
+    // Các cấp đầu lên nhanh hơn hẳn (cấp 1 cần ~49% so với trước), tới cấp 8 thì trở lại đường cong cũ
+    base = Math.floor(base * Math.min(1, 0.4 + 0.085 * level));
     return isSinglePlayer ? base : base * 1.5;
+}
+
+// ĐƯỜNG CONG ĐỘ KHÓ: map đầu nhẹ tay hơn, càng về sau quái càng đau và càng trâu để người chơi không "vô đối"
+function enemyDmgScale() {
+    if (currentLevel <= 2) return 0.75;
+    if (currentLevel <= 4) return 0.9;
+    return Math.min(3.5, 1 + (currentLevel - 4) * 0.09);
+}
+function enemyLateHpMult() { return currentLevel > 6 ? Math.min(12, Math.pow(1.1, currentLevel - 6)) : 1; }
+function enemyLateSpeedMult() { return currentLevel > 6 ? Math.min(1.3, 1 + (currentLevel - 6) * 0.02) : 1; }
+function allyPowerScale() { return 1 + (currentLevel - 1) * 0.14; } // lính & NPC mạnh dần theo map để không thành vô dụng
+
+// Hoàn thiện bố cục map thường (không phải hang): dọn chỗ xuất phát, đảm bảo tháp / vật phẩm nhiệm vụ / NPC / đồ rơi
+// đều nằm ở nơi ĐI TỚI ĐƯỢC từ điểm xuất phát (trước đây có thể bị kẹt trong ô kín giữa các tòa nhà).
+function finalizeMapLayout() {
+    const cx = MAP_SIZE.w / 2, cy = MAP_SIZE.h / 2;
+    const hitsCircle = (o, x, y, r) => { let px = Math.max(o.x, Math.min(x, o.x + o.w)), py = Math.max(o.y, Math.min(y, o.y + o.h)); return Math.hypot(px - x, py - y) < r; };
+    if (currentMapType !== 4) obstacles = obstacles.filter(o => !hitsCircle(o, cx, cy, 150));
+    for (let t of towers) obstacles = obstacles.filter(o => !hitsCircle(o, t.x, t.y, 165));
+    navRebuild();
+    let f = navFlood([{ x: cx, y: cy }], NAV.field);
+    NAV.reach.length = 0;
+    for (let i = 0; i < f.length; i++) if (f[i] >= 4) NAV.reach.push(i);
+    const ok = (x, y) => { let i = navOpenIdx(x, y); return i >= 0 && f[i] >= 0 && !isBlockedPoint(x, y, 16); };
+    const fix = (e) => { if (!ok(e.x, e.y)) { let p = caveRandomOpenPoint(); e.x = p.x; e.y = p.y; } };
+    // Tháp ở góc bị bịt kín: phá vật cản quanh nó thêm lần nữa, vẫn không tới được thì dời tháp
+    for (let t of towers) {
+        if (ok(t.x, t.y)) continue;
+        let best = null, bd = 1e9;
+        for (let i of NAV.reach) { let p = navCellPoint(i); let d = Math.hypot(p.x - t.x, p.y - t.y); if (d < bd) { bd = d; best = p; } }
+        if (best) { t.x = best.x; t.y = best.y; }
+    }
+    missionItems.forEach(fix); drops.forEach(fix); rescueNPCs.forEach(fix); lightFlowers.forEach(fix);
+    NAV.t = 0;
 }
 
 // Helpers cho hệ thống Tag dùng chung
@@ -171,7 +207,8 @@ function getMapName(type = currentMapType) {
     const names = {
         1: 'Khu Phố Bỏ Hoang', 2: 'Rừng', 3: 'Sông Lớn', 4: 'Thành Trì',
         5: 'Thị Trấn Cướp', 6: 'Nhà Máy Điện', 7: 'Rừng Đêm', 8: 'Thành Phố Tàn Phá',
-        9: 'Rừng Mưa', 10: 'Hang Z', 11: 'Rừng Cây Cao', 12: 'Vườn Thực Vật', 13: 'Thành Phố N', 14: 'Hầm Mỏ'
+        9: story.bolt === 2 ? 'Rừng Sét' : 'Rừng Mưa', 10: 'Hang Z', 11: 'Rừng Cây Cao', 12: 'Vườn Thực Vật', 13: 'Thành Phố N', 14: 'Hầm Mỏ',
+        15: 'Phòng Thí Nghiệm Z & Nhà Ga X', 16: 'Khu Sống Sót'
     };
     return names[type] || ('Map ' + type);
 }
@@ -183,7 +220,10 @@ function getMissionName(type = objState) {
         POWER_BOSS: 'Boss điện', CITY_BOSS: 'Thành phố nguy hiểm', HANGZ_ESCAPE: 'Trốn thoát Hang Z',
         POWER_CHARGE: 'Nạp điện', RESCUE: 'Giải cứu người sống sót',
         CAVE_ESCORT: 'Hộ tống Tiến Sĩ đặt 3 ngòi nổ C4', CAVE_RUN: 'Chạy ra cửa hầm', MINE_NESTS: 'Phá toàn bộ tổ kiến', MINE_EXIT: 'Xuống tầng 5',
-        MINE_BOMB: 'Gài bom phá sập lõi tổ kiến', QUEEN: 'Boss: Kiến Chúa', QUEEN_RUN: 'Cuộc đào tẩu 45 giây'
+        MINE_BOMB: 'Gài bom phá sập lõi tổ kiến', QUEEN: 'Boss: Kiến Chúa', QUEEN_RUN: 'Cuộc đào tẩu 45 giây',
+        RAID: 'Đột kích 3 sào huyệt cướp', LAST_STAND: 'Tiền tuyến cuối cùng', BASE_DEF: 'Phòng thủ Nhà Chính',
+        STORM_STATIONS: 'Phá hủy 3 Trạm Điện Cao Áp', STORM_BOSS: 'Boss: Tàn Vết Chớp', ZAP_HOLD: 'Kích hoạt Lõi Máy Phát', ZAP_BOSS: 'Boss cuối: ZAP-1624 "Kình Lôi"',
+        LAB_C4: 'Bảo vệ Binh sĩ gài C4 phá cửa', LAB_DECON: 'Khử độc & cứu viện', LAB_ESCORT: 'Dẫn Nhà Khoa Học ra Nhà Ga X', STATION_HOLD: 'Tử thủ bến tàu', TRAIN: 'Tẩu thoát trên tàu hoả'
     };
     return names[type] || type;
 }
@@ -210,13 +250,14 @@ function updateMoodMusic() {
     let dead = zombies.find(z => z.type === 50 && z.hp > 0);
     if (dead) key = dead.hp < dead.maxHp * 0.5 ? 'dead2' : 'dead1';
     else if (zombies.some(z => z.type === 45 && z.hp > 0)) key = 'boss_insect';
-    else if (zombies.some(z => z.type >= 30 && z.type <= 32 && z.hp > 0)) key = electric ? 'boss_electric' : (dark || isRainyWeather() ? 'boss_pm' : 'boss');
+    else if (zombies.some(z => (z.type === 35 || z.type === 36) && z.hp > 0)) key = 'boss_electric';
+    else if (objState === 'TRAIN' || zombies.some(z => ((z.type >= 30 && z.type <= 32) || z.type === 37) && z.hp > 0)) key = electric ? 'boss_electric' : (dark || isRainyWeather() ? 'boss_pm' : 'boss');
     else if (electric) key = 'map_electric';
     else if (isRainyWeather() || currentMapType === 9) key = 'map_rain';
     else if (dark) key = 'map_pm';
     Sound.music(key);
 }
-function isRainyWeather() { return currentWeather === 2 || currentWeather === 10 || (currentWeather === 4 && currentMapType !== 6); }
+function isRainyWeather() { return currentWeather === 2 || currentWeather === 10 || (currentWeather === 4 && currentMapType !== 6) || storyRain(); } // ZAP-1624 xuất hiện: trời đổ mưa
 
 // Tiếng lặp & tiếng nền theo trạng thái game (chạy ở cả chủ phòng lẫn khách)
 let moodTimer = 0, groanTimer = 10;
@@ -299,6 +340,7 @@ function updateRadioDialogs(dt) {
 }
 
 function pickMissionType(level) {
+    let sm = storyMission(); if (sm) return sm;   // nhiệm vụ do cốt truyện quyết định
     if (currentMapType === 10 || currentMapType === 14 || hangZRun.active) return 'HANGZ_ESCAPE';
     if (currentMapType === 6) {
         if (powerPlantRun.active && powerPlantRun.floor >= powerPlantRun.total) return 'POWER_BOSS';
@@ -308,7 +350,7 @@ function pickMissionType(level) {
     if (level % 8 === 0) return 'BOSS';
     if (nextMissionPreference) return nextMissionPreference;
     if (level === 1) return 'TOWERS';
-    const pool = ['TOWERS', 'COLLECT', 'KILL'];
+    const pool = level >= 2 ? ['TOWERS', 'COLLECT', 'KILL', 'LAST_STAND'] : ['TOWERS', 'COLLECT', 'KILL'];
     return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -364,6 +406,7 @@ function spawnMissionItems(count) {
 }
 
 function recordMissionKill(zombieType) {
+    storyOnKill(zombieType);
     if (mission.complete) return;
     if (mission.type === 'KILL') {
         mission.progress++;
@@ -386,8 +429,8 @@ function recordMissionKill(zombieType) {
 function completeMission() {
     if (mission.complete) return;
     mission.complete = true;
-    let bossMission = mission.type === 'BOSS' || mission.type === 'POWER_BOSS' || mission.type === 'CITY_BOSS' || mission.type === 'HANGZ_ESCAPE';
-    let reward = bossMission ? 45 + currentLevel * 2 : 12 + currentLevel * 3;
+    let bossMission = ['BOSS', 'POWER_BOSS', 'CITY_BOSS', 'HANGZ_ESCAPE', 'STORM_BOSS', 'ZAP_BOSS'].includes(mission.type);
+    let reward = missionReward(mission.type);   // thưởng nhiều hơn + thưởng thêm theo loại nhiệm vụ (15-ops.js)
     shopScrap += reward;
     Sound.play(bossMission ? 'level' : 'upgrade');
     for (let p of players) {
@@ -546,13 +589,13 @@ function generateMap(level) {
     let margin = 500;
 
     // Logic chọn Map
-    let availableMaps = level >= 9 ? [1, 2, 3, 7, 8, 9, 11, 12, 13] : (level >= 5 ? [1, 2, 3, 7, 11, 12] : [1, 2, 3]);
+    let availableMaps = level >= 9 ? [1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 13] : (level >= 5 ? [1, 2, 3, 5, 7, 11, 12] : [1, 2, 3]);
     if (powerPlantRun.active) {
         currentMapType = 6;
     } else if (nextMapPreference) {
         currentMapType = nextMapPreference;
     } else if (level >= 5 && level % 5 === 0) {
-        currentMapType = Math.random() > 0.5 ? 4 : 5;
+        currentMapType = 16;   // cứ 5 map: PHÒNG THỦ CĂN CỨ (15-ops.js)
     } else {
         currentMapType = availableMaps[Math.floor(Math.random() * availableMaps.length)];
     }
@@ -561,7 +604,7 @@ function generateMap(level) {
 
     let missionType = pickMissionType(level);
     // Vườn Thực Vật / Thành Phố N đôi khi là nhiệm vụ Giải Cứu (quyết định TRƯỚC khi dựng nhiệm vụ để NPC được sinh ra đúng)
-    if (!nextMissionPreference && ['TOWERS', 'COLLECT', 'KILL'].includes(missionType) &&
+    if (!nextMissionPreference && ['TOWERS', 'COLLECT', 'KILL', 'LAST_STAND'].includes(missionType) &&
         ((currentMapType === 12 && Math.random() < 0.35) || (currentMapType === 13 && Math.random() < 0.3))) missionType = 'RESCUE';
     setupMission(missionType, level);
     if (mission.type === 'POWER_CHARGE') {
@@ -610,8 +653,10 @@ function generateMap(level) {
         allies.push(new Ally(MAP_SIZE.w / 2 + 200, MAP_SIZE.h / 2 + 200));
     }
     else if (currentMapType === 5) { // Thị trấn cướp
-        bgMapColor = '#8d6e63';
-        outposts.push(new Outpost(MAP_SIZE.w / 2 - 75, MAP_SIZE.h / 2 - 75)); // Tiền đồn giữa map
+        genBanditTown(level);   // 3 sào huyệt có tường bao, ụ bắn và súng cối (15-ops.js)
+    }
+    else if (currentMapType === 16) genBaseDefense(level);
+    else if (false) {
         for (let i = 0; i < 40 + level * 3; i++) { obstacles.push({ type: 'wall', x: Math.random() * (MAP_SIZE.w - 200) + 100, y: Math.random() * (MAP_SIZE.h - 200) + 100, w: 100 + Math.random() * 100, h: 100 + Math.random() * 100 }); }
     }
     else if (currentMapType === 6) { // Nhà máy điện
@@ -655,6 +700,7 @@ function generateMap(level) {
         for (let i = 0; i < 10; i++) lightFlowers.push({ x: 240 + Math.random() * (MAP_SIZE.w - 480), y: 240 + Math.random() * (MAP_SIZE.h - 480), radius: 24, charge: 100 });
     }
     else if (currentMapType === 10 || currentMapType === 14) generateCaveMap(level); // Hang Z / Hầm Mỏ (09-cave.js)
+    else if (currentMapType === 15) genLabZ(level);                                   // Phòng Thí Nghiệm Z & Nhà Ga X (13-labz.js)
     else if (currentMapType === 11) { // Rung cay cao
         bgMapColor = '#172316';
         darknessBattery = 75;
@@ -677,13 +723,15 @@ function generateMap(level) {
     }
     else if (currentMapType === 13) { // Thanh Pho N
         bgMapColor = '#2d3436';
-        let gapBonus = shopFlags.urbanMap ? 70 : 25;
+        // Ngõ hẻm rộng tối thiểu ~105px (trước đây nhà chồng lấn nhau, hẻm hẹp hơn thân người nên bị kẹt)
+        let lane = shopFlags.urbanMap ? 165 : 115;
         shopFlags.urbanMap = false;
-        let blockSize = 180;
-        for (let gx = 180; gx < MAP_SIZE.w - 220; gx += blockSize + gapBonus) {
-            for (let gy = 180; gy < MAP_SIZE.h - 220; gy += blockSize + gapBonus) {
-                if (Math.random() < 0.16) continue;
-                obstacles.push({ type: 'building', x: gx + Math.random() * 18, y: gy + Math.random() * 18, w: blockSize + Math.random() * 50, h: blockSize + Math.random() * 70 });
+        let cellSize = 230 + lane; // mỗi ô = một tòa nhà tối đa 230px + ngõ
+        for (let gx = 150; gx < MAP_SIZE.w - 380; gx += cellSize) {
+            for (let gy = 150; gy < MAP_SIZE.h - 380; gy += cellSize) {
+                if (Math.random() < 0.18) continue;
+                let w = 170 + Math.random() * 60, h = 170 + Math.random() * 60;
+                obstacles.push({ type: 'building', x: gx + Math.random() * (230 - w + 10), y: gy + Math.random() * (230 - h + 10), w, h });
             }
         }
     }
@@ -714,6 +762,8 @@ function generateMap(level) {
     }
     // Giải cứu: NPC không bị kẹt trong vật cản
     for (let n of rescueNPCs) { let sp = findSafePoint(n.x, n.y, 20); n.x = sp.x; n.y = sp.y; }
+    if (!isCaveMap() && currentMapType !== 15 && currentMapType !== 16) finalizeMapLayout();
+    storyAfterGenerate(level);   // trạm điện / lõi máy phát / Phòng Thí Nghiệm Z
     pickWeatherForMap(true);
     weatherTimer = 45 + Math.random() * 30;
 }
@@ -837,7 +887,7 @@ function createBushCluster(cx, cy, count, radius, dense = false) {
 
 function buildBushesForMap(level) {
     bushes = [];
-    if (currentMapType === 8 || currentMapType === 5 || currentMapType === 6 || currentMapType === 10 || currentMapType === 14) return;
+    if (currentMapType === 8 || currentMapType === 5 || currentMapType === 6 || currentMapType === 10 || currentMapType === 14 || currentMapType === 15 || currentMapType === 16) return;
     if (currentMapType === 3) {
         for (let i = 0; i < 6; i++) createBushCluster(250 + Math.random() * (MAP_SIZE.w - 500), 250 + Math.random() * (MAP_SIZE.h - 500), 4, 120, false);
     } else if (currentMapType === 11) {
@@ -1044,7 +1094,9 @@ function pickWeatherForMap(initial = false) {
     else if (currentMapType === 10) currentWeather = 1; // trong hang không có sương mù, chỉ có bóng tối
     else if (currentMapType === 7 || currentMapType === 11) currentWeather = 11;
     else if (currentMapType === 9) currentWeather = 4;
-    else if (currentMapType === 6) currentWeather = initial ? 4 : 1;
+    else if (currentMapType === 6) currentWeather = (initial || storyRain()) ? 4 : 1;
+    else if (currentMapType === 15) currentWeather = 5;
+    else if (currentMapType === 16) currentWeather = 1;
     else if (currentMapType === 1 || currentMapType === 2 || currentMapType === 3) currentWeather = 1;
     else if (currentMapType === 12) currentWeather = Math.random() < 0.5 ? 5 : 10;
     else if (currentMapType === 13) currentWeather = Math.random() < 0.6 ? 6 : 1;
@@ -1136,6 +1188,7 @@ function updateHazards(dt) {
 
             let strikeDmg = 50, strikeRadius = 90;
             if (currentMapType === 6) { strikeDmg = 90; strikeRadius = 180; }
+            if (storyRain()) { thunderTimer *= 0.5; strikeDmg *= 1.3; }   // ZAP-1624 còn sống: sấm sét dày và đau hơn
 
             hazards.push({
                 type: 'strike',

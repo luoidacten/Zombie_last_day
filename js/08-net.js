@@ -5,11 +5,11 @@
 const NET_PREFIX = 'zsurv-coop-';
 const NET_DROP_T = ['FOOD', 'MEDKIT', 'BLINDBOX', 'SUPERBOX', 'SHARD', 'HEAVYBOX'];
 const NET_EB_T = ['acid', 'net', 'electric', 'rock', 'rocket', 'arrow', 'shotgun'];
-const NET_HZ_T = ['electric', 'slow', 'magnet', 'rock', 'slam', 'artillery', 'strike', 'collapse', 'emp', 'cage', 'beam', 'mine', 'quake', 'rockfall', 'acidbomb', 'quad', 'd_arc', 'd_scythe', 'd_moon'];
+const NET_HZ_T = ['electric', 'slow', 'magnet', 'rock', 'slam', 'artillery', 'strike', 'collapse', 'emp', 'cage', 'beam', 'mine', 'quake', 'rockfall', 'acidbomb', 'quad', 'd_arc', 'd_scythe', 'd_moon', 'soul', 'rift', 'deadzone', 'firewall', 'lancefall', 'plunge'];
 const NET_OB_T = ['wall', 'tree', 'rock', 'power', 'ruin', 'cave', 'plant_wall', 'building', 'rubble', 'rockwall'];
 const NET_ALLY_T = ['rifleman', 'medic', 'vanguard'];
 const NET_STATUS = ['burn', 'electric', 'overload', 'corrosion', 'fear'];
-const NET_PHASE2 = { 30: '#e17055', 31: '#ff6b35', 32: '#c0392b' };
+const NET_PHASE2 = { 30: '#e17055', 31: '#ff6b35', 32: '#c0392b', 35: '#6c5ce7' };
 let toastTimer = null;
 
 function netToast(msg, ms = 3500) {
@@ -84,6 +84,21 @@ function netLobbyResetKeepStatus() {
 }
 
 // ---------------- CHỦ PHÒNG ----------------
+// MÁY CHỦ ICE. STUN chỉ giúp hai máy tìm địa chỉ của nhau; khi CẢ HAI cùng dùng dữ liệu di động (4G/5G sau NAT của nhà mạng)
+// thì không nối thẳng được, bắt buộc phải có máy chủ TURN đứng giữa chuyển tiếp. Danh sách dưới gồm TURN miễn phí công cộng
+// (có thể quá tải / ngừng bất cứ lúc nào). Muốn chắc chắn: tạo tài khoản TURN riêng (vd. metered.ca, Cloudflare Calls có gói miễn phí)
+// rồi điền vào NET_CUSTOM_TURN theo mẫu { urls: 'turn:HOST:PORT', username: '...', credential: '...' }.
+const NET_CUSTOM_TURN = [];
+const NET_ICE = {
+    iceServers: [
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
+        { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+        { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp', 'turns:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+        ...NET_CUSTOM_TURN
+    ],
+    sdpSemantics: 'unified-plan'
+};
+
 async function netHost() {
     Sound.resume();
     netTeardown();
@@ -93,7 +108,7 @@ async function netHost() {
 
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = ''; for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
-    let peer = new Peer(NET_PREFIX + code, { debug: 0 });
+    let peer = new Peer(NET_PREFIX + code, { debug: 0, config: NET_ICE });
     NET.peer = peer; NET.role = 'host';
 
     peer.on('open', () => {
@@ -187,7 +202,7 @@ async function netJoin() {
     document.getElementById('netLobbyMain').style.display = 'none';
     try { await netLoadLib(); } catch (e) { netLobbyReset(); netSetStatus('❌ Không tải được thư viện mạng (cần Internet).'); return; }
 
-    let peer = new Peer(undefined, { debug: 0 });
+    let peer = new Peer(undefined, { debug: 0, config: NET_ICE });
     NET.peer = peer; NET.role = 'guest';
     let opened = false;
     peer.on('open', () => {
@@ -199,8 +214,8 @@ async function netJoin() {
         c.on('close', () => { if (NET.conn === c) netOnPeerLost(); });
         c.on('error', () => { if (NET.conn === c) netOnPeerLost(); });
         setTimeout(() => {
-            if (NET.peer === peer && !opened) { netTeardown(); netLobbyReset(); netSetStatus('❌ Không kết nối được tới phòng (hết thời gian chờ). Hai máy có thể đang bị tường lửa/NAT chặn.'); }
-        }, 15000);
+            if (NET.peer === peer && !opened) { netTeardown(); netLobbyReset(); netSetStatus('❌ Không kết nối được tới phòng (hết thời gian chờ). Nếu cả hai đang dùng 4G/5G: thử để MỘT máy vào Wi-Fi, hoặc một máy phát Wi-Fi cho máy kia.'); }
+        }, 30000);
     });
     peer.on('error', (err) => { if (NET.peer === peer) netPeerError(err); });
 }
@@ -239,6 +254,11 @@ function netOnData(d) {
             p2SelectedUpg = d.id;
             if (!confirmUpgrade(2)) netSendSync(true);
         } else if (d.t === 'pause') setPaused(!!d.on, true);
+        else if (d.t === 'rr') {
+            // Khách xin đổi thẻ: chủ phòng trừ linh kiện rồi báo lại
+            if (gameState !== 'UPGRADE' || p2Confirmed || shopScrap < REROLL_COST) { netSend({ t: 'rrno', scrap: shopScrap }); return; }
+            shopScrap -= REROLL_COST; netSend({ t: 'rrok', scrap: shopScrap }); updateRerollButtons();
+        }
         return;
     }
     // --- phía khách ---
@@ -246,6 +266,11 @@ function netOnData(d) {
     if (d.t === 'start') { netGuestStart(); return; }
     if (NET.mode !== 'guest') return;
     if (d.t === 'pause') { setPaused(!!d.on, true); return; }
+    if (d.t === 'rrok' || d.t === 'rrno') {
+        shopScrap = d.scrap | 0;
+        if (d.t === 'rrok' && gameState === 'UPGRADE' && !p2Confirmed) doReroll(2); else { netToast('Không đủ linh kiện ⚙ để đổi thẻ!', 1500); updateRerollButtons(); }
+        return;
+    }
     if (d.t === 'map') netApplyMap(d);
     else if (d.t === 'sync') netApplySync(d);
     else if (d.t === 's') { if (gameState === 'PLAYING') netApplySnapshot(d); }
@@ -284,7 +309,8 @@ function netEncodePlayer(p) {
     return [R(p.x), R(p.y), +p.facingX.toFixed(2), +p.facingY.toFixed(2), +p.hp.toFixed(1), R(p.maxHp), R(p.hunger), flags,
     p.weapon ? p.weapon.key : 0, p.weapon ? p.weapon.ammo : 0, R((p.chargeTime || 0) * 100), p.pullingPin ? Math.max(1, p.pinTime - Date.now()) : 0,
     p.tempShield || 0, R(p.xp), p.level, R((p.reviveProgress || 0) * 100), p.reviveCount || 0, R(Math.max(0, p.skillC_CD || 0) * 10), p.dCharge || 0,
-    p.perks.frenzyStacks || 0, p.perks.rainStacks || 0, st, R(p.curSpeed || 0), p.pendingUpgrades, R(Math.max(0, p.xpShowTimer || 0) * 10)];
+    p.perks.frenzyStacks || 0, p.perks.rainStacks || 0, st, R(p.curSpeed || 0), p.pendingUpgrades, R(Math.max(0, p.xpShowTimer || 0) * 10),
+    R(p.rage || 0), R(p.mgHeat || 0), p.jamT > 0 ? R(p.jamT * 10) : 0, R(Math.max(0, p.blinkCD || 0) * 10)];
 }
 
 function netBuildSnapshot(slow) {
@@ -311,6 +337,7 @@ function netBuildSnapshot(slow) {
     if (objState === 'DEFEND' && turretMode.active) s.tu = [R(turretMode.x), R(turretMode.y), R(turretMode.hp), R(turretMode.maxHp)];
 
     s.p = players.map(netEncodePlayer);
+    s.x = storyNetState();   // cốt truyện: hội thoại, giới thiệu boss, vật thể nhiệm vụ, mini-game tàu hoả
 
     s.z = [];
     for (let z of zombies) {
@@ -346,11 +373,11 @@ function netBuildSnapshot(slow) {
     s.tw = towers.map(t => [R(t.x), R(t.y), R(t.progress * 100), t.active ? 1 : 0, t.needsBattery ? 1 : 0]);
     s.mi = missionItems.map(i => [R(i.x), R(i.y), i.taken ? 1 : 0, i.kind === 'battery' ? 1 : 0]);
     s.fz = [];
-    for (let f of fireZones) { if (near(f.x, f.y, f.radius)) s.fz.push([R(f.x), R(f.y), R(f.radius), R(f.life * 10), f.kind === 'acid' ? 1 : (f.kind === 'arrow' ? 2 : 0)]); if (s.fz.length > 70) break; }
+    for (let f of fireZones) { if (near(f.x, f.y, f.radius)) s.fz.push([R(f.x), R(f.y), R(f.radius), R(f.life * 10), f.kind === 'acid' ? 1 : (f.kind === 'arrow' ? 2 : (f.kind === 'oil' ? 3 : 0))]); if (s.fz.length > 70) break; }
     s.hzd = [];
     for (let h of hazards) {
         let e = [NET_HZ_T.indexOf(h.type), R(h.x || 0), R(h.y || 0), R(h.radius || 0), h.timer === undefined ? -1 : R(h.timer * 100), R(h.life * 100), h.friendly ? 1 : 0, R((h.t0 || h.timer || 0) * 100)];
-        if (h.type === 'beam' || h.type === 'quad' || h.type === 'd_arc') e.push(+h.angle.toFixed(2));
+        if (typeof h.angle === 'number') e.push(+h.angle.toFixed(2));   // tia quét, cung chém, vết rách, bức tường lửa...
         else if (h.type === 'cage') e.push(h.points.map(p => [R(p.x), R(p.y)]));
         s.hzd.push(e);
         if (s.hzd.length > 60) break;
@@ -358,7 +385,7 @@ function netBuildSnapshot(slow) {
     s.dr = drones.map(d => [R(d.x), R(d.y), d.color]);
     s.al = [];
     for (let a of allies) if (a.hp > 0) s.al.push([R(a.x), R(a.y), NET_ALLY_T.indexOf(a.kind), R(a.hp / a.maxHp * 100), a.elite ? 1 : 0, +a.facingX.toFixed(2), +a.facingY.toFixed(2)]);
-    s.np = rescueNPCs.map(n => [R(n.x), R(n.y), R(Math.max(0, n.hp) / n.maxHp * 100), n.rescued ? 1 : 0, R((n.rescueProgress || 0) * 10), n.isDoctor ? 1 : 0, n.state === 'plant' ? 1 : (n.state === 'wait' ? 2 : 0)]);
+    s.np = rescueNPCs.map(n => [R(n.x), R(n.y), R(Math.max(0, n.hp) / n.maxHp * 100), n.rescued ? 1 : 0, R((n.rescueProgress || 0) * 10), n.isDoctor ? 1 : 0, n.state === 'plant' ? 1 : (n.state === 'wait' ? 2 : 0), n.isStory ? STORY_NPC_T.indexOf(n.kind) + 1 : 0]);
     s.op = [];
     for (let o of outposts) if (!o.dead) s.op.push([R(o.x), R(o.y), R(Math.max(0, o.hp) / o.maxHp * 100), R(Math.max(0, o.destroyTimer) * 10)]);
     s.th = thrownItems.map(t => [R(t.x), R(t.y), t.isGrenade ? Math.max(1, t.expTime - Date.now()) : 0, (t.wepData && t.wepData.color) || '#bdc3c7', R(t.vx), R(t.vy)]);
@@ -476,6 +503,7 @@ function netApplySync(m) {
             p2Confirmed = true;
             setUpgradeHalfDone(2, 'HẾT LƯỢT CHỌN - CHỜ ĐỒNG ĐỘI...');
         }
+        updateRerollButtons();
     }
 }
 
@@ -499,6 +527,7 @@ function netDecodePlayer(p, e, isLocal) {
     p.status = {};
     for (let st of (e[21] || [])) { let id = NET_STATUS[st[0]]; if (id) p.status[id] = { id, timer: 1, stacks: st[1] }; }
     p.spd = e[22]; p.pendingUpgrades = e[23]; p.xpShowTimer = e[24] / 10;
+    p.rage = e[25] || 0; p.mgHeat = e[26] || 0; p.jamT = (e[27] || 0) / 10; p.blinkCD = (e[28] || 0) / 10;
 }
 
 function netApplySnapshot(s) {
@@ -530,6 +559,7 @@ function netApplySnapshot(s) {
     if (s.tu) { turretMode.active = true; turretMode.x = s.tu[0]; turretMode.y = s.tu[1]; turretMode.hp = s.tu[2]; turretMode.maxHp = s.tu[3]; } else turretMode.active = false;
 
     s.p.forEach((e, i) => { if (players[i] && Array.isArray(e)) netDecodePlayer(players[i], e, i === NET.localIdx); });
+    storyNetApply(s.x);
 
     // Zombie (có nội suy vị trí)
     let seen = new Set();
@@ -559,16 +589,21 @@ function netApplySnapshot(s) {
     if (s.d) drops = s.d.map(e => { let type = NET_DROP_T[e[2]] || 'FOOD'; return { x: e[0], y: e[1], type, radius: type === 'FOOD' ? 12 : (type === 'MEDKIT' ? 15 : (type === 'HEAVYBOX' ? 17 : 16)) }; });
     towers = (s.tw || []).map(e => ({ x: e[0], y: e[1], progress: e[2] / 100, active: !!e[3], needsBattery: !!e[4] }));
     missionItems = (s.mi || []).map(e => ({ x: e[0], y: e[1], radius: 14, taken: !!e[2], kind: e[3] ? 'battery' : undefined }));
-    fireZones = (s.fz || []).map(e => ({ x: e[0], y: e[1], radius: e[2], life: e[3] / 10, kind: e[4] === 1 ? 'acid' : (e[4] === 2 ? 'arrow' : undefined) }));
+    fireZones = (s.fz || []).map(e => ({ x: e[0], y: e[1], radius: e[2], life: e[3] / 10, kind: e[4] === 1 ? 'acid' : (e[4] === 2 ? 'arrow' : (e[4] === 3 ? 'oil' : undefined)) }));
     hazards = (s.hzd || []).map(e => {
         let h = { type: NET_HZ_T[e[0]] || 'slow', x: e[1], y: e[2], radius: e[3], timer: e[4] < 0 ? undefined : e[4] / 100, life: e[5] / 100, friendly: !!e[6], t0: e[7] ? e[7] / 100 : undefined };
-        if (h.type === 'beam' || h.type === 'quad' || h.type === 'd_arc') h.angle = e[8] || 0;
+        if (typeof e[8] === 'number') h.angle = e[8];
+        else if (h.type === 'beam' || h.type === 'quad' || h.type === 'd_arc') h.angle = 0;
         else if (h.type === 'cage') h.points = (Array.isArray(e[8]) ? e[8] : []).map(p => ({ x: p[0], y: p[1] }));
         return h;
     }).filter(h => h.type !== 'cage' || h.points.length > 1);
     drones = (s.dr || []).map(e => ({ x: e[0], y: e[1], color: String(e[2]) }));
     allies = (s.al || []).map(e => Object.assign(Object.create(Ally.prototype), { x: e[0], y: e[1], kind: NET_ALLY_T[e[2]] || 'rifleman', radius: e[2] === 2 ? 19 : 15, hp: e[3], maxHp: 100, elite: !!e[4], facingX: e[5], facingY: e[6] }));
-    rescueNPCs = (s.np || []).map(e => Object.assign(Object.create(e[5] ? Doctor.prototype : RescueNPC.prototype), { x: e[0], y: e[1], radius: 13, hp: e[2], maxHp: 100, rescued: !!e[3], rescueProgress: e[4] / 10, isDoctor: !!e[5], state: e[6] === 1 ? 'plant' : (e[6] === 2 ? 'wait' : 'move') }));
+    rescueNPCs = (s.np || []).map(e => {
+        let kind = e[7] ? STORY_NPC_T[e[7] - 1] : null;
+        let proto = kind === 'scientist' ? Scientist.prototype : (kind ? StoryNPC.prototype : (e[5] ? Doctor.prototype : RescueNPC.prototype));
+        return Object.assign(Object.create(proto), { x: e[0], y: e[1], radius: 13, hp: e[2], maxHp: 100, rescued: !!e[3], rescueProgress: e[4] / 10, isDoctor: !!e[5], state: e[6] === 1 ? 'plant' : (e[6] === 2 ? 'wait' : 'move'), kind, isStory: !!kind });
+    });
     outposts = (s.op || []).map(e => Object.assign(Object.create(Outpost.prototype), { x: e[0], y: e[1], w: 150, h: 150, hp: e[2], maxHp: 100, destroyTimer: e[3] / 10 }));
     thrownItems = (s.th || []).map(e => ({ x: e[0], y: e[1], rotation: performance.now() / 70, isGrenade: e[2] > 0, expTime: Date.now() + e[2], color: String(e[3]), vx: +e[4] || 0, vy: +e[5] || 0 }));
     airdropMarkers = (s.am || []).map(e => ({ x: e[0], y: e[1], time: e[2] / 100, maxTime: e[3] / 100 }));

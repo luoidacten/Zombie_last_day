@@ -3,7 +3,7 @@
 // ======================================================================
 const lightCanvas = document.createElement('canvas');
 const lightCtx = lightCanvas.getContext('2d');
-const BOSS_NAMES = { 30: 'KHỔNG LỒ', 31: 'LÕI QUÁ TẢI', 32: 'THE LEADER', 45: 'KIẾN CHÚA', 46: 'XÚC TU', 50: 'THE DEAD' };
+const BOSS_NAMES = { 30: 'KHỔNG LỒ', 31: 'LÕI QUÁ TẢI', 32: 'THE LEADER', 35: 'TÀN VẾT CHỚP', 36: 'ZAP-1624 "KÌNH LÔI"', 37: 'THE HUCKER', 45: 'KIẾN CHÚA', 46: 'XÚC TU', 50: 'THE DEAD' };
 
 function localPlayer() { return players[NET.mode ? NET.localIdx : 0] || players[0]; }
 function soloControls() { return isSinglePlayer || !!NET.mode; }
@@ -161,14 +161,29 @@ function drawSweep(v) {
         const SEG = 14;
         ctx.lineCap = 'butt';
         // Các lớp cung chồng lên nhau, lớp sau ngắn dần về phía mũi lưỡi -> đuôi mờ, mũi sáng
-        for (let s = 0; s < SEG; s++) {
-            let from = start + dir * total * (s / SEG), lo = Math.min(from, lead), hi = Math.max(from, lead);
-            if (hi - lo < 0.001) continue;
-            ctx.beginPath(); ctx.arc(0, 0, R * (P.in + 0.012 * s), lo, hi);
-            ctx.strokeStyle = `rgba(${v.col},${P.alpha * fade})`; ctx.lineWidth = Math.max(2, R * (P.w - 0.02 * s)); ctx.stroke();
-            ctx.beginPath(); ctx.arc(0, 0, R * 0.97, lo, hi);
-            ctx.strokeStyle = `rgba(255,255,255,${0.10 * fade})`; ctx.lineWidth = P.edge; ctx.stroke();
-            if (st === 'saber' || st === 'legend') { ctx.beginPath(); ctx.arc(0, 0, R * 0.55, lo, hi); ctx.strokeStyle = `rgba(${v.col},${0.05 * fade})`; ctx.lineWidth = 4; ctx.stroke(); }
+        // Vệt TRĂNG KHUYẾT: đuôi nhọn mờ, phình dần và sáng dần về phía mũi lưỡi, mép ngoài viền trắng sắc
+        const N = 22, thick = R * P.w;
+        for (let s = 0; s < N; s++) {
+            let t0 = s / N, t1 = (s + 1) / N;
+            let a0 = start + dir * total * t0, a1 = start + dir * total * t1;
+            if (Math.abs(a1 - a0) < 0.0005) continue;
+            let w0 = thick * Math.pow(t0, 1.4), w1 = thick * Math.pow(t1, 1.4), al = fade * (0.08 + 0.62 * t1 * t1);
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a0) * R, Math.sin(a0) * R); ctx.lineTo(Math.cos(a1) * R, Math.sin(a1) * R);
+            ctx.lineTo(Math.cos(a1) * (R - w1), Math.sin(a1) * (R - w1)); ctx.lineTo(Math.cos(a0) * (R - w0), Math.sin(a0) * (R - w0));
+            ctx.closePath(); ctx.fillStyle = `rgba(${v.col},${al})`; ctx.fill();
+            ctx.beginPath(); ctx.moveTo(Math.cos(a0) * R, Math.sin(a0) * R); ctx.lineTo(Math.cos(a1) * R, Math.sin(a1) * R);
+            ctx.strokeStyle = `rgba(255,255,255,${fade * (0.15 + 0.8 * t1)})`; ctx.lineWidth = P.edge * (0.4 + 0.6 * t1); ctx.stroke();
+            if (st === 'saber' || st === 'legend') { // lớp sáng thứ hai phía trong
+                ctx.beginPath(); ctx.moveTo(Math.cos(a0) * R * 0.6, Math.sin(a0) * R * 0.6); ctx.lineTo(Math.cos(a1) * R * 0.6, Math.sin(a1) * R * 0.6);
+                ctx.strokeStyle = `rgba(${v.col},${fade * 0.5 * t1})`; ctx.lineWidth = 3; ctx.stroke();
+            }
+        }
+        // Vài vệt gió mảnh chạy theo cung chém
+        ctx.lineWidth = 1.2;
+        for (let j = 0; j < 3; j++) {
+            let rr = R * (0.55 + j * 0.13), aS = start + dir * total * (0.35 + j * 0.12), aE = lead;
+            ctx.beginPath(); ctx.arc(0, 0, rr, Math.min(aS, aE), Math.max(aS, aE)); ctx.strokeStyle = `rgba(255,255,255,${0.22 * fade})`; ctx.stroke();
         }
         if (st === 'legend') { // tia lửa vàng bắn ra theo vành
             ctx.fillStyle = `rgba(255,236,170,${fade})`;
@@ -187,6 +202,7 @@ function drawSweep(v) {
 }
 
 function getObjectiveText() {
+    let so = storyObjectiveText(); if (so) return so;   // cốt truyện: Rừng Sét, ZAP-1624, Phòng Thí Nghiệm Z
     if (isCaveMap()) { let ct = caveObjectiveText(); if (ct) return ct; }
     const fmt = (s) => { s = Math.max(0, s); let m = Math.floor(s / 60), ss = Math.floor(s % 60); return `${m}:${ss < 10 ? '0' : ''}${ss}`; };
     switch (objState) {
@@ -292,6 +308,103 @@ function drawGun(w, r, T) {
     if (handFront) dot(x + handFront, 4, 3.6, SKIN);
 }
 
+// Vũ khí cận chiến cầm tay, vẽ chi tiết theo từng loại (toạ độ cục bộ: +x là hướng nhìn, gốc ở tâm người chơi).
+// Lúc nghỉ vũ khí chếch sang một bên như đang thủ thế; khi ra đòn nó vung theo đúng nhát chém hoặc đâm thẳng tới.
+function drawMeleeWeapon(p, idx, T) {
+    const w = p.weapon, r = p.radius, nm = w.name;
+    let sl = null;
+    for (let s of slashes) if (s.source === p || s.src === idx) { sl = s; break; }
+    const k = sl ? Math.min(1, 1 - Math.max(0, sl.life) / 0.15) : -1;        // 0..1: tiến trình đòn đang đánh
+    const thrust = nm === 'Giáo' || nm === 'Dao Quân Sự' || (sl && sl.spread <= 0.45);
+    const twoHand = nm === 'Búa' || nm === 'Rìu' || nm === 'Giáo';
+    const B = (x, y, ww, hh, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, ww, hh); };
+    const SKIN = '#f5cba7', DARK = '#1e272e';
+
+    ctx.save();
+    ctx.translate(r * 0.72, thrust ? r * 0.42 : r * 0.5);                   // bàn tay cầm
+    if (k >= 0) {
+        if (thrust) ctx.translate(Math.sin(k * Math.PI) * 18, -r * 0.3 * Math.sin(k * Math.PI));
+        else ctx.rotate((k - 0.5) * Math.min(2.4, sl.spread || 1.2) * (sl.dirSign || 1));
+    } else ctx.rotate(thrust ? 0.06 : 0.42 + Math.sin(T * 2 + idx) * 0.03);
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+    if (w.isScythe) {
+        // LIỀM: cán dài sẫm màu, lưỡi cong lớn ánh đỏ
+        B(-8, -2, 46, 4, '#3b2a20'); ctx.strokeStyle = '#1b120c'; ctx.lineWidth = 1; ctx.strokeRect(-8, -2, 46, 4);
+        B(30, -2.6, 5, 5.2, '#7b241c');
+        ctx.beginPath(); ctx.moveTo(36, -2); ctx.quadraticCurveTo(40, -24, 12, -30); ctx.quadraticCurveTo(30, -20, 30, 2); ctx.closePath();
+        ctx.fillStyle = '#dfe6e9'; ctx.fill(); ctx.strokeStyle = '#7b241c'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.strokeStyle = `rgba(255, 70, 80, ${0.55 + 0.3 * Math.sin(T * 6)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(35, -5); ctx.quadraticCurveTo(37, -22, 15, -29); ctx.stroke();
+        ctx.fillStyle = SKIN; ctx.beginPath(); ctx.arc(14, 0, 3.8, 0, Math.PI * 2); ctx.fill();
+    } else if (isKatanaW(w)) {
+        let L = w.isLegendary ? 46 : 36, gold = w.isLegendary;
+        if (gold) { ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = `rgba(255,190,80,${0.35 + 0.15 * Math.sin(T * 8)})`; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(12, -1); ctx.quadraticCurveTo(12 + L * 0.6, -5, 12 + L, -3); ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; }
+        B(-2, -2, 12, 4, gold ? '#6d1f1f' : '#2d3436');                                             // chuôi quấn dây
+        ctx.strokeStyle = gold ? '#f1c40f' : '#95a5a6'; ctx.lineWidth = 1; ctx.beginPath(); for (let i = 0; i < 3; i++) { ctx.moveTo(i * 3.5, -2); ctx.lineTo(i * 3.5 + 2.5, 2); } ctx.stroke();
+        ctx.fillStyle = gold ? '#f1c40f' : '#b7950b'; ctx.beginPath(); ctx.ellipse(11, 0, 2.2, 5.5, 0, 0, Math.PI * 2); ctx.fill();   // kiếm cách
+        ctx.beginPath(); ctx.moveTo(12, -2.4); ctx.quadraticCurveTo(12 + L * 0.6, -5.5, 12 + L, -4.5); ctx.lineTo(12 + L + 4, -1.5); ctx.quadraticCurveTo(12 + L * 0.6, -1.2, 12, 1.8); ctx.closePath();
+        ctx.fillStyle = gold ? '#ffe9b0' : '#ecf0f1'; ctx.fill(); ctx.strokeStyle = gold ? '#b9770e' : '#7f8c8d'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(15, -1.6); ctx.quadraticCurveTo(12 + L * 0.6, -4, 10 + L, -3.4); ctx.stroke();   // ánh thép
+    } else if (nm === 'Rìu') {
+        B(-4, -2, 34, 4, '#8d5a2b'); ctx.strokeStyle = '#5d3a1a'; ctx.lineWidth = 1; ctx.strokeRect(-4, -2, 34, 4);
+        B(18, -2.6, 5, 5.2, '#c0392b');                                                             // dây buộc đỏ
+        ctx.beginPath(); ctx.moveTo(22, -2); ctx.quadraticCurveTo(20, -14, 33, -17); ctx.quadraticCurveTo(38, -8, 33, 2); ctx.quadraticCurveTo(28, -1, 22, 2); ctx.closePath();
+        ctx.fillStyle = '#aab7b8'; ctx.fill(); ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(31.5, -15); ctx.quadraticCurveTo(36, -8, 32.5, 0.5); ctx.stroke();   // lưỡi mài sáng
+        B(24, 2, 6, 5, '#7f8c8d');                                                                  // đầu búa sau lưỡi
+    } else if (nm === 'Búa') {
+        B(-4, -2.2, 34, 4.4, '#6e4b2a'); ctx.strokeStyle = '#3e2a16'; ctx.lineWidth = 1; ctx.strokeRect(-4, -2.2, 34, 4.4);
+        B(25, -12, 15, 24, '#57606f'); ctx.strokeStyle = DARK; ctx.lineWidth = 1.5; ctx.strokeRect(25, -12, 15, 24);
+        B(25, -12, 15, 3.5, '#2f3542'); B(25, 8.5, 15, 3.5, '#2f3542');                             // đai thép hai đầu
+        B(27, -8, 3, 16, 'rgba(255,255,255,0.28)');
+    } else if (nm === 'Dao Quân Sự') {
+        B(-3, -2, 9, 4, '#2d3436'); B(-1, -2, 1.5, 4, '#636e72'); B(2, -2, 1.5, 4, '#636e72');
+        B(6, -3.6, 2, 7.2, '#7f8c8d');                                                              // chắn tay
+        ctx.beginPath(); ctx.moveTo(8, -2.2); ctx.lineTo(21, -2.2); ctx.lineTo(26, 0.6); ctx.lineTo(8, 2); ctx.closePath();
+        ctx.fillStyle = '#dfe6e9'; ctx.fill(); ctx.strokeStyle = '#636e72'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.strokeStyle = '#95a5a6'; ctx.beginPath(); for (let i = 0; i < 3; i++) { ctx.moveTo(10 + i * 2.5, -2.2); ctx.lineTo(10 + i * 2.5, -0.8); } ctx.stroke();   // răng cưa sống dao
+    } else if (nm === 'Giáo') {
+        B(-10, -1.6, 46, 3.2, '#8d5a2b'); ctx.strokeStyle = '#5d3a1a'; ctx.lineWidth = 1; ctx.strokeRect(-10, -1.6, 46, 3.2);
+        ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.moveTo(32, -1.6); ctx.lineTo(29, -6 - Math.sin(T * 9) * 1.5); ctx.lineTo(35, -1.6); ctx.moveTo(32, 1.6); ctx.lineTo(29, 6 + Math.sin(T * 9 + 1) * 1.5); ctx.lineTo(35, 1.6); ctx.fill();   // tua đỏ
+        ctx.beginPath(); ctx.moveTo(36, -3.6); ctx.lineTo(50, 0); ctx.lineTo(36, 3.6); ctx.lineTo(38.5, 0); ctx.closePath();
+        ctx.fillStyle = '#dfe6e9'; ctx.fill(); ctx.strokeStyle = '#636e72'; ctx.lineWidth = 1; ctx.stroke();
+    } else if (nm === 'Laser') {
+        B(-3, -2.6, 12, 5.2, '#57606f'); B(0, -2.6, 2, 5.2, '#2f3542'); B(5, -2.6, 2, 5.2, '#2f3542'); B(8, -3.4, 2.5, 6.8, '#aab7b8');
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = w.color; ctx.globalAlpha = 0.35 + 0.1 * Math.sin(T * 30); ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(46, 0); ctx.stroke();
+        ctx.globalAlpha = 0.9; ctx.lineWidth = 5; ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(45, 0); ctx.stroke();
+    } else if (w.isElectric) { // Roi Điện
+        B(-3, -2.4, 12, 4.8, '#2d3436'); B(7, -3.2, 3, 6.4, '#00d2d3');
+        ctx.globalCompositeOperation = 'lighter';
+        for (let pass = 0; pass < 2; pass++) {
+            ctx.beginPath(); ctx.moveTo(10, 0);
+            for (let i = 1; i <= 8; i++) ctx.lineTo(10 + i * 4.2, Math.sin(T * 14 + i * 1.3) * (2 + i * 0.7) + (pass ? 0 : (Math.random() - 0.5) * 3));
+            ctx.strokeStyle = pass ? '#fff' : 'rgba(0,210,211,0.75)'; ctx.lineWidth = pass ? 1.4 : 5; ctx.stroke();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+    } else { B(0, -2, 30, 4, w.color || '#bdc3c7'); }
+
+    // Bàn tay
+    ctx.fillStyle = SKIN; ctx.beginPath(); ctx.arc(1, 0, 3.8, 0, Math.PI * 2); ctx.fill();
+    if (twoHand) { ctx.beginPath(); ctx.arc(nm === 'Giáo' ? 14 : 11, 0, 3.8, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore(); ctx.lineCap = 'butt';
+    if (w.isDual) {
+        // SONG KIẾM: thanh thứ hai ở tay kia, vung NGƯỢC nhịp với thanh chính
+        let gold = w.isLegendary, L = gold ? 46 : 36;
+        ctx.save(); ctx.translate(r * 0.72, -r * 0.5);
+        if (k >= 0) ctx.rotate(-(k - 0.5) * Math.min(2.4, sl.spread || 1.2) * (sl.dirSign || 1)); else ctx.rotate(-0.42 - Math.sin(T * 2 + idx) * 0.03);
+        ctx.scale(1, -1);
+        B(-2, -2, 12, 4, gold ? '#6d1f1f' : '#2d3436');
+        ctx.fillStyle = gold ? '#f1c40f' : '#b7950b'; ctx.beginPath(); ctx.ellipse(11, 0, 2.2, 5.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(12, -2.4); ctx.quadraticCurveTo(12 + L * 0.6, -5.5, 12 + L, -4.5); ctx.lineTo(12 + L + 4, -1.5); ctx.quadraticCurveTo(12 + L * 0.6, -1.2, 12, 1.8); ctx.closePath();
+        ctx.fillStyle = gold ? '#ffe9b0' : '#ecf0f1'; ctx.fill(); ctx.strokeStyle = gold ? '#b9770e' : '#7f8c8d'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = SKIN; ctx.beginPath(); ctx.arc(1, 0, 3.8, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    } else if (!twoHand && !w.isScythe) { ctx.fillStyle = SKIN; ctx.beginPath(); ctx.arc(r * 0.8, -r * 0.5, 3.6, 0, Math.PI * 2); ctx.fill(); }   // tay còn lại
+}
+
 function drawPlayerEntity(p, idx, T) {
     drawShadow(p.x, p.y, p.radius);
     if (p.perks.invulnTimer > 0) { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius + 6 + Math.sin(T * 14) * 2, 0, Math.PI * 2); ctx.fillStyle = 'rgba(241,196,15,0.4)'; ctx.fill(); }
@@ -299,7 +412,7 @@ function drawPlayerEntity(p, idx, T) {
         ctx.strokeStyle = '#3498db'; ctx.lineWidth = 3;
         for (let s = 0; s < p.tempShield; s++) { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius + 4 + s * 4, T * 2 + s, T * 2 + s + Math.PI * 1.5); ctx.stroke(); }
     }
-    let hasKatana = p.weapon && (p.weapon.name === 'Kiếm' || p.weapon.name === 'Katana Huyền Thoại');
+    let hasKatana = isKatanaW(p.weapon);
     if (p.perks.heartSword && hasKatana) { ctx.beginPath(); ctx.arc(p.x, p.y, p.radius + 30, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(155,89,182,0.4)'; ctx.lineWidth = 2; ctx.stroke(); }
     if (p.perks.e_dienAp && !p.isDowned) { ctx.beginPath(); ctx.arc(p.x, p.y, 150, 0, Math.PI * 2); ctx.strokeStyle = `rgba(0,210,211,${0.12 + 0.06 * Math.sin(T * 8)})`; ctx.lineWidth = 2; ctx.stroke(); }
 
@@ -335,16 +448,7 @@ function drawPlayerEntity(p, idx, T) {
     if (p.weapon) {
         ctx.fillStyle = p.weapon.color;
         if (p.weapon.type === 'melee') {
-            if (p.weapon.name === 'Búa') { ctx.fillRect(p.radius, -3, 15, 6); ctx.fillRect(p.radius + 10, -8, 12, 16); }
-            else if (p.weapon.name === 'Rìu') { ctx.fillRect(p.radius, -2, 15, 4); ctx.beginPath(); ctx.arc(p.radius + 12, -4, 6, 0, Math.PI); ctx.fill(); }
-            else if (p.weapon.name === 'Dao Quân Sự') { ctx.fillRect(p.radius, -2, 12, 3); ctx.fillStyle = '#bdc3c7'; ctx.beginPath(); ctx.moveTo(p.radius + 12, -2); ctx.lineTo(p.radius + 18, -0.5); ctx.lineTo(p.radius + 12, 1); ctx.fill(); }
-            else if (p.weapon.name === 'Giáo') { ctx.fillStyle = '#8e44ad'; ctx.fillRect(p.radius, -1.5, 30, 3); ctx.fillStyle = '#bdc3c7'; ctx.beginPath(); ctx.moveTo(p.radius + 30, -2); ctx.lineTo(p.radius + 40, 0); ctx.lineTo(p.radius + 30, 2); ctx.fill(); }
-            else if (p.weapon.name === 'Laser' || p.weapon.isElectric || p.weapon.isLegendary) {
-                ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35; ctx.fillRect(p.radius, -5, 34, 10);
-                ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.fillRect(p.radius, -2, 34, 4);
-                ctx.fillStyle = '#fff'; ctx.fillRect(p.radius + 2, -0.8, 30, 1.6);
-            }
-            else ctx.fillRect(p.radius, -2, 30, 4);
+            drawMeleeWeapon(p, idx, T);
         }
         else if (p.weapon.name === 'Lựu Đạn') { ctx.beginPath(); ctx.arc(p.radius + 5, 0, 6, 0, Math.PI * 2); ctx.fillStyle = '#27ae60'; ctx.fill(); }
         else if (p.weapon.type === 'gun' || (p.weapon.type === 'charge' && p.weapon.id !== 16)) drawGun(p.weapon, p.radius, T);
@@ -388,6 +492,7 @@ function drawPlayerEntity(p, idx, T) {
     if (p.perks.rainStacks > 0) { ctx.fillStyle = '#95a5a6'; ctx.font = 'bold 10px Arial'; ctx.fillText(`🔫x${Math.floor(p.perks.rainStacks / 2)}`, p.x - 34, p.y - 26); }
     if (p.perks.nhatKiem) outlinedText(`LƯỚT C: ${p.skillC_CD > 0 ? p.skillC_CD.toFixed(1) + 's' : 'SẴN SÀNG'}`, p.x, p.y + 34, '#ee5253', 'bold 11px Arial');
     if ((p.tags['KIẾM SƯ'] || 0) >= 5) outlinedText(`NỘ D: ${p.dCharge}/50`, p.x, p.y + 47, '#e056fd', 'bold 11px Arial');
+    drawArsenalPlayer(p, T);   // thanh Nhiệt Minigun, Nộ [D] của vũ khí
 }
 
 // Vẽ zombie: thân + HAI TAY vươn ra trước mặt + chi tiết đặc trưng theo từng loại.
@@ -399,6 +504,7 @@ function drawZombieBody(z, T, ang, rage, boss, inBush) {
     const outline = inBush ? 'rgba(255,255,255,0.35)' : '#111';
     if (ty >= 50) { drawDeadEntity(z, T, ang, flash); return; } // The Dead & Tế Phẩm (10-thedead.js)
     if (ty >= 40) { drawAnt(z, T, ang, flash); return; } // loài kiến (09-cave.js)
+    if (ty >= 35) { drawStoryEntity(z, T, ang, flash); return; } // Tàn Vết Chớp, ZAP-1624, The Hucker, Thương Sét (12-story.js)
     const stunned = z.stunTimer > 0;
     const walk = stunned ? 0 : Math.sin(T * 8 + id * 1.7);
     const circle = (x, y, rad, fill) => { ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); };
@@ -730,6 +836,8 @@ function draw() {
     }
 
     if (isCaveMap()) { drawCaveProps(T, vis); drawCaveGuide(T); }
+    if (objState === 'TRAIN') drawRail(T, x0, x1, y0, y1);   // nóc tàu: đất trôi, đường ray, 3 toa, The Hucker
+    drawStoryProps(T, vis);
     if (isCaveMap() && hangZRun.stairs) {
         let st = hangZRun.stairs;
         ctx.beginPath(); ctx.arc(st.x, st.y, st.radius + 8 + Math.sin(T * 4) * 5, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(236,240,241,0.3)'; ctx.lineWidth = 3; ctx.stroke();
@@ -854,8 +962,10 @@ function draw() {
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.stroke(); ctx.lineCap = 'butt';
         } else if (h.type === 'quad') {
             drawQuadHazard(h, T);
-        } else if (h.type === 'd_arc' || h.type === 'd_scythe' || h.type === 'd_moon') {
+        } else if (h.type === 'd_arc' || h.type === 'd_scythe' || h.type === 'd_moon' || h.type === 'soul') {
             drawDeadHazard(h, T);
+        } else if (ARS_HZ.has(h.type)) {
+            drawArsenalHazard(h, T);
         } else if (h.type === 'mine') {
             if (!vis(h.x, h.y, 30)) continue;
             ctx.beginPath(); ctx.arc(h.x, h.y, 11, 0, Math.PI * 2); ctx.fillStyle = '#2d3436'; ctx.fill(); ctx.strokeStyle = '#636e72'; ctx.lineWidth = 2; ctx.stroke();
@@ -954,6 +1064,7 @@ function draw() {
         if (z.hp < z.maxHp) drawMiniBar(z.x, z.y - z.radius - 12, boss ? 80 : 30, boss ? 7 : 4, z.hp, z.maxHp, '#e74c3c');
         if (boss) { ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; outlinedText(BOSS_NAMES[z.type], z.x, z.y - z.radius - 26, z.color, 'bold 14px Arial'); }
         drawStatusEffects(z);
+        drawArsenalZombie(z, T);
         ctx.globalAlpha = 1;
 
         // Đường cảnh báo tia điện của Zombie E.L
@@ -1140,6 +1251,7 @@ function draw() {
             ctx.strokeStyle = `rgba(120, 220, 255, ${0.8 * k})`; ctx.lineWidth = 10; ctx.stroke();
             ctx.strokeStyle = `rgba(255, 255, 255, ${k})`; ctx.lineWidth = 3; ctx.stroke();
         }
+        else drawArsenalVfx(v, T);
     }
     ctx.restore();
 
@@ -1259,6 +1371,7 @@ function draw() {
         for (let t of towers) if (!t.active) drawPointer(t.x, t.y, '#00d2d3');
     }
     else if (objState === 'RESCUE') { for (let n of rescueNPCs) if (n.hp > 0 && !n.rescued) drawPointer(n.x, n.y, '#2ecc71'); }
+    storyPointers(drawPointer);
     if (hasTeamPerk('p_tinHieu')) {
         for (let m of airdropMarkers) drawPointer(m.x, m.y, '#e74c3c');
         for (let d of drops) if (d.type === 'SUPERBOX') drawPointer(d.x, d.y, '#2ecc71');
@@ -1267,13 +1380,15 @@ function draw() {
     if (NET.mode && players.length > 1 && !tank.active) { let mate = players[1 - NET.localIdx]; if (mate) drawPointer(mate.x, mate.y, mate.isDowned ? '#ff7675' : mate.color); }
 
     drawHud(T);
-
-    // Phím ảo
-    if (!solo) {
-        drawVirtualControls(UI.p1Stick, UI.p1BtnA, UI.p1BtnB, UI.p1BtnC, UI.p1BtnD, false);
-        drawVirtualControls(UI.p2Stick, UI.p2BtnA, UI.p2BtnB, UI.p2BtnC, UI.p2BtnD, true);
+    drawControlsLayer();
+}
+// Phím ảo (cảm ứng)
+function drawControlsLayer() {
+    if (!soloControls()) {
+        drawVirtualControls(UI.p1Stick, UI.p1BtnA, UI.p1BtnB, UI.p1BtnC, UI.p1BtnD, false, players[0]);
+        drawVirtualControls(UI.p2Stick, UI.p2BtnA, UI.p2BtnB, UI.p2BtnC, UI.p2BtnD, true, players[1]);
     } else if (showTouchUI) {
-        drawVirtualControls(UI.p1Stick, UI.p1BtnA, UI.p1BtnB, UI.p1BtnC, UI.p1BtnD, false);
+        drawVirtualControls(UI.p1Stick, UI.p1BtnA, UI.p1BtnB, UI.p1BtnC, UI.p1BtnD, false, localPlayer());
     }
 }
 
@@ -1343,8 +1458,10 @@ function drawHud(T) {
     // Băng nhiệm vụ
     let obj = getObjectiveText();
     if (obj) {
-        ctx.font = `bold ${small || side ? 14 : 17}px Arial`; ctx.textAlign = 'center';
-        let tw = Math.min(BW, ctx.measureText(obj[0]).width + 28), bh = small || side ? 26 : 32;
+        // Chữ dài thì thu nhỏ dần cho vừa bề ngang (không còn bị ép dẹt trên điện thoại)
+        let ofs = small || side ? 14 : 17; ctx.textAlign = 'center';
+        do { ctx.font = `bold ${ofs}px Arial`; } while (ctx.measureText(obj[0]).width + 28 > BW - 8 && --ofs > 9);
+        let tw = Math.min(BW - 8, ctx.measureText(obj[0]).width + 28), bh = small || side ? 26 : 32;
         let blink = (objState === 'EVAC' || objState === 'ROOFTOP') && Math.floor(T * 4) % 2 === 0;
         ctx.fillStyle = blink ? 'rgba(20,60,40,0.8)' : 'rgba(0,0,0,0.62)'; ctx.fillRect(W / 2 - tw / 2, bannerY, tw, bh);
         ctx.strokeStyle = obj[1]; ctx.globalAlpha = 0.5; ctx.lineWidth = 1; ctx.strokeRect(W / 2 - tw / 2 + 0.5, bannerY + 0.5, tw, bh); ctx.globalAlpha = 1;
@@ -1353,7 +1470,7 @@ function drawHud(T) {
     }
 
     // Thanh máu Boss
-    let boss = zombies.find(z => z.type === 50) || zombies.find(z => (z.type >= 30 && z.type <= 32) || z.type === 45);
+    let boss = zombies.find(z => z.type === 50) || zombies.find(z => isBossType(z.type) && z.type !== 46 && !z.gone);
     if (boss) {
         let bw = Math.min(420, BW * (side ? 1 : 0.6));
         ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(W / 2 - bw / 2, bannerY, bw, 12);
@@ -1368,10 +1485,13 @@ function drawHud(T) {
         let r = radioDialogs[0];
         let bw = Math.min(560, BW - (side ? 0 : 24));
         ctx.globalAlpha = Math.min(1, r.life * 2);
-        ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(W / 2 - bw / 2, bannerY, bw, 30);
-        ctx.strokeStyle = '#00d2d3'; ctx.lineWidth = 1; ctx.strokeRect(W / 2 - bw / 2 + 0.5, bannerY + 0.5, bw, 30);
-        ctx.fillStyle = '#dff9fb'; ctx.font = `bold ${small ? 10 : 13}px Arial`; ctx.textAlign = 'center';
-        ctx.fillText('📻 ' + r.text, W / 2, bannerY + 16, bw - 16);
+        // Câu dài tự xuống dòng (trước đây bị ép dẹt thành chữ tí hon trên màn hình hẹp)
+        let rfs = small ? 11 : 13; ctx.font = `bold ${rfs}px Arial`;
+        let rl = storyWrap('📻 ' + r.text, bw - 18).slice(0, 4), rh = 12 + rl.length * (rfs + 4);
+        ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(W / 2 - bw / 2, bannerY, bw, rh);
+        ctx.strokeStyle = '#00d2d3'; ctx.lineWidth = 1; ctx.strokeRect(W / 2 - bw / 2 + 0.5, bannerY + 0.5, bw, rh);
+        ctx.fillStyle = '#dff9fb'; ctx.textAlign = 'center';
+        rl.forEach((ln, i) => ctx.fillText(ln, W / 2, bannerY + 7 + rfs / 2 + i * (rfs + 4), bw - 12));
         ctx.globalAlpha = 1;
     }
     if (side) ctx.restore();
@@ -1391,6 +1511,7 @@ function drawHud(T) {
     }
 
     drawDeadWarning(T);
+    drawStoryOverlay(T);   // sắc tím, hội thoại, màn giới thiệu boss, cắt cảnh
     if (NET.mode === 'guest' && performance.now() - NET.lastRecv > 2500) {
         ctx.textAlign = 'center'; outlinedText('📡 Đang mất tín hiệu từ chủ phòng...', W / 2, H - 30, '#ff7675', 'bold 14px Arial');
     }
@@ -1410,6 +1531,7 @@ function drawMinimap(S) {
     for (let op of outposts) if (!op.dead) dot(op.x + op.w / 2, op.y + op.h / 2, 3, '#c0392b');
     if (hangZRun.stairs && isCaveMap()) dot(hangZRun.stairs.x, hangZRun.stairs.y, 3, '#ecf0f1');
     if (isCaveMap()) for (let cp of caveProps) if (cp.kind === 'nest' || cp.kind === 'core' || (cp.kind === 'c4' && cp.state < 2)) dot(cp.x, cp.y, 2.5, cp.kind === 'c4' ? '#f1c40f' : '#e67e22');
+    for (let sp of story.props) if (!sp.on && sp.kind !== 'traindoor') dot(sp.x, sp.y, sp.kind === 'wreck' ? 1.8 : 2.5, sp.kind === 'wreck' ? '#bdc3c7' : sp.kind === 'station' ? '#f9ca24' : (sp.kind === 'print' ? '#74b9ff' : '#48dbfb'));
     if (evacZone) { ctx.strokeStyle = objState === 'EVAC' ? '#2ecc71' : '#f1c40f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(mx + evacZone.x * sc, my + evacZone.y * sc, 5, 0, Math.PI * 2); ctx.stroke(); }
     if (hasTeamPerk('p_tinHieu')) for (let d of drops) if (d.type === 'SUPERBOX') dot(d.x, d.y, 2, '#f39c12');
     players.forEach((p, i) => {
@@ -1419,23 +1541,88 @@ function drawMinimap(S) {
     });
 }
 
-function drawVirtualControls(stick, btnA, btnB, btnC, btnD, isTopPlayer) {
-    ctx.beginPath(); ctx.arc(stick.baseX, stick.baseY, 40, 0, Math.PI * 2); ctx.fillStyle = 'rgba(236,240,241,0.05)'; ctx.fill(); ctx.strokeStyle = 'rgba(236,240,241,0.2)'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.beginPath(); ctx.arc(stick.active ? stick.cx : stick.baseX, stick.active ? stick.cy : stick.baseY, 20, 0, Math.PI * 2); ctx.fillStyle = 'rgba(236,240,241,0.4)'; ctx.fill();
+// Cụm phím ảo: cần điều khiển kiểu "kính mờ" + 4 nút có BIỂU TƯỢNG theo ngữ cảnh,
+// vòng tiến trình quanh nút cho biết đạn / hồi chiêu / thanh Nộ.
+//   A = tấn công (súng: tâm ngắm, cận chiến: lưỡi kiếm, cung: mũi tên)   B = ném / pháo cối
+//   C = lướt / bước nhảy (vòng hồi chiêu)                                D = Nộ (vòng nạp, sáng nhấp nháy khi đầy)
+function drawVirtualControls(stick, btnA, btnB, btnC, btnD, isTopPlayer, p) {
+    const T = performance.now() / 1000, TAU = Math.PI * 2;
+    // --- Cần điều khiển ---
+    let sx = stick.baseX, sy = stick.baseY, kx = stick.active ? stick.cx : sx, ky = stick.active ? stick.cy : sy;
+    let bg = ctx.createRadialGradient(sx, sy, 6, sx, sy, 48);
+    bg.addColorStop(0, 'rgba(15,23,42,0.08)'); bg.addColorStop(0.75, 'rgba(15,23,42,0.38)'); bg.addColorStop(1, 'rgba(15,23,42,0.55)');
+    ctx.beginPath(); ctx.arc(sx, sy, 48, 0, TAU); ctx.fillStyle = bg; ctx.fill();
+    ctx.strokeStyle = stick.active ? 'rgba(125,211,252,0.85)' : 'rgba(226,232,240,0.38)'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = stick.active ? 'rgba(125,211,252,0.8)' : 'rgba(226,232,240,0.4)';
+    for (let k = 0; k < 4; k++) { let a = k * Math.PI / 2; ctx.beginPath(); ctx.moveTo(sx + Math.cos(a) * 43, sy + Math.sin(a) * 43); ctx.lineTo(sx + Math.cos(a - 0.14) * 35, sy + Math.sin(a - 0.14) * 35); ctx.lineTo(sx + Math.cos(a + 0.14) * 35, sy + Math.sin(a + 0.14) * 35); ctx.fill(); }
+    if (stick.active) { ctx.strokeStyle = 'rgba(125,211,252,0.35)'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(kx, ky); ctx.stroke(); ctx.lineCap = 'butt'; }
+    let kg = ctx.createRadialGradient(kx - 6, ky - 7, 2, kx, ky, 22);
+    kg.addColorStop(0, 'rgba(255,255,255,0.95)'); kg.addColorStop(0.35, stick.active ? 'rgba(125,211,252,0.85)' : 'rgba(203,213,225,0.7)'); kg.addColorStop(1, 'rgba(51,65,85,0.75)');
+    ctx.beginPath(); ctx.arc(kx, ky, 21, 0, TAU); ctx.fillStyle = kg; ctx.fill(); ctx.strokeStyle = 'rgba(15,23,42,0.7)'; ctx.lineWidth = 2; ctx.stroke();
 
-    let drawBtn = (btn, radius, label, color) => {
-        ctx.beginPath(); ctx.arc(btn.x, btn.y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = btn.pressed ? color.replace('0.3', '0.6') : color;
-        ctx.fill(); ctx.strokeStyle = 'rgba(236,240,241,0.3)'; ctx.lineWidth = 2; ctx.stroke();
+    // --- Trạng thái theo ngữ cảnh ---
+    let w = p && !p.isDowned ? p.weapon : null, tr = objState === 'TRAIN' ? story.rail : null, gun = null;
+    let ammoPct = w && w.maxAmmo ? Math.max(0, Math.min(1, w.ammo / w.maxAmmo)) : 0;
+    let cReady = false, cPct = 0, dPct = 0, dReady = false, bPct = -1;
+    if (p && !tr) {
+        if (p.perks.nhatKiem && isKatanaW(w)) { cPct = 1 - Math.min(1, Math.max(0, p.skillC_CD) / 3); cReady = cPct >= 1; }
+        else if (p.perks.tk_blink) { cPct = 1 - Math.min(1, Math.max(0, p.blinkCD || 0) / 6); cReady = cPct >= 1; }
+        if ((p.tags['KIẾM SƯ'] || 0) >= 5 && isKatanaW(w)) dPct = Math.min(1, (p.dCharge || 0) / 50);
+        else if (w && RAGE_WEAPONS[w.key]) dPct = Math.min(1, (p.rage || 0) / 100);
+        dReady = dPct >= 1;
+    }
+    if (tr) { bPct = 1 - Math.min(1, Math.max(0, tr.cannon) / 8); cPct = Math.max(0.01, 1 - Math.min(1, Math.max(0, tr.boostCD) / 12)); cReady = cPct >= 1; dPct = tr.sw > 0 ? 1 : 0; dReady = tr.sw > 0; }
 
-        ctx.save(); ctx.translate(btn.x, btn.y);
-        if (isTopPlayer) ctx.rotate(Math.PI);
-        ctx.fillStyle = '#fff'; ctx.font = `bold ${radius * 0.8}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, 0, 0);
+    const icon = (kind, r) => {
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#f8fafc'; ctx.fillStyle = '#f8fafc'; ctx.lineWidth = Math.max(2, r * 0.11);
+        if (kind === 'aim') {           // tâm ngắm
+            ctx.beginPath(); ctx.arc(0, 0, r * 0.4, 0, TAU); ctx.stroke();
+            ctx.beginPath(); for (let k = 0; k < 4; k++) { let a = k * Math.PI / 2; ctx.moveTo(Math.cos(a) * r * 0.22, Math.sin(a) * r * 0.22); ctx.lineTo(Math.cos(a) * r * 0.62, Math.sin(a) * r * 0.62); } ctx.stroke();
+            ctx.beginPath(); ctx.arc(0, 0, r * 0.07, 0, TAU); ctx.fill();
+        } else if (kind === 'blade') {  // lưỡi kiếm chém chéo
+            ctx.beginPath(); ctx.moveTo(-r * 0.45, r * 0.45); ctx.lineTo(r * 0.5, -r * 0.5); ctx.stroke();
+            ctx.lineWidth = Math.max(2, r * 0.16); ctx.beginPath(); ctx.moveTo(-r * 0.5, r * 0.12); ctx.lineTo(-r * 0.12, r * 0.5); ctx.stroke();
+            ctx.lineWidth = Math.max(1.5, r * 0.07); ctx.globalAlpha *= 0.7; ctx.beginPath(); ctx.arc(-r * 0.05, r * 0.05, r * 0.62, -1.9, -0.25); ctx.stroke(); ctx.globalAlpha /= 0.7;
+        } else if (kind === 'bow') {    // mũi tên
+            ctx.beginPath(); ctx.moveTo(-r * 0.5, r * 0.3); ctx.lineTo(r * 0.45, -r * 0.3); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(r * 0.52, -r * 0.35); ctx.lineTo(r * 0.16, -r * 0.34); ctx.lineTo(r * 0.36, -r * 0.02); ctx.closePath(); ctx.fill();
+        } else if (kind === 'throw') {  // quỹ đạo ném
+            ctx.setLineDash([r * 0.16, r * 0.14]); ctx.beginPath(); ctx.arc(0, r * 0.3, r * 0.52, Math.PI * 1.08, Math.PI * 1.86); ctx.stroke(); ctx.setLineDash([]);
+            ctx.beginPath(); ctx.moveTo(r * 0.56, -r * 0.02); ctx.lineTo(r * 0.2, -r * 0.3); ctx.lineTo(r * 0.24, r * 0.12); ctx.closePath(); ctx.fill();
+            ctx.beginPath(); ctx.arc(-r * 0.46, r * 0.22, r * 0.14, 0, TAU); ctx.fill();
+        } else if (kind === 'mortar') { // đạn cối
+            ctx.beginPath(); ctx.ellipse(0, 0, r * 0.2, r * 0.42, 0.6, 0, TAU); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(-r * 0.36, r * 0.5); ctx.lineTo(-r * 0.06, r * 0.22); ctx.moveTo(-r * 0.5, r * 0.3); ctx.lineTo(-r * 0.2, r * 0.12); ctx.stroke();
+        } else if (kind === 'dash') {   // hai mũi nhọn lao tới
+            for (let k = 0; k < 2; k++) { let ox = (k - 0.5) * r * 0.5; ctx.beginPath(); ctx.moveTo(ox - r * 0.2, -r * 0.38); ctx.lineTo(ox + r * 0.2, 0); ctx.lineTo(ox - r * 0.2, r * 0.38); ctx.stroke(); }
+        } else {                        // nộ: ngôi sao nổ
+            ctx.beginPath(); for (let k = 0; k < 16; k++) { let a = k * Math.PI / 8 - Math.PI / 2, rr = k % 2 ? r * 0.26 : r * 0.6; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); ctx.fill();
+        }
+        ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+    };
+    const btn = (b, r, rgb, kind, letter, pct, ready, dim) => {
+        let pr = b.pressed, rr = pr ? r * 0.93 : r;
+        if (ready) { ctx.beginPath(); ctx.arc(b.x, b.y, rr + 7 + Math.sin(T * 7) * 2.5, 0, TAU); ctx.strokeStyle = `rgba(${rgb},${0.45 + 0.3 * Math.sin(T * 7)})`; ctx.lineWidth = 3; ctx.stroke(); }
+        let g = ctx.createRadialGradient(b.x - rr * 0.35, b.y - rr * 0.4, rr * 0.1, b.x, b.y, rr);
+        g.addColorStop(0, `rgba(${rgb},${pr ? 0.95 : 0.55})`); g.addColorStop(0.6, `rgba(${rgb},${pr ? 0.6 : 0.26})`); g.addColorStop(1, 'rgba(15,23,42,0.62)');
+        ctx.beginPath(); ctx.arc(b.x, b.y, rr, 0, TAU); ctx.fillStyle = g; ctx.fill();
+        ctx.strokeStyle = pr ? '#ffffff' : `rgba(${rgb},0.9)`; ctx.lineWidth = pr ? 3.5 : 2.5; ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(b.x, b.y - rr * 0.42, rr * 0.6, rr * 0.3, 0, Math.PI, 0); ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fill();   // vệt bóng
+        if (pct >= 0) {                 // vòng tiến trình
+            ctx.beginPath(); ctx.arc(b.x, b.y, rr + 4, 0, TAU); ctx.strokeStyle = 'rgba(15,23,42,0.6)'; ctx.lineWidth = 4; ctx.stroke();
+            ctx.beginPath(); ctx.arc(b.x, b.y, rr + 4, -Math.PI / 2, -Math.PI / 2 + TAU * Math.max(0, Math.min(1, pct))); ctx.strokeStyle = ready ? '#ffffff' : `rgba(${rgb},1)`; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke(); ctx.lineCap = 'butt';
+        }
+        ctx.save(); ctx.translate(b.x, b.y); if (isTopPlayer) ctx.rotate(Math.PI);
+        ctx.globalAlpha = dim ? 0.4 : 1; icon(kind, rr); ctx.globalAlpha = 1;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.beginPath(); ctx.arc(rr * 0.74, -rr * 0.74, 8, 0, TAU); ctx.fillStyle = 'rgba(15,23,42,0.85)'; ctx.fill(); ctx.strokeStyle = `rgba(${rgb},0.9)`; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.fillText(letter, rr * 0.74, -rr * 0.7);
         ctx.restore();
     };
 
-    drawBtn(btnA, 25, 'A', 'rgba(231,76,60,0.3)');
-    drawBtn(btnB, 20, 'B', 'rgba(52,152,219,0.3)');
-    drawBtn(btnC, 18, 'C', 'rgba(238,82,83,0.3)');
-    drawBtn(btnD, 18, 'D', 'rgba(224,86,253,0.3)');
+    let aKind = gun ? 'aim' : (w && w.type === 'melee' ? 'blade' : (w && w.key === 'BOW' ? 'bow' : 'aim'));
+    btn(btnA, 30, '231,76,60', aKind, 'A', w || gun ? ammoPct : -1, false, !w && !gun);
+    btn(btnB, 23, '52,152,219', tr ? 'mortar' : 'throw', 'B', bPct, tr ? bPct >= 1 : false, !w && !tr);
+    btn(btnC, 21, '245,158,11', 'dash', 'C', cPct > 0 ? cPct : -1, cReady, cPct <= 0);
+    btn(btnD, 21, '224,86,253', 'rage', 'D', dPct > 0 ? dPct : -1, dReady, dPct <= 0);
 }

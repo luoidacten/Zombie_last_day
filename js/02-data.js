@@ -26,8 +26,6 @@ const TAG_RULES = {
     'KIẾM SƯ': { reqBreak: 5, exclusive: true },
     'DRONE': { reqBreak: 5, exclusive: true },
     'ĐIỆN': { reqBreak: 5, exclusive: true },
-    'KHAN_DOC': { reqBreak: 5, exclusive: true },
-    'THOI_KHONG': { reqBreak: 5, exclusive: true },
     'TRIEU_HOI': { reqBreak: 5, exclusive: true },
     'CHIẾN XA': { reqBreak: 5, exclusive: false },
     'CẬN CHIẾN': { reqBreak: 5, exclusive: false },
@@ -64,8 +62,9 @@ const TAG_DEFS = {
     'SNIPER': { max: 4, color: '#2c3e50' },
     'ĐIỆN': { max: 15, color: '#00d2d3' },
     'NÉM': { max: 5, color: '#fab1a0' },
-    'KHAN_DOC': { max: 10, color: '#2ecc71' },
-    'THOI_KHONG': { max: 10, color: '#8e44ad' },
+    'LIỀM': { max: 3, color: '#ff5e57' },
+    'KHAN_DOC': { max: 5, color: '#2ecc71', label: 'ĐỘC TỐ' },
+    'THOI_KHONG': { max: 3, color: '#8e44ad', label: 'THỜI KHÔNG' },
     'TRIEU_HOI': { max: 6, color: '#00cec9', label: 'TRIỆU HỒI' },
     'QUAN_DOI': { max: 6, color: '#95a5a6', label: 'QUÂN ĐỘI' },
     'DONG_MINH': { max: 3, color: '#3498db', label: 'ĐỒNG MINH' },
@@ -130,7 +129,7 @@ const UPGRADES = [
     { id: 'v_gunner', type: 'Kỹ Năng', name: 'Xạ Thủ', desc: 'Tầm nhìn +100 khi dùng vũ khí tầm xa.', tags: ['TẦM NHÌN', 'XẠ THỦ'] },
     { id: 'v_sniper', type: 'Tuyệt Kỹ', name: 'Thiện Xạ', desc: 'Tầm nhìn +250 khi cầm Cung & Sniper.', tags: ['TẦM NHÌN'] },
     { id: 'v_spotlight', type: 'Chiến Thuật', name: 'Soi Rọi', desc: 'Tầm nhìn +100 khi có Trực Thăng.', tags: ['TẦM NHÌN', 'TRỰC THĂNG'] },
-    { id: 'd_scout', type: 'Hỗ Trợ', name: 'Drone Do Thám', desc: 'Drone tự bay đi kích hoạt tháp tín hiệu.', tags: ['DRONE', 'TRỰC THĂNG'] },
+    { id: 'd_scout', type: 'Hỗ Trợ', name: 'Drone Do Thám', desc: 'Drone bay nhanh tự CHIẾM tháp, nhặt vật phẩm nhiệm vụ, cứu người; bắn yểm trợ và ĐÁNH DẤU quái quanh nó (+20% sát thương nhận).', tags: ['DRONE', 'TRỰC THĂNG'] },
     { id: 'd_melee', type: 'Kỹ Năng', name: 'Drone Cận Chiến', desc: 'Drone chém vòng tròn mỗi 5s.', tags: ['DRONE', 'CẬN CHIẾN', 'TẤN CÔNG TỰ ĐỘNG'] },
     // Thêm vào cuối mảng UPGRADES
     { id: 't_canQuet', type: 'Kỹ Năng', name: '🚜 Càn Quét', desc: 'Mở khóa kỹ năng Lướt Tông Húc cực mạnh cho Xe Tăng (chạm nhanh nút B / phím E), hồi chiêu 10s.', tags: ['CHIẾN XA'] },
@@ -145,9 +144,15 @@ const UPGRADES = [
     { id: 'v_tenNo', type: 'Tuyệt Kỹ', name: 'Trận Địa Tên Nổ', desc: 'Cung: Mưa Tên tăng 50% phạm vi, sát thương và liên tục kích nổ liên hoàn.', tags: ['ĐẶC BIỆT', 'NỔ'] },
     { id: 'v_cungMaster', type: 'Kỹ Năng', name: 'Đại Sư Khúc Xạ', desc: 'Cung: Tăng mạnh tốc độ tụ lực và +40% sát thương gốc của cung tên.', tags: ['CHỈ SỐ'] },
     // perks DOT
-    { id: 'a_chongAnMon', type: 'Phong Thu', name: 'Kháng Ăn Mòn', desc: 'Giảm 35% sát thương ăn mòn và vũng acid gây lên người chơi.', tags: ['ĐẶC BIỆT'] },
-    { id: 'a_matNaLoc', type: 'Phong Thu', name: 'Mặt Nạ Lọc', desc: 'Giảm mạnh thời gian hiệu ứng Nhiễm Điện và Sợ Hãi.', tags: ['ĐẶC BIỆT', 'TRỢ GIÚP'] },
-    { id: 'a_apSuatCao', type: 'Kỹ Năng', name: 'Áp Suất Cao', desc: 'Súng phun lửa và phun acid bắn xa hơn, tia ổn định hơn.', tags: ['TIẾN CÔNG', 'CHỈ SỐ'] },
+    { id: 'a_chongAnMon', type: 'Phong Thu', name: 'Kháng Ăn Mòn', desc: 'Giảm 35% sát thương ăn mòn và vũng acid gây lên người chơi.', tags: ['ĐẶC BIỆT', 'KHAN_DOC'] },
+    { id: 'a_matNaLoc', type: 'Phong Thu', name: 'Mặt Nạ Lọc', desc: 'Giảm mạnh thời gian hiệu ứng Nhiễm Điện và Sợ Hãi.', tags: ['ĐẶC BIỆT', 'TRỢ GIÚP', 'KHAN_DOC'] },
+    { id: 'a_apSuatCao', type: 'Kỹ Năng', name: 'Áp Suất Cao', desc: 'Súng phun lửa và phun acid bắn xa hơn, tia ổn định hơn.', tags: ['TIẾN CÔNG', 'CHỈ SỐ', 'KHAN_DOC'] },
+    // --- HỆ ĐỘC TỐ & THỜI KHÔNG (trước đây có Link nhưng chưa có thẻ / hiệu ứng) ---
+    { id: 'x_venom', type: 'Kỹ Năng', name: 'Nọc Độc', desc: 'Mọi đòn đánh của bạn có 20% gây Ăn Mòn lên mục tiêu.', tags: ['KHAN_DOC', 'TIẾN CÔNG'] },
+    { id: 'x_plague', type: 'Tuyệt Kỹ', name: 'Dịch Lây', desc: 'Quái chết khi đang Thiêu Đốt / Ăn Mòn sẽ lây hiệu ứng đó sang 4 con gần nhất.', tags: ['KHAN_DOC', 'ĐẶC BIỆT'] },
+    { id: 'tk_slow', type: 'Kỹ Năng', name: 'Trường Chậm', desc: 'Quái trong vòng 170px quanh bạn bị chậm 25%.', tags: ['THOI_KHONG'] },
+    { id: 'tk_blink', type: 'Kỹ Năng', name: 'Bước Nhảy Không Gian', desc: 'Nút C / phím Q: dịch chuyển 230px theo hướng đang nhìn (hồi 6s). Không dùng chung với Lướt Nhất Kiếm.', tags: ['THOI_KHONG', 'ĐẶC BIỆT'] },
+    { id: 'tk_rewind', type: 'Tuyệt Kỹ', name: 'Tua Ngược', desc: 'Mỗi map 1 lần: khi sắp gục, quay lại 40% máu và đóng băng quái quanh mình 2.5s.', tags: ['THOI_KHONG', 'HỒI MÁU'] },
 
     // CÁC NÂNG CẤP ĐẶC CHẾ CHỈ XUẤT HIỆN KHI QUA 3 TẦNG ĐIỆN (Sẽ được xử lý bộ lọc ở hàm render)
     { id: 'e_dienAp', type: 'Điện Năng', name: '⚡ Điện Áp', desc: 'Tạo trường điện quanh cơ thể gây sát thương điện liên tục lên quái vật xung quanh.', tags: ['ĐIỆN'] },
@@ -163,6 +168,11 @@ const UPGRADES = [
     { id: 'n_pierce', type: 'Kỹ Năng', name: 'Phi Đao Xuyên Thấu', desc: 'Vũ khí ném xuyên qua thêm 2 mục tiêu rồi mới biến mất.', tags: ['NÉM', 'CẬN CHIẾN'] },
     { id: 'n_boomerang', type: 'Tuyệt Kỹ', name: 'Boomerang', desc: 'Vũ khí cận chiến ném đi sẽ bay về tay (tốn 3 độ bền), chém cả lượt về.', tags: ['NÉM', 'ĐẶC BIỆT'] },
     { id: 'n_explode', type: 'Kỹ Năng', name: 'Ném Nổ', desc: 'Vũ khí ném phát nổ khi chạm mục tiêu, không gây hại cho phe ta.', tags: ['NÉM', 'NỔ'] },
+    // Song Kiếm & Liềm (Liềm chỉ mở sau khi hạ boss ẩn The Dead)
+    { id: 'm_songKiem', type: 'Hỗ Trợ', name: 'Song Kiếm', desc: 'Hộp thường có 25% ra Song Kiếm. Đã có Thanh Kiếm Truyền Thuyết: Hòm Thính có thể ra Song Katana Huyền Thoại.', tags: ['KIẾM SƯ', 'VẬT PHẨM'] },
+    { id: 'sc_soul', type: 'Kỹ Năng', name: 'Gặt Hồn', desc: 'Liềm: tỉ lệ kẻ bị giết hoá Tế Phẩm tăng từ 2% lên 8%.', tags: ['LIỀM', 'CẬN CHIẾN'] },
+    { id: 'sc_blast', type: 'Kỹ Năng', name: 'Tế Phẩm Cuồng Bạo', desc: 'Liềm: Tế Phẩm nổ rộng hơn 60% và sát thương x2.', tags: ['LIỀM', 'NỔ'] },
+    { id: 'sc_reap', type: 'Kỹ Năng', name: 'Lưỡi Hái Tử Thần', desc: 'Liềm: tầm chém +25%; mỗi mạng hạ bằng Liềm hồi 1 độ bền và 2 máu.', tags: ['LIỀM', 'HỒI MÁU'] },
     { id: 'n_multi', type: 'Kỹ Năng', name: 'Ném Chùm', desc: 'Mỗi lần ném văng thêm 2 bản sao hình quạt (50% sát thương).', tags: ['NÉM', 'TIẾN CÔNG'] },
 
     // --- HỆ TRIỆU HỒI / QUÂN ĐỘI / ĐỒNG MINH ---
@@ -213,8 +223,14 @@ const WEAPON_TYPES = {
     PISTOL_ELECTRO: { id: 23, name: 'Lục Điện', color: '#00d2d3', ammo: 60, range: 900, fireRate: 350, dmg: 85, type: 'gun', maxAmmo: 60, isElectric: true },
     PLASMA_RAPID: { id: 24, name: 'Plasma Rapid-Pulser', color: '#48dbfb', ammo: 180, range: 850, fireRate: 100, dmg: 45, type: 'gun', maxAmmo: 180, isElectric: true },
     ELECTRON_FLUX: { id: 25, name: 'Electron Flux', color: '#10ac84', ammo: 200, range: 500, fireRate: 40, dmg: 15, type: 'gun', maxAmmo: 200, isElectric: true, isFluxBeam: true },
-    TESLA_CARBINE: { id: 26, name: 'Tesla Carbine', color: '#ff9f43', ammo: 80, range: 1000, fireRate: 600, dmg: 350, type: 'charge', maxAmmo: 80, isElectric: true, isTesla: true }
+    TESLA_CARBINE: { id: 26, name: 'Tesla Carbine', color: '#ff9f43', ammo: 80, range: 1000, fireRate: 600, dmg: 350, type: 'charge', maxAmmo: 80, isElectric: true, isTesla: true },
+    // Cận chiến mới
+    SCYTHE: { id: 28, name: 'Liềm', color: '#c0392b', ammo: 90, range: 135, fireRate: 320, dmg: 170, critCh: 0.2, type: 'melee', spread: 2.6, kb: 220, maxAmmo: 90, isScythe: true },
+    DUAL_KATANA: { id: 29, name: 'Song Kiếm', color: '#dfe6e9', ammo: 140, range: 110, fireRate: 120, dmg: 130, critCh: 0.4, type: 'melee', spread: 1.4, kb: 150, maxAmmo: 140, isKatana: true, isDual: true },
+    DUAL_LEGEND: { id: 30, name: 'Song Katana Huyền Thoại', color: '#ff9f43', ammo: 260, range: 270, fireRate: 110, dmg: 700, critCh: 1.0, type: 'melee', spread: Math.PI * 2, kb: 300, maxAmmo: 260, isLegendary: true, isKatana: true, isDual: true }
 };
+// Mọi loại katana (đơn, kép, huyền thoại) đều hưởng toàn bộ nâng cấp Kiếm / Kiếm Sư
+function isKatanaW(w) { return !!w && (w.name === 'Kiếm' || !!w.isKatana || !!w.isLegendary); }
 for (const k in WEAPON_TYPES) WEAPON_TYPES[k].key = k; // mỗi vũ khí nhớ khóa của mình (dùng cho đồng bộ online & kiểm tra loại)
 const NORMAL_WEAPONS = ['PISTOL', 'SMG', 'AR', 'SHOTGUN', 'SNIPER', 'BOW', 'KATANA', 'AXE', 'HAMMER', 'GLAUNCHER', 'KNIFE', 'SPEAR', 'GRENADE'];
 const SUPER_WEAPONS = ['MINIGUN', 'FLAMETHROWER', 'ACID_SPRAYER', 'LIGHTSABER', 'RADIO'];
@@ -302,4 +318,4 @@ const STATUS_STYLE = {
     fear: { color: '#ff007f', label: 'SO' }
 };
 
-const ELECTRIC_IMMUNE_ZOMBIES = new Set([16, 17, 28, 31]);
+const ELECTRIC_IMMUNE_ZOMBIES = new Set([16, 17, 28, 31, 35, 36, 38]);

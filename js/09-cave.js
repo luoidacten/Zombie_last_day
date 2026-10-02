@@ -16,7 +16,7 @@ function newCaveRun() {
 }
 let caveRun = newCaveRun();
 
-function isBossType(t) { return (t >= 30 && t <= 32) || t === 45 || t === 46 || t === 50; }
+function isBossType(t) { return (t >= 30 && t <= 32) || (t >= 35 && t <= 37) || t === 45 || t === 46 || t === 50; }
 function isCaveMap() { return currentMapType === 10 || currentMapType === 14; }
 function caveSlippery() { return currentMapType === 10 && hangZRun.floor <= 2; }          // trần hang rỉ nước ở tầng 1-2
 function mineDarkness() { if (objState === 'QUEEN') return 0.5; if (objState === 'QUEEN_RUN') return 0.74; return mineRun.floor >= 5 ? 0.74 : 0.52; }
@@ -385,7 +385,6 @@ class Doctor {
 // VÒNG CẬP NHẬT CHÍNH CỦA HANG / HẦM MỎ — trả về true nếu màn vừa kết thúc
 // ---------------------------------------------------------------------------
 function updateCaveWorld(dt) {
-    navUpdate(dt);
     caveRun.rockCD -= dt;
     updateCaveProps(dt);
     updateCaveHazards(dt);

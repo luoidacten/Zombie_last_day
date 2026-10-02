@@ -46,18 +46,18 @@ const Sound = (() => {
 
     // Nhạc nền theo bối cảnh
     const MUSIC = {
-        theme: 'menu_OST (2).mp3',                // menu / màn tử trận
-        map_am: 'map-AM.mp3',                     // map ban ngày
-        map_pm: 'map-PM.mp3',                     // map tối, sương mù
-        map_rain: 'Map-PM2-Rain.mp3',             // mưa, bão sét, mưa acid
-        map_electric: 'map-Electric.mp3',         // Nhà Máy Điện, bão điện từ
-        map_random: 'map_ngẫunhieen.mp3',         // các map còn lại
-        boss: 'Boss_ost1.mp3',
-        boss_electric: 'Boss_ost_Electric.mp3',
-        boss_pm: 'Boss_ost_PM_MAP.mp3',
-        boss_insect: 'Insetboss.mp3',             // Kiến Chúa
-        dead1: 'theDead_1.mp3',                   // The Dead
-        dead2: 'theDead_2.mp3'                    // The Dead dưới 50% máu
+        theme: 'nhac/menu_OST (2).mp3',                // menu / màn tử trận
+        map_am: 'nhac/map-AM.mp3',                     // map ban ngày
+        map_pm: 'nhac/map-PM.mp3',                     // map tối, sương mù
+        map_rain: 'nhac/Map-PM2-Rain.mp3',             // mưa, bão sét, mưa acid
+        map_electric: 'nhac/map-Electric.mp3',         // Nhà Máy Điện, bão điện từ
+        map_random: 'nhac/map_ngẫunhieen.mp3',         // các map còn lại
+        boss: 'nhac/Boss_ost1.mp3',
+        boss_electric: 'nhac/Boss_ost_Electric.mp3',
+        boss_pm: 'nhac/Boss_ost_PM_MAP.mp3',
+        boss_insect: 'nhac/Insetboss.mp3',             // Kiến Chúa
+        dead1: 'nhac/theDead_1.mp3',                   // The Dead
+        dead2: 'nhac/theDead_2.mp3'                    // The Dead dưới 50% máu
     };
     const MUSIC_VOL = 0.24;
 
@@ -65,46 +65,47 @@ const Sound = (() => {
     // v = âm lượng (đã cân theo độ to thật của từng file), gap = giãn cách tối thiểu (ms),
     // keep = không cắt ngang tiếng đang phát, rate = khoảng cao độ ngẫu nhiên, segs = nhiều đoạn chọn ngẫu nhiên.
     const SFX = {
-        kill: { f: 'zombie-die.mp3', s: 0.34, e: 1.32, v: 0.6, gap: 380, voices: 2, keep: true, rate: [0.9, 1.12] },
-        zombie_groan: { f: 'dragon-studio-zombie-sound-2-357976.mp3', g: 'amb', s: 0.5, e: 7.9, v: 0.3, gap: 4000, voices: 1, keep: true },
-        witch: { f: '-female-zombie-screams-witch.mp3', g: 'amb', segs: [[0.3, 7.4], [8.4, 15.4], [16.3, 24.0], [25.0, 28.7]], v: 0.5, gap: 6000, voices: 1, keep: true },
-        sniper: { f: 'gun-Sniper.mp3', s: 0.06, e: 1.3, v: 0.55, gap: 200, voices: 2 },
-        ar: { f: 'Ar_gun.mp3', s: 0, e: 0.9, v: 0.4, gap: 95, voices: 4, rate: [0.97, 1.03] },
-        smg: { f: 'SMG_gun.mp3', s: 0, e: 0.34, v: 0.42, gap: 75, voices: 4, rate: [0.96, 1.05] },
-        bow: { f: 'bow_shoot.mp3', s: 0.42, e: 0.9, v: 0.85, gap: 120, voices: 2 },
-        laser: { f: 'voicebosch-laser-gun-174976.mp3', s: 0.5, e: 1.5, v: 0.4, gap: 150, voices: 3 },
-        plasma: { f: 'lordsonny-plasma-gun-fire-162136.mp3', s: 0.34, e: 1.45, v: 0.2, gap: 220, voices: 2 },
-        charge_up: { f: 'yodguard-energy-charge-2-482499.mp3', s: 0.06, e: 2.85, v: 0.5, gap: 500, voices: 1 },
-        reload_small: { f: 'reaload_smallsgun.mp3', s: 0.54, e: 1.1, v: 0.6, gap: 150, voices: 2 },
-        reload_big: { f: 'reload_bigGun.mp3', s: 0.14, e: 1.2, v: 0.6, gap: 150, voices: 2 },
-        heal: { f: 'heal_medkit.mp3', s: 0.14, e: 1.5, v: 1.0, gap: 900, voices: 1, keep: true },
-        levelup: { f: 'sunovia-level-up-289723.mp3', s: 0.22, e: 1.2, v: 1.0, gap: 400, voices: 1 },
-        pick: { f: 'shoping-pick_lõi.mp3', s: 0.12, e: 0.75, v: 1.0, gap: 120, voices: 2 },
-        explosion: { f: 'soundreality-explosion-fx-343683.mp3', s: 0.12, e: 2.5, v: 0.4, gap: 140, voices: 4 },
-        lightning: { f: 'dragon-studio-lightning-strike-386161.mp3', g: 'amb', s: 0.1, e: 1.1, v: 0.55, gap: 300, voices: 3, rate: [0.92, 1.08] },
-        thunder: { f: 'freesound_community-thunder-big-30291.mp3', g: 'amb', s: 0.7, e: 11.4, v: 0.55, gap: 9000, voices: 1, keep: true },
+        kill: { f: 'quai-boss/zombie-die.mp3', s: 0.34, e: 1.32, v: 0.6, gap: 380, voices: 2, keep: true, rate: [0.9, 1.12] },
+        zombie_groan: { f: 'quai-boss/dragon-studio-zombie-sound-2-357976.mp3', g: 'amb', s: 0.5, e: 7.9, v: 0.3, gap: 4000, voices: 1, keep: true },
+        witch: { f: 'quai-boss/-female-zombie-screams-witch.mp3', g: 'amb', segs: [[0.3, 7.4], [8.4, 15.4], [16.3, 24.0], [25.0, 28.7]], v: 0.5, gap: 6000, voices: 1, keep: true },
+        sniper: { f: 'sung/gun-Sniper.mp3', s: 0.06, e: 1.3, v: 0.55, gap: 200, voices: 2 },
+        ar: { f: 'sung/Ar_gun.mp3', s: 0, e: 0.9, v: 0.4, gap: 95, voices: 4, rate: [0.97, 1.03] },
+        smg: { f: 'sung/SMG_gun.mp3', s: 0, e: 0.34, v: 0.42, gap: 75, voices: 4, rate: [0.96, 1.05] },
+        bow: { f: 'sung/bow_shoot.mp3', s: 0.42, e: 0.9, v: 0.85, gap: 120, voices: 2 },
+        laser: { f: 'sung/voicebosch-laser-gun-174976.mp3', s: 0.5, e: 1.5, v: 0.4, gap: 150, voices: 3 },
+        plasma: { f: 'sung/lordsonny-plasma-gun-fire-162136.mp3', s: 0.34, e: 1.45, v: 0.2, gap: 220, voices: 2 },
+        charge_up: { f: 'sung/yodguard-energy-charge-2-482499.mp3', s: 0.06, e: 2.85, v: 0.5, gap: 500, voices: 1 },
+        reload_small: { f: 'sung/reaload_smallsgun.mp3', s: 0.54, e: 1.1, v: 0.6, gap: 150, voices: 2 },
+        reload_big: { f: 'sung/reload_bigGun.mp3', s: 0.14, e: 1.2, v: 0.6, gap: 150, voices: 2 },
+        heal: { f: 'giao-dien/heal_medkit.mp3', s: 0.14, e: 1.5, v: 1.0, gap: 900, voices: 1, keep: true },
+        levelup: { f: 'giao-dien/sunovia-level-up-289723.mp3', s: 0.22, e: 1.2, v: 1.0, gap: 400, voices: 1 },
+        pick: { f: 'giao-dien/shoping-pick_lõi.mp3', s: 0.12, e: 0.75, v: 1.0, gap: 120, voices: 2 },
+        explosion: { f: 'moi-truong/soundreality-explosion-fx-343683.mp3', s: 0.12, e: 2.5, v: 0.4, gap: 140, voices: 4 },
+        lightning: { f: 'moi-truong/dragon-studio-lightning-strike-386161.mp3', g: 'amb', s: 0.1, e: 1.1, v: 0.55, gap: 300, voices: 3, rate: [0.92, 1.08] },
+        thunder: { f: 'moi-truong/freesound_community-thunder-big-30291.mp3', g: 'amb', s: 0.7, e: 11.4, v: 0.55, gap: 9000, voices: 1, keep: true },
         // Cận chiến: mỗi nhóm vũ khí một tiếng chém
-        slash: { f: 'chém1.mp3', s: 0.12, e: 0.42, v: 0.5, gap: 90, voices: 3, rate: [0.94, 1.08] },
-        slash_heavy: { f: 'chém2.mp3', s: 0.22, e: 0.78, v: 0.6, gap: 140, voices: 2, rate: [0.9, 1.05] },
-        stab: { f: 'freesound_community-sword-sound-2-36274.mp3', s: 0.14, e: 0.42, v: 1.0, gap: 80, voices: 3, rate: [0.95, 1.1] },
-        saber: { f: 'lightsaber3-chém.mp3', s: 0.2, e: 0.95, v: 0.32, gap: 120, voices: 3, rate: [0.95, 1.06] },
-        pick_melee: { f: 'lấy vũ khi cận chiện.mp3', s: 0.28, e: 0.72, v: 0.9, gap: 150, voices: 2 },
-        insect: { f: 'yodguard-giant-insect-hurts-580963.mp3', s: 0.02, e: 0.46, v: 0.4, gap: 260, voices: 2, keep: true, rate: [0.9, 1.25] },
-        waterdrop: { f: 'dragon-studio-waterdrop-406639.mp3', g: 'amb', s: 0, e: 0.4, v: 1.0, gap: 500, voices: 2, rate: [0.8, 1.3] },
-        boss_intro: { f: 'freesound_community-boss-intro-02-72039.mp3', g: 'amb', s: 0, e: 8.2, v: 0.5, gap: 8000, voices: 1, keep: true },
-        dead_offering: { f: 'skillTheDead_tế phẩm.mp3', s: 0.16, e: 3.2, v: 1.0, gap: 1500, voices: 1 },
-        dead_sacrifice: { f: 'Skill_hiến tế của Dead.mp3', s: 0.38, e: 2.7, v: 0.6, gap: 1500, voices: 1 },
-        heli_arrive: { f: 'dragon-studio-helicopter-sound-8d-372463.mp3', g: 'amb', s: 0.2, e: 8.7, v: 0.45, gap: 3000, voices: 1, keep: true }
+        slash: { f: 'can-chien/chém1.mp3', s: 0.12, e: 0.42, v: 0.5, gap: 90, voices: 3, rate: [0.94, 1.08] },
+        slash_heavy: { f: 'can-chien/chém2.mp3', s: 0.22, e: 0.78, v: 0.6, gap: 140, voices: 2, rate: [0.9, 1.05] },
+        stab: { f: 'can-chien/freesound_community-sword-sound-2-36274.mp3', s: 0.14, e: 0.42, v: 1.0, gap: 80, voices: 3, rate: [0.95, 1.1] },
+        shotgun: { f: 'sung/49053354-shotgun-307467.mp3', s: 0.5, e: 1.2, v: 0.3, gap: 250, voices: 3, rate: [0.96, 1.04] },
+        saber: { f: 'can-chien/lightsaber3-chém.mp3', s: 0.2, e: 0.95, v: 0.32, gap: 120, voices: 3, rate: [0.95, 1.06] },
+        pick_melee: { f: 'can-chien/lấy vũ khi cận chiện.mp3', s: 0.28, e: 0.72, v: 0.9, gap: 150, voices: 2 },
+        insect: { f: 'quai-boss/yodguard-giant-insect-hurts-580963.mp3', s: 0.02, e: 0.46, v: 0.4, gap: 260, voices: 2, keep: true, rate: [0.9, 1.25] },
+        waterdrop: { f: 'moi-truong/dragon-studio-waterdrop-406639.mp3', g: 'amb', s: 0, e: 0.4, v: 1.0, gap: 500, voices: 2, rate: [0.8, 1.3] },
+        boss_intro: { f: 'quai-boss/freesound_community-boss-intro-02-72039.mp3', g: 'amb', s: 0, e: 8.2, v: 0.5, gap: 8000, voices: 1, keep: true },
+        dead_offering: { f: 'quai-boss/skillTheDead_tế phẩm.mp3', s: 0.16, e: 3.2, v: 1.0, gap: 1500, voices: 1 },
+        dead_sacrifice: { f: 'quai-boss/Skill_hiến tế của Dead.mp3', s: 0.38, e: 2.7, v: 0.6, gap: 1500, voices: 1 },
+        heli_arrive: { f: 'moi-truong/dragon-studio-helicopter-sound-8d-372463.mp3', g: 'amb', s: 0.2, e: 8.7, v: 0.45, gap: 3000, voices: 1, keep: true }
     };
 
     // Tiếng lặp: ls/le = vùng lặp (bỏ phần mở đầu & đuôi im lặng), fade = tốc độ tắt/mở mỗi 50ms
     const LOOPS = {
-        flame: { f: 'alex_jauk-flamethrower-sound-effect-421402.mp3', ls: 1.0, le: 6.2, fade: 0.06 },
-        minigun: { f: 'galling.mp3', ls: 0.62, le: 4.4, fade: 0.12 },
-        spray: { f: 'gun-các_sung_xấy_khác.mp3', ls: 0.6, le: 4.38, fade: 0.12, rate: 1.18 },
-        heli: { f: 'gd_salman-helicopter-ambience-353004.mp3', g: 'amb', ls: 0.5, le: 19.5, fade: 0.03 },
-        rain: { f: 'lofivision-rain-and-thunder-321270.mp3', g: 'amb', ls: 1.0, fade: 0.015 },
-        cave: { f: 'dragon-studio-droplets-in-a-cave-482871.mp3', g: 'amb', ls: 0.6, le: 5.9, fade: 0.02 }
+        flame: { f: 'sung/alex_jauk-flamethrower-sound-effect-421402.mp3', ls: 1.0, le: 6.2, fade: 0.06 },
+        minigun: { f: 'sung/galling.mp3', ls: 0.62, le: 4.4, fade: 0.12 },
+        spray: { f: 'sung/gun-các_sung_xấy_khác.mp3', ls: 0.6, le: 4.38, fade: 0.12, rate: 1.18 },
+        heli: { f: 'moi-truong/gd_salman-helicopter-ambience-353004.mp3', g: 'amb', ls: 0.5, le: 19.5, fade: 0.03 },
+        rain: { f: 'moi-truong/lofivision-rain-and-thunder-321270.mp3', g: 'amb', ls: 1.0, fade: 0.015 },
+        cave: { f: 'moi-truong/dragon-studio-droplets-in-a-cave-482871.mp3', g: 'amb', ls: 0.6, le: 5.9, fade: 0.02 }
     };
 
     const broken = {}, pools = {}, lastFile = {}, loops = {}, fading = [], holdUntil = {};
@@ -331,6 +332,7 @@ const Sound = (() => {
         else if (name === 'roar') { if (sfxFile('zombie_groan', 2.2)) return; name = 'tank'; }
         else if (name === 'thunder') { sfxFile('thunder'); return; }
         else if (name === 'slash' || name === 'slash_heavy' || name === 'stab' || name === 'saber') { if (sfxFile(name)) return; name = 'melee'; }
+        else if (name === 'shotgun') { if (sfxFile('shotgun')) return; }
         else if (name === 'pick_melee') { if (sfxFile('pick_melee')) return; name = 'pickup'; }
         else if (name === 'boss_intro') { if (sfxFile('boss_intro')) return; name = 'tank'; }
         else if (name === 'dead_offering' || name === 'dead_sacrifice') { if (sfxFile(name)) return; name = 'tank'; }

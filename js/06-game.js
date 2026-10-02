@@ -14,6 +14,8 @@ function resetRunState() {
     powerPlantRun = { active: false, floor: 0, total: 3 };
     hangZRun = { active: false, floor: 0, total: 3, timer: 180, stairs: null };
     resetCaveState();
+    story = newStory();
+    base = newBase();
     theDeadSpawnChance = 0.0;
     shopOpenedForLevel = 0;
     breakthroughShards = 0;
@@ -45,6 +47,7 @@ function beginRun(mode) {
     document.getElementById('upgradeScreen').style.display = 'none';
     document.getElementById('netWait').style.display = 'none';
     resetRunState();
+    runMode = mode;
 
     isSinglePlayer = (mode === 'pc' || mode === 'mobile');
     showTouchUI = (mode === 'mobile' || mode === 'local2');
@@ -80,6 +83,7 @@ function showGameOver(level, seconds) {
     document.getElementById('netWait').style.display = 'none';
     document.getElementById('exclusiveWarningDialog').style.display = 'none';
     document.getElementById('menuTitle').innerText = 'TỬ TRẬN';
+    refreshSaveUI();
     document.getElementById('menuInfo').innerHTML = `Kỷ lục sinh tồn: Map <span class="highlight">${level}</span>.<br>Bạn đã trụ được <span class="highlight">${Math.floor(seconds)}s</span> ở map cuối và hạ <span class="highlight">${killCount}</span> zombie.<br><span class="text-xs text-gray-400">Chọn chế độ để chơi lại.</span>`;
 }
 
@@ -95,6 +99,8 @@ function spawnSquad() {
 
 function startLevel() {
     gameState = 'PLAYING'; initControls();
+    saveCheckpoint();      // tự lưu ở đầu mỗi map (trước khi map mới tiêu thụ lựa chọn tuyến đường)
+    storyLevelReset();
     document.getElementById('upgradeScreen').style.display = 'none';
     zombies = []; bullets = []; enemyBullets = []; slashes = []; thrownItems = []; drops = []; particles = []; vfxList = []; airdropMarkers = []; fireZones = [];
     decals = []; ashZones = []; rescueNPCs = [];
@@ -124,11 +130,12 @@ function startLevel() {
         }
         // Đạo Của Kiếm: bắt đầu MỖI map với Katana độ bền x2 nếu đang tay không
         if (p.perks.startSword && !p.weapon) {
-            p.weapon = { ...WEAPON_TYPES['KATANA'] };
+            p.weapon = { ...WEAPON_TYPES[p.perks.m_songKiem ? 'DUAL_KATANA' : 'KATANA'] }; // có thẻ Song Kiếm: khởi đầu bằng song kiếm
             p.weapon.maxAmmo *= 2; p.weapon.ammo = p.weapon.maxAmmo;
         }
     }
 
+    arsenalLevelStart();
     generateMap(currentLevel);
     theDeadLevelStart(); // quay tỉ lệ xuất hiện boss ẩn The Dead
     spawnSquad();
@@ -218,10 +225,12 @@ function gameLoop(time) {
     if (gameState !== 'PLAYING') return;
     let dt = Math.min((time - lastTime) / 1000, 0.1); lastTime = time;
     frameDt = dt;
+    if (storyFrame(dt)) return;     // hội thoại / giới thiệu boss / cắt cảnh / mini-game tàu hoả
+    if (objState === 'HUB') { updateHub(dt); return; }   // Khu Sống Sót: không quái, không đói
     survivalTime += dt; score += dt * 10;
 
     let allDead = players.every(p => p.isDowned);
-    if (allDead && !tank.active) {
+    if (allDead && !tank.active && objState !== 'TRAIN') {   // trên nóc tàu: gục hết thì nhiệm vụ thất bại chứ không game over
         if (NET.mode === 'host') netHostGameOver();
         showGameOver(currentLevel, survivalTime);
         return;
@@ -261,8 +270,11 @@ function gameLoop(time) {
         }
     }
 
+    navUpdate(dt); // lưới dẫn đường cho quái & lính (mọi map)
     if (isCaveMap() && updateCaveWorld(dt)) return; // Hang Z / Hầm Mỏ / Boss Kiến Chúa
     updateTheDead(dt);
+    updateStory(dt);
+    if (gameState !== 'PLAYING' || objState === 'HUB') return;
 
     if (objState === 'DEFEND') {
         fortressTimer -= dt;
@@ -278,7 +290,7 @@ function gameLoop(time) {
 
     else if (objState === 'ROOFTOP') {
         let allIn = true; for (let p of players) { if (!p.isDowned && Math.hypot(p.x - evacZone.x, p.y - evacZone.y) > 180) allIn = false; }
-        if (allIn && !tank.active && players.some(p => !p.isDowned)) {
+        if (allIn && !tank.active && players.some(p => !p.isDowned) && !storyBusy()) {
             evacZone.progress += dt;
             if (evacZone.progress >= 3.0) {
                 currentPowerFloorCleared++; // tính cả tầng Boss cuối -> đủ 3 tầng để mở thẻ hệ ĐIỆN
@@ -483,7 +495,7 @@ function gameLoop(time) {
             }
 
         }
-        let isHeavyMission = ['DEFEND', 'COLLECT', 'KILL', 'POWER_LOCKS', 'POWER_KILL'].includes(objState);
+        let isHeavyMission = ['DEFEND', 'COLLECT', 'KILL', 'POWER_LOCKS', 'POWER_KILL', 'ZAP_HOLD', 'STATION_HOLD', 'LAST_STAND', 'RAID'].includes(objState);
         if (isHeavyMission) {
             zCount = Math.ceil(zCount * 2.0); // Đông hơn đáng kể
             spawnRate *= 0.8; // Đẻ nhanh hơn 20%
@@ -508,7 +520,7 @@ function gameLoop(time) {
         }
 
         // Giới hạn tổng số quái để giữ khung hình ổn định
-        if (zombies.length > 240) zCount = 0;
+        if (zombies.length > 240 || story.noSpawn) zCount = 0;
         if (isCaveMap()) zCount = caveSpawnCount(zCount);
         for (let i = 0; i < zCount; i++) {
             // Sinh quanh MỘT người chơi còn sống bất kỳ (không chỉ người chơi 1), ngoài tầm an toàn
@@ -518,6 +530,7 @@ function gameLoop(time) {
             let spawnX = Math.max(20, Math.min(MAP_SIZE.w - 20, anchor.x + Math.cos(angle) * distance));
             let spawnY = Math.max(20, Math.min(MAP_SIZE.h - 20, anchor.y + Math.sin(angle) * distance));
             if (isCaveMap()) { let cp = caveSpawnPoint(); if (!cp) continue; spawnX = cp.x; spawnY = cp.y; } // trong hang: sinh ở ngách khuất, đi được tới người chơi
+            else { let ni = navOpenIdx(spawnX, spawnY); if (ni < 0 || NAV.field[ni] < 0) continue; } // không sinh quái trong ô bị bịt kín / trong nhà
             // Không sinh sát mặt người chơi còn lại
             if (players.some(p => !p.isDowned && Math.hypot(p.x - spawnX, p.y - spawnY) < 380)) continue;
             zombies.push(new Zombie(spawnX, spawnY));
@@ -531,10 +544,10 @@ function gameLoop(time) {
     let itemSpd = players.some(p => p.perks.fastSupply) ? 1.5 : 2.0;
     // BUFF VẬT PHẨM (Cấp 2): Spawn nhanh hơn
     if (getTeamTagLevel('VẬT PHẨM') >= 2) itemSpd *= 0.7;
-    itemTimer -= dt; if (itemTimer <= 0) { itemTimer = itemSpd; let dp = isCaveMap() ? caveRandomOpenPoint() : findSafePoint(Math.random() * MAP_SIZE.w, Math.random() * MAP_SIZE.h, 18); spawnDrop(dp.x, dp.y); }
+    itemTimer -= dt; if (itemTimer <= 0) { itemTimer = itemSpd; let dp = caveRandomOpenPoint(); spawnDrop(dp.x, dp.y); } // luôn rơi ở chỗ đi tới được
 
     let airSpd = players.some(p => p.perks.fastSupply) ? 20 : 30;
-    airdropTimer -= dt; if (airdropTimer <= 0) { airdropTimer = airSpd; let ap = isCaveMap() ? caveRandomOpenPoint() : findSafePoint(Math.random() * (MAP_SIZE.w - 400) + 200, Math.random() * (MAP_SIZE.h - 400) + 200, 24); airdropMarkers.push({ x: ap.x, y: ap.y, time: 3.0, maxTime: 3.0 }); }
+    airdropTimer -= dt; if (airdropTimer <= 0) { airdropTimer = airSpd; let ap = caveRandomOpenPoint(); airdropMarkers.push({ x: ap.x, y: ap.y, time: 3.0, maxTime: 3.0 }); }
 
     for (let i = airdropMarkers.length - 1; i >= 0; i--) { airdropMarkers[i].time -= dt; if (airdropMarkers[i].time <= 0) { spawnDrop(airdropMarkers[i].x, airdropMarkers[i].y, true); createParticles(airdropMarkers[i].x, airdropMarkers[i].y, '#ecf0f1', 30, 300); spawnRing(airdropMarkers[i].x, airdropMarkers[i].y, '#f1c40f', 90, 0.4); addScreenShake(8); airdropMarkers.splice(i, 1); } }
 
@@ -552,6 +565,14 @@ function gameLoop(time) {
                 } else if (fz.kind === 'arrow') {
                     z.hp -= fz.dmg * dt * srcMult;
                     if (Math.random() < 0.3) createParticles(z.x, z.y, '#e056fd', 1, 60);
+                } else if (fz.kind === 'oil') {
+                    // Dầu Nhớt (Phun Lửa): trừ thẳng % MÁU TỐI ĐA mỗi giây -> khắc tinh boss / quái tinh anh. Nhiều vũng chồng nhau không cộng dồn.
+                    if (z._oilF !== survivalTime) {
+                        z._oilF = survivalTime;
+                        z.hp -= z.maxHp * (isBossType(z.type) ? 0.012 : 0.06) * Math.min(3, srcMult) * dt + fz.dmg * dt * srcMult;
+                        applyStatus(z, STATUS.BURN, { duration: 1.2, dpsPercent: 0.010, source: fz.source });
+                        if (Math.random() < 0.25) createParticles(z.x, z.y, '#e67e22', 1, 50);
+                    }
                 } else {
                     applyStatus(z, STATUS.BURN, { duration: 1.2, dpsPercent: 0.010, source: fz.source });
                     z.hp -= fz.dmg * dt * srcMult;
@@ -572,6 +593,7 @@ function gameLoop(time) {
         if (fz.life <= 0) fireZones.splice(i, 1);
     }
     updateHazards(dt);
+    updateArsenal(dt);
     // LOGIC RẢI BOOM (có vòng cảnh báo 1.2 giây, không gây hại cho phe ta)
     if (hasTeamPerk('p_raiBoom')) {
         raiBoomTimer -= dt;
@@ -720,33 +742,7 @@ function gameLoop(time) {
         }
 
         else if (d.type === 'scout') {
-            let targetTower = towers.find(t => !t.active);
-            let attackTarget = isDroneSuper ? getNearestZombie(d.x, d.y, 300) : null;
-
-            if (targetTower) {
-                let a = Math.atan2(targetTower.y - d.y, targetTower.x - d.x);
-                d.x += Math.cos(a) * (isDroneSuper ? 250 : 150) * dt;
-                d.y += Math.sin(a) * (isDroneSuper ? 250 : 150) * dt;
-
-                if (Math.hypot(d.x - targetTower.x, d.y - targetTower.y) < 150) {
-                    // DRONE CHỈ ĐẨY TIẾN ĐỘ ĐẾN 99% (4.95 trên 5.0)
-                    if (targetTower.progress < 4.95) {
-                        targetTower.progress = Math.min(4.95, targetTower.progress + dt * (isDroneSuper ? 1.0 : 0.5));
-                        createParticles(targetTower.x, targetTower.y, '#f1c40f', 1, 50);
-                    }
-                    // Nếu đã 99%, Drone đứng im giữ tháp chờ chủ nhân tới
-                }
-            } else {
-                d.x += (p.x - 50 - d.x) * dt * 3;
-                d.y += (p.y - 50 - d.y) * dt * 3;
-            }
-
-            // Mốc 5: Do thám biết bắn
-            if (isDroneSuper && attackTarget && d.cd <= 0) {
-                let a = Math.atan2(attackTarget.y - d.y, attackTarget.x - d.x);
-                bullets.push(new Bullet(d.x, d.y, a, { range: 300, dmg: 15, fromDrone: true }, p));
-                d.cd = 0.8;
-            }
+            updateScoutDrone(d, p, dt, isDroneSuper); // Drone Do Thám (11-arsenal.js)
         } else {
             let offsetAng = (i * Math.PI) / (drones.length / 2 || 1);
             let tX = p.x + Math.cos(Date.now() / 800 + offsetAng) * 60;
@@ -866,11 +862,12 @@ function gameLoop(time) {
                 let hit = b.px !== undefined
                     ? distancePointToSegment(z.x, z.y, b.px, b.py, b.x, b.y) < z.radius + br
                     : Math.hypot(b.x - z.x, b.y - z.y) < z.radius + br;
-                if (hit) b.hitEnemy(z);
+                if (hit && !storyDeflect(b, z)) b.hitEnemy(z);
             }
         }
 
         if (z.type >= 45) antDamageFilter(z); // Kiến Chúa / Xúc Tu: giảm, nhân đôi hoặc vô hiệu sát thương theo pha
+        else if (z.type >= 36 && z.type <= 38) zapDamageFilter(z); // ZAP-1624: giáp thép; The Hucker: lúc rút lui thì bất tử
         // Nháy trắng khi trúng đòn + số sát thương nổi
         if (z.hitFlash > 0) z.hitFlash -= dt;
         if (z._hpSeen === undefined) z._hpSeen = z.maxHp;
@@ -910,11 +907,12 @@ function gameLoop(time) {
             }
             else if (z.type >= 50) deadFamilyDeath(z);
             else if (z.type >= 40) antDeath(z);
+            else if (z.type >= 35) storyZombieDeath(z);
             else createParticles(z.x, z.y, z.color, 12, 200);
 
             createParticles(z.x, z.y, '#8e1b1b', 6, 160);
             addDecal(z.x, z.y, '#5c1010', z.radius * (0.9 + Math.random() * 0.5), 0.42);
-            if ((z.type >= 30 && z.type <= 32) || z.type === 45 || z.type === 50) {
+            if (isBossType(z.type) && z.type !== 46) {
                 spawnRing(z.x, z.y, z.color, 420, 0.8, 10);
                 vfxList.push({ type: 'flash', x: z.x, y: z.y, r: 300, life: 0.4, max: 0.4 });
                 addScreenShake(22);
@@ -964,7 +962,7 @@ function gameLoop(time) {
                 if (b.isTankShell || b.isExplosiveProj || b.isBomb) { op.hp -= b.dmg; b.triggerHit(); }
                 else { op.hp -= b.dmg; b.active = false; createParticles(b.x, b.y, '#c0392b', 5, 100); }
                 if (op.hp <= 0 && op.destroyTimer <= 0) {
-                    op.destroyTimer = 10;
+                    op.destroyTimer = op.raid ? 4 : 10;
                     vfxList.push({ type: 'text', text: 'CĂN CỨ TỰ HỦY - 10S!', x: op.x + op.w / 2, y: op.y - 30, life: 2.0, color: '#ff4757' });
                     break;
                 }
@@ -972,7 +970,7 @@ function gameLoop(time) {
         }
     }
 
-    for (let i = bullets.length - 1; i >= 0; i--) { bullets[i].update(dt); if (!bullets[i].active) bullets.splice(i, 1); }
+    for (let i = bullets.length - 1; i >= 0; i--) { let b = bullets[i]; if (b.active) b.update(dt); if (!b.active) { arsenalBulletEnd(b); bullets.splice(i, 1); } }
     for (let i = enemyBullets.length - 1; i >= 0; i--) { enemyBullets[i].update(dt); if (!enemyBullets[i].active) enemyBullets.splice(i, 1); }
     for (let i = thrownItems.length - 1; i >= 0; i--) { thrownItems[i].update(dt); if (!thrownItems[i].active) thrownItems.splice(i, 1); }
     for (let i = slashes.length - 1; i >= 0; i--) {
@@ -1005,6 +1003,7 @@ function predictNextMission() {
     if (nextRoute === 'power') return 'POWER_CHARGE';
     if (nextRoute === 'hangz' || nextRoute === 'mine') return 'HANGZ_ESCAPE';
     if (nextRoute === 'hunt') return 'KILL';
+    if (nextRoute === 'bandit') return 'RAID';
     if (nextRoute === 'rescue') return 'RESCUE';
     return nextMissionPreference || 'TOWERS';
 }
@@ -1014,7 +1013,8 @@ const SHOP_COSTS = { heal: 18, ammo: 14, box: 24, factoryMap: 35, flare: 20, min
 // Tuyến đường: min = map kế tiếp tối thiểu để mở
 const ROUTE_DEFS = {
     balanced: { el: 'routeBalanced', min: 1 }, hunt: { el: 'routeHunt', min: 1 }, rescue: { el: 'routeRescue', min: 1 },
-    power: { el: 'routePower', min: 1 }, hangz: { el: 'routeHangz', min: 3 }, mine: { el: 'routeMine', min: 3 }, botanical: { el: 'routeBotanical', min: 4 }, cityn: { el: 'routeCityn', min: 4 }
+    power: { el: 'routePower', min: 1 }, hangz: { el: 'routeHangz', min: 3 }, mine: { el: 'routeMine', min: 3 }, botanical: { el: 'routeBotanical', min: 4 }, cityn: { el: 'routeCityn', min: 4 },
+    labz: { el: 'routeLabz', min: 5 }, bandit: { el: 'routeBandit', min: 4 }
 };
 function routeLocked(route) {
     let def = ROUTE_DEFS[route];
@@ -1027,7 +1027,8 @@ function routeLocked(route) {
 
 function getDynamicShopItems() {
     let nextMission = predictNextMission();
-    let nextMap = nextRoute === 'power' ? 6 : (nextRoute === 'hangz' ? 10 : nextRoute === 'mine' ? 14 : (nextRoute === 'botanical' ? 12 : (nextRoute === 'cityn' ? 13 : null)));
+    let nextMap = nextRoute === 'power' ? 6 : (nextRoute === 'hangz' ? 10 : nextRoute === 'mine' ? 14 : (nextRoute === 'botanical' ? 12 : (nextRoute === 'cityn' ? 13 : (nextRoute === 'labz' ? 15 : null))));
+    if (storyForcedRoute()) nextMap = storyForcedRoute() === 'forest' ? 9 : 6;
     let list = [
         { id: 'heal', name: 'Tiếp tế máu', desc: 'Cả đội hồi 45% máu tối đa.' },
         { id: 'ammo', name: 'Hộp đạn', desc: 'Hồi 40% độ bền/đạn vũ khí đang cầm.' },
@@ -1037,7 +1038,7 @@ function getDynamicShopItems() {
     if (nextMission === 'RESCUE' && !shopFlags.flare) list.push({ id: 'flare', name: 'Pháo sáng cứu hộ', desc: 'NPC ở gần bạn hơn và trực thăng đến nhanh hơn 8s.' });
     if (nextMission === 'KILL') list.push({ id: 'minekit', name: 'Bộ mìn phòng tuyến', desc: 'Đầu map sau rải 3 quả mìn quanh điểm xuất phát.' });
     if (nextMap === 6) list.push({ id: 'batteryPack', name: 'Pin dự phòng', desc: 'Bắt đầu map điện với +1 pin cầm tay.' });
-    if (nextMap === 10) list.push({ id: 'rebreather', name: 'Mặt nạ lọc khí', desc: 'Giảm 35% sát thương khí độc khi hang sập.' });
+    if (nextMap === 10 || nextMap === 15) list.push({ id: 'rebreather', name: 'Mặt nạ lọc khí', desc: nextMap === 15 ? 'Giảm 35% sát thương khí độc trong Phòng Thí Nghiệm Z.' : 'Giảm 35% sát thương khí độc khi hang sập.' });
     if (nextMap === 12 && !shopFlags.herbicide) list.push({ id: 'herbicide', name: 'Thuốc diệt dây leo', desc: 'Giảm mật độ cây độc trong Vườn Thực Vật.' });
     if (nextMap === 13 && !shopFlags.urbanMap) list.push({ id: 'urbanMap', name: 'Bản đồ ngõ hẻm', desc: 'Thành Phố N có nhiều lối thoát hơn.' });
     for (let it of list) it.cost = SHOP_COSTS[it.id];
@@ -1061,6 +1062,8 @@ function renderDynamicShopItems() {
 function updateRouteShopUI() {
     document.getElementById('shopScrapText').innerHTML = `Map vừa qua: <span class="highlight">${currentLevel}</span> · Phế liệu: <span class="highlight">⚙ ${shopScrap}</span> · Mảnh Bức Phá: <span class="highlight">◆ ${breakthroughShards}</span> · Bản đồ Nhà Máy Điện: <span class="highlight">${hasPowerPlantMap ? 'ĐÃ CÓ' : 'CHƯA CÓ'}</span>`;
 
+    document.getElementById('shopScrapText2').innerHTML = `Phế liệu: <span class="highlight">⚙ ${shopScrap}</span> · Mảnh Bức Phá: <span class="highlight">◆ ${breakthroughShards}</span>`;
+    hubRouteDetail();
     for (let route in ROUTE_DEFS) {
         let el = document.getElementById(ROUTE_DEFS[route].el);
         if (!el) continue;
@@ -1070,13 +1073,38 @@ function updateRouteShopUI() {
         if (routeLocked(route)) el.classList.add('route-locked');
     }
     renderDynamicShopItems();
+    storyShopBanner();
+    baseShopBanner();
+    if (hub.panel === 'base') renderBasePanel();
 }
 
-function selectRoute(route) {
+// Tuyến khó: hỏi lại cho chắc trước khi chọn
+const HARD_ROUTES = {
+    hangz: 'Hang Z là mê cung tối 3 tầng, có giới hạn thời gian và phải bảo vệ Tiến Sĩ ở tầng cuối.',
+    mine: 'Hầm Mỏ gồm 2 tầng tổ kiến rồi tới Boss Kiến Chúa 3 pha, rất dài và khó.',
+    power: 'Nhà Máy Điện gồm 3 tầng liên tiếp có sét đánh và kết thúc bằng Boss điện.',
+    bandit: 'Thị Trấn Cướp có 3 sào huyệt có tường bao, ụ bắn và súng cối; băng cướp toàn dùng súng.',
+    labz: 'Phòng Thí Nghiệm Z gồm 4 pha liên tiếp: hộ tống Binh sĩ gài C4, khử khí độc và cứu Nhà Khoa Học, tử thủ bến tàu trước Boss The Hucker, rồi mini-game tẩu thoát trên tàu hoả.'
+};
+function askConfirm(title, text, onYes) {
+    let d = document.getElementById('confirmDialog');
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmText').textContent = text;
+    document.getElementById('confirmYes').onclick = () => { d.style.display = 'none'; onYes(); };
+    document.getElementById('confirmNo').onclick = () => { d.style.display = 'none'; Sound.play('select'); };
+    d.style.display = 'flex';
+}
+function selectRoute(route, confirmed = false) {
     if (!ROUTE_DEFS[route]) return;
+    if (storyForcedRoute()) { Sound.play('hit'); netToast('Cốt truyện đang khoá điểm đến kế tiếp — hãy mua tiếp tế rồi bấm TIẾP TỤC.', 2200); return; }
     if (routeLocked(route)) {
         Sound.play('hit');
         netToast(route === 'power' ? 'Cần mua Bản đồ Nhà Máy Điện trước!' : (route === 'mine' && !mineUnlocked) ? 'Hộ tống Tiến Sĩ thoát khỏi Hang Z (tầng 3) để mở Hầm Mỏ!' : `Tuyến này mở từ Map ${ROUTE_DEFS[route].min}.`, 2000);
+        return;
+    }
+    if (!confirmed && HARD_ROUTES[route] && nextRoute !== route) {
+        Sound.play('hit');
+        askConfirm('⚠️ TUYẾN NÀY KHÁ KHÓ', HARD_ROUTES[route] + ' Bạn có chắc muốn đi tuyến này không?', () => selectRoute(route, true));
         return;
     }
     nextRoute = route;
@@ -1144,18 +1172,15 @@ function openRouteShop() {
         checkAndTriggerUpgrade();
         return;
     }
-    gameState = 'SHOP';
-    clearPcInputs();
-    shopOpenedForLevel = currentLevel;
-    // Mỗi lần vào cửa hàng bắt đầu lại từ tuyến An Toàn
-    nextRoute = 'balanced'; nextMapPreference = null; nextMissionPreference = null;
-    document.getElementById('routeShop').style.display = 'flex';
-    updateRouteShopUI();
-    netSendSync();
+    enterHub();   // về Khu Sống Sót (14-hub.js): quầy tiếp tế và bàn chiến dịch nằm trong trại
 }
 
 function continueAfterShop() {
     document.getElementById('routeShop').style.display = 'none';
+    if (storyApplyRoute()) { Sound.play('start'); checkAndTriggerUpgrade(); return; }   // tuyến bị khoá theo cốt truyện
+    if (baseDefenseNext()) { nextRoute = 'balanced'; nextMapPreference = null; nextMissionPreference = null; Sound.play('start'); checkAndTriggerUpgrade(); return; }   // map kế tiếp là Phòng Thủ Căn Cứ
+    if (nextRoute === 'labz') { nextMapPreference = 15; nextMissionPreference = null; }
+    if (nextRoute === 'bandit') { nextMapPreference = 5; nextMissionPreference = null; }
     if (nextRoute === 'power' && hasPowerPlantMap && !powerPlantRun.active) {
         powerPlantRun = { active: true, floor: 1, total: 3 };
         nextMapPreference = 6;
@@ -1228,6 +1253,7 @@ function triggerUpgradeScreen(p1HasUpg, p2HasUpg) {
             setUpgradeHalfDone(2, 'HẾT LƯỢT CHỌN');
         }
     }
+    updateRerollButtons();
     netSendSync();
 }
 
@@ -1312,6 +1338,8 @@ function canOfferUpgrade(p, upg) {
     if (upg.tags.includes('BẬC THẦY') && p.tags['BẬC THẦY'] > 0) return false;
     if (upg.id === 'k_diet' && (!p.perks.m_hoi || !p.perks.m_thieu || !p.perks.m_pha)) return false;
     if (upg.id === 'm_legendary' && !p.perks.m_diet) return false;
+    if (upg.id === 'm_songKiem' && !(p.tags['KIẾM SƯ'] >= 1)) return false;        // Song Kiếm: cần ít nhất 1 Link Kiếm Sư
+    if (upg.tags.includes('LIỀM') && !deadSlain) return false;                      // thẻ Liềm: chỉ sau khi đã hạ The Dead
     if (upg.id === 'v_tenNo' && !p.perks.v_muaTen) return false;
     if (upg.id === 'a_elite_squad' && getTeamTagLevel('TRIEU_HOI') < 2) return false;
     if (upg.id === 'a_drone_link_protocol' && (getTeamTagLevel('TRIEU_HOI') < 2 || getTeamTagLevel('DRONE') < 1)) return false;
@@ -1325,7 +1353,8 @@ function canOfferUpgrade(p, upg) {
     return true;
 }
 
-function renderCards(pid, containerId) {
+// reroll = true: lượt đổi thẻ, luôn có ít nhất 2 thẻ thuộc Link cao nhất của người chơi
+function renderCards(pid, containerId, reroll = false) {
     let container = document.getElementById(containerId);
     container.innerHTML = '';
     let p = players[pid - 1];
@@ -1338,7 +1367,8 @@ function renderCards(pid, containerId) {
         for (let i = 0; i < weight; i++) weightedPool.push(upg);
     }
 
-    let choices = [];
+    let choices = reroll ? rerollGuaranteed(p) : [];
+    weightedPool = weightedPool.filter(u => !choices.includes(u));
     while (choices.length < 3 && weightedPool.length > 0) {
         let pick = weightedPool[Math.floor(Math.random() * weightedPool.length)];
         if (!choices.find(c => c.id === pick.id)) choices.push(pick);
@@ -1451,6 +1481,7 @@ function setUpgradeHalfDone(pid, text) {
     document.getElementById(`p${pid}Status`).style.display = 'block';
     document.getElementById(`p${pid}UpgCount`).innerText = '';
     updateTagBar(pid);
+    updateRerollButtons();
 }
 
 function confirmUpgrade(pid) {
@@ -1493,7 +1524,7 @@ function confirmUpgrade(pid) {
         p.tags[t] = (p.tags[t] || 0) + 1;
         // Mốc 10 Kiếm Sư khởi đầu với Huyền thoại
         if (t === 'KIẾM SƯ' && p.tags[t] === 10) {
-            p.weapon = { ...WEAPON_TYPES['LEGENDARY_KATANA'] };
+            p.weapon = { ...WEAPON_TYPES[p.perks.m_songKiem ? 'DUAL_LEGEND' : 'LEGENDARY_KATANA'] };
             levelStartTexts.push({ text: 'THỨC TỈNH KIẾM SƯ!', color: '#ff9f43' });
         }
     }
