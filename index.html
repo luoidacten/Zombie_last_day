@@ -69,10 +69,21 @@
 
         <button
             class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-yellow-400 text-sm font-semibold rounded-lg border border-yellow-500/30 transition"
-            onclick="toggleGuideModal(true)">📖 XEM HƯỚNG DẪN HỆ THỐNG BỨC PHÁ</button>
+            onclick="toggleGuideModal(true)">📖 WIKI &amp; HƯỚNG DẪN</button>
         <button id="muteBtn"
             class="mt-3 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-semibold rounded-lg border border-gray-600 transition"
             onclick="toggleMute()">🔊 Âm thanh: BẬT (phím M)</button>
+        <!-- Độ khó: áp cho lượt chơi mới -->
+        <div class="mt-3 w-full max-w-sm bg-gray-900/70 border border-gray-700 rounded-lg p-3 text-xs text-gray-200">
+            <div class="font-bold mb-2">⚔ ĐỘ KHÓ <span class="text-gray-400 font-normal">(áp dụng khi bắt đầu lượt chơi mới)</span></div>
+            <div class="grid grid-cols-4 gap-1">
+                <button id="diff_easy" class="py-2 rounded-lg bg-emerald-700 font-bold" onclick="setDifficulty('easy')">DỄ</button>
+                <button id="diff_normal" class="py-2 rounded-lg bg-sky-700 font-bold" onclick="setDifficulty('normal')">THƯỜNG</button>
+                <button id="diff_hard" class="py-2 rounded-lg bg-orange-700 font-bold" onclick="setDifficulty('hard')">KHÓ</button>
+                <button id="diff_hell" class="py-2 rounded-lg bg-red-800 font-bold" onclick="setDifficulty('hell')">ÁC MỘNG</button>
+            </div>
+            <div id="diffText" class="mt-2 text-gray-400"></div>
+        </div>
         <!-- Chỉnh riêng 3 nhóm âm thanh + bật/tắt tiếng hét khi zombie chết (tự lưu) -->
         <div id="audioPanel"
             class="mt-3 w-full max-w-sm bg-gray-900/70 border border-gray-700 rounded-lg p-3 text-left text-xs text-gray-200">
@@ -174,20 +185,21 @@
                     <b>TRỰC THĂNG</b> 2/3/5: trực thăng đến nhanh hơn, ở lại yểm trợ, thưởng cấp khi thoát.<br>
                     <b>NÉM</b> 2/4: +25/60% sát thương ném, mốc 4 làm choáng mục tiêu lâu hơn.<br>
                     <b>ĐỘC TỐ</b> 2/4: Thiêu Đốt &amp; Ăn Mòn của bạn +30/60%, mốc 4 quái dính độc chậm 20%.<br>
-                    <b>THỜI KHÔNG</b> 2/3: Nộ nạp nhanh +50%; vết rách Súng Ngắm tồn tại 4s và tung Nộ làm đóng băng quái 1.5s.<br>
+                    <b>THỜI KHÔNG</b> 2/3: Nộ nạp nhanh +50%; vệt đạn Súng Ngắm tồn tại gấp đôi và tung Nộ làm đóng băng quái 1.5s.<br>
                     <b>LIỀM</b> 2/3: +25% sát thương Liềm; chém trọn vòng 360°.<br>
                     <b>ĐỒNG MINH</b> 1/2/3: lính có khiên; lính giảm 25% sát thương nhận; bạn giảm 15% khi đứng gần lính.<br>
                     <b>BẬC THẦY</b> 1: +10% sát thương, Nộ nạp nhanh +25%. <b>NHẤT KIẾM</b> 1: Lướt C hồi 2s. <b>TĂNG TIẾN</b> 3: mỗi map +4% sát thương.
                 </div>
                 <div class="bg-gray-900 p-3 rounded-lg border border-fuchsia-500/30 text-xs">
-                    <span class="text-fuchsia-400 font-bold">🔥 VŨ KHÍ ĐỘC TÔN &amp; KỸ NĂNG NỘ [D / phím R]:</span> hạ quái để nạp Nộ.<br>
+                    <span class="text-fuchsia-400 font-bold">🔥 VŨ KHÍ ĐỘC TÔN &amp; KỸ NĂNG NỘ [D / phím R]:</span> hạ quái để nạp Nộ. Cần thẻ <b>Thịnh Nộ</b> mới dùng được Nộ.<br>
                     <b>Minigun</b>: thanh Nhiệt thay cho nạp đạn; trên 50% bắn đạn lửa, 100% kẹt nòng 3s. Nộ <i>Xả Áp Suất</i>: nổ 360° + xả đạn mọi hướng 2s (đứng yên).<br>
-                    <b>Súng Ngắm</b>: đạn để lại vết rách hút &amp; làm chậm quái. Nộ <i>Phán Quyết</i>: bắn trúng mọi quái trên các vết rách.<br>
-                    <b>Búa / Rìu</b>: sóng âm hình nón giảm giáp quái (+50% sát thương đạn); cầm Búa chậm 20%. Nộ <i>Trời Sập</i>: bất tử, nện xuống tạo Vùng Đất Chết vĩnh viễn.<br>
+                    <b>Súng Ngắm</b>: đạn để lại vết rách hút &amp; làm chậm quái. Nộ <i>Phán Quyết</i>: bắn trúng mọi quái còn mang dấu vệt đạn (4 giây).<br>
+                    <b>Búa / Rìu</b>: sóng âm hình nón giảm giáp quái (+50% sát thương đạn); cầm Búa chậm 20%. Nộ <i>Trời Sập</i>: bất tử, nện xuống, dư chấn tan sau 1 giây.<br>
                     <b>Cung</b>: mũi tên ghim quái vào tường / con phía sau 3s. Nộ <i>Phân Rã</i>: mọi mũi tên đang cắm phát nổ, bắn 3 mũi tên tự đuổi.<br>
-                    <b>Phun Lửa</b>: vũng lửa trừ % máu tối đa. Nộ <i>Bức Tường Lửa</i>: chặn 100% đạn quái, đạn đồng đội / Drone xuyên qua +30%.<br>
+                    <b>Phun Lửa</b>: vũng lửa trừ % máu tối đa. Nộ <i>Bức Tường Lửa</i> (12 giây): chặn 100% đạn quái, zombie thường không đi xuyên qua được và bị thiêu theo % máu; đạn đồng đội / Drone xuyên qua +30%.<br>
                     <b>🎲 Đổi thẻ</b>: ở màn nâng cấp, tốn 5 ⚙ để đổi 3 thẻ — luôn có ít nhất 2 thẻ thuộc Link cao nhất của bạn.
                 </div>
+                <div id="wikiAuto" class="space-y-4"></div>
                 <div class="bg-gray-900 p-3 rounded-lg border border-cyan-500/30 text-xs">
                     <span class="text-cyan-400 font-bold">🌐 ONLINE CO-OP:</span> Chủ phòng điều khiển cửa hàng &amp;
                     tuyến đường; mỗi người tự chọn thẻ nâng cấp trên máy của mình. Hồi sinh đồng đội bằng cách đứng
@@ -387,6 +399,7 @@
     <script src="js/13-labz.js"></script>
     <script src="js/14-hub.js"></script>
     <script src="js/15-ops.js"></script>
+    <script src="js/16-skills.js"></script>
 </body>
 
 </html>

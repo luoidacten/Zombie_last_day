@@ -29,6 +29,7 @@ function outlinedText(text, x, y, fill, font, strokeW = 3) {
 // Loại đạn dùng chung cho vẽ & đồng bộ online
 function bulletKind(b) {
     if (b.kind !== undefined) return b.kind;
+    if (b.wepData && b.wepData.bk) return b.wepData.bk;   // 13 cầu lửa, 14 phi tiêu, 16 cầu sét, 17 phi dao
     if (b.isLaserBeam) return 10;
     if (b.isSwordWave) return 1;
     if (b.isBomb) return 2;
@@ -316,7 +317,7 @@ function drawMeleeWeapon(p, idx, T) {
     for (let s of slashes) if (s.source === p || s.src === idx) { sl = s; break; }
     const k = sl ? Math.min(1, 1 - Math.max(0, sl.life) / 0.15) : -1;        // 0..1: tiến trình đòn đang đánh
     const thrust = nm === 'Giáo' || nm === 'Dao Quân Sự' || (sl && sl.spread <= 0.45);
-    const twoHand = nm === 'Búa' || nm === 'Rìu' || nm === 'Giáo';
+    const twoHand = nm === 'Búa' || nm === 'Rìu' || nm === 'Giáo' || !!w.isBat;
     const B = (x, y, ww, hh, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, ww, hh); };
     const SKIN = '#f5cba7', DARK = '#1e272e';
 
@@ -345,6 +346,13 @@ function drawMeleeWeapon(p, idx, T) {
         ctx.beginPath(); ctx.moveTo(12, -2.4); ctx.quadraticCurveTo(12 + L * 0.6, -5.5, 12 + L, -4.5); ctx.lineTo(12 + L + 4, -1.5); ctx.quadraticCurveTo(12 + L * 0.6, -1.2, 12, 1.8); ctx.closePath();
         ctx.fillStyle = gold ? '#ffe9b0' : '#ecf0f1'; ctx.fill(); ctx.strokeStyle = gold ? '#b9770e' : '#7f8c8d'; ctx.lineWidth = 1; ctx.stroke();
         ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(15, -1.6); ctx.quadraticCurveTo(12 + L * 0.6, -4, 10 + L, -3.4); ctx.stroke();   // ánh thép
+    } else if (w.isBat) {
+        // GẬY: thân thuôn to dần về đầu; gậy sắt màu thép có vệt sáng
+        let iron = w.key === 'IRON_BAT';
+        ctx.beginPath(); ctx.moveTo(-6, -2); ctx.lineTo(16, -2.6); ctx.lineTo(40, -5); ctx.quadraticCurveTo(46, 0, 40, 5); ctx.lineTo(16, 2.6); ctx.lineTo(-6, 2); ctx.closePath();
+        ctx.fillStyle = iron ? '#aab7b8' : '#c8a165'; ctx.fill(); ctx.strokeStyle = iron ? '#2c3e50' : '#6e4b2a'; ctx.lineWidth = 1.5; ctx.stroke();
+        B(-6, -2.4, 9, 4.8, iron ? '#2d3436' : '#3e2723');
+        ctx.strokeStyle = iron ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(18, -1.4); ctx.lineTo(39, -3); ctx.stroke();
     } else if (nm === 'Rìu') {
         B(-4, -2, 34, 4, '#8d5a2b'); ctx.strokeStyle = '#5d3a1a'; ctx.lineWidth = 1; ctx.strokeRect(-4, -2, 34, 4);
         B(18, -2.6, 5, 5.2, '#c0392b');                                                             // dây buộc đỏ
@@ -450,7 +458,16 @@ function drawPlayerEntity(p, idx, T) {
         if (p.weapon.type === 'melee') {
             drawMeleeWeapon(p, idx, T);
         }
-        else if (p.weapon.name === 'Lựu Đạn') { ctx.beginPath(); ctx.arc(p.radius + 5, 0, 6, 0, Math.PI * 2); ctx.fillStyle = '#27ae60'; ctx.fill(); }
+        else if (p.weapon.type === 'explosive') {
+            ctx.beginPath(); ctx.arc(p.radius + 5, 0, 6, 0, Math.PI * 2); ctx.fillStyle = p.weapon.color; ctx.fill();
+            if (p.weapon.isMolotov) { ctx.fillStyle = '#dfe6e9'; ctx.fillRect(p.radius + 9, -1.5, 6, 3); if (p.pullingPin) { ctx.beginPath(); ctx.arc(p.radius + 17, 0, 3 + Math.random() * 2, 0, Math.PI * 2); ctx.fillStyle = '#f9ca24'; ctx.fill(); } }
+        }
+        else if (p.weapon.isThrown) {
+            ctx.save(); ctx.translate(p.radius + 6, 0); ctx.rotate(T * 3);
+            ctx.fillStyle = '#dfe6e9'; ctx.strokeStyle = '#2d3436'; ctx.lineWidth = 1; ctx.beginPath();
+            for (let j = 0; j < 8; j++) { let a = j * Math.PI / 4, rr = j % 2 ? 3 : 9; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+            ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+        }
         else if (p.weapon.type === 'gun' || (p.weapon.type === 'charge' && p.weapon.id !== 16)) drawGun(p.weapon, p.radius, T);
         else if (p.weapon.id === 10) { ctx.fillRect(p.radius, -6, 25, 12); ctx.fillStyle = '#333'; ctx.fillRect(p.radius + 25, -4, 5, 8); }
         else if (p.weapon.id === 15) { ctx.fillRect(p.radius, -5, 22, 10); ctx.fillStyle = '#c0392b'; ctx.fillRect(p.radius + 5, -8, 12, 6); }
@@ -826,6 +843,7 @@ function draw() {
     }
     ctx.globalAlpha = 1;
 
+    if (currentMapType === 12) drawGardenGrass(x0, x1, y0, y1);
     for (let b of bushes) {
         if (!vis(b.x, b.y, Math.max(b.rx, b.ry))) continue;
         ctx.beginPath(); ctx.ellipse(b.x, b.y, b.rx, b.ry, b.rot || 0, 0, Math.PI * 2);
@@ -1097,7 +1115,7 @@ function draw() {
         drawShadow(t.x, t.y, 10); ctx.save(); ctx.translate(t.x, t.y); ctx.rotate(t.rotation);
         if (t.alpha !== undefined) ctx.globalAlpha = t.alpha;
         if (t.isGrenade) {
-            ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fillStyle = '#27ae60'; ctx.fill();
+            ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fillStyle = (t.color || (t.wepData && t.wepData.color)) === '#e17055' ? '#e17055' : '#27ae60'; ctx.fill();
             ctx.fillStyle = (t.expTime - Date.now()) % 200 < 100 ? '#e74c3c' : '#f1c40f';
             ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
         } else {
@@ -1112,6 +1130,7 @@ function draw() {
         if (!vis(b.x, b.y, 60)) continue;
         let k = bulletKind(b);
         if (k === 10) continue;
+        if (k >= 13 && drawSkillBullet(b, k, T)) { ctx.lineCap = 'round'; continue; }
         if (k === 1) {
             ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
             ctx.beginPath(); ctx.arc(-6, 0, 20, -Math.PI / 2.4, Math.PI / 2.4); ctx.strokeStyle = 'rgba(0,255,255,0.35)'; ctx.lineWidth = 9; ctx.stroke();
@@ -1566,9 +1585,10 @@ function drawVirtualControls(stick, btnA, btnB, btnC, btnD, isTopPlayer, p) {
     let cReady = false, cPct = 0, dPct = 0, dReady = false, bPct = -1;
     if (p && !tr) {
         if (p.perks.nhatKiem && isKatanaW(w)) { cPct = 1 - Math.min(1, Math.max(0, p.skillC_CD) / 3); cReady = cPct >= 1; }
+        else if (skillInfo(p) && !skillInfo(p).locked) { cPct = Math.max(0.01, 1 - Math.min(1, Math.max(0, p.skillC_CD) / skillInfo(p).cd)); cReady = cPct >= 1; }
         else if (p.perks.tk_blink) { cPct = 1 - Math.min(1, Math.max(0, p.blinkCD || 0) / 6); cReady = cPct >= 1; }
         if ((p.tags['KIẾM SƯ'] || 0) >= 5 && isKatanaW(w)) dPct = Math.min(1, (p.dCharge || 0) / 50);
-        else if (w && RAGE_WEAPONS[w.key]) dPct = Math.min(1, (p.rage || 0) / 100);
+        else if (w && RAGE_WEAPONS[w.key] && skillRageOK(p, w)) dPct = Math.min(1, (p.rage || 0) / 100);
         dReady = dPct >= 1;
     }
     if (tr) { bPct = 1 - Math.min(1, Math.max(0, tr.cannon) / 8); cPct = Math.max(0.01, 1 - Math.min(1, Math.max(0, tr.boostCD) / 12)); cReady = cPct >= 1; dPct = tr.sw > 0 ? 1 : 0; dReady = tr.sw > 0; }

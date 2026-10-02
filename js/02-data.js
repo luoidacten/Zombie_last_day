@@ -174,6 +174,8 @@ const UPGRADES = [
     { id: 'sc_blast', type: 'Kỹ Năng', name: 'Tế Phẩm Cuồng Bạo', desc: 'Liềm: Tế Phẩm nổ rộng hơn 60% và sát thương x2.', tags: ['LIỀM', 'NỔ'] },
     { id: 'sc_reap', type: 'Kỹ Năng', name: 'Lưỡi Hái Tử Thần', desc: 'Liềm: tầm chém +25%; mỗi mạng hạ bằng Liềm hồi 1 độ bền và 2 máu.', tags: ['LIỀM', 'HỒI MÁU'] },
     { id: 'n_multi', type: 'Kỹ Năng', name: 'Ném Chùm', desc: 'Mỗi lần ném văng thêm 2 bản sao hình quạt (50% sát thương).', tags: ['NÉM', 'TIẾN CÔNG'] },
+    { id: 'n_phiDao', type: 'Kỹ Năng', name: 'Phi Dao', desc: 'Dao Quân Sự: kỹ năng [C] phóng thêm 3 phi dao (tốn 3 độ bền); nút Ném [B] tung vòng phi dao quanh người như Phi Tiêu (mỗi dao tốn 3 độ bền).', tags: ['NÉM', 'CẬN CHIẾN'] },
+    { id: 'w_rage', type: 'Tuyệt Kỹ', name: 'Thịnh Nộ', desc: 'Mở khoá kỹ năng NỘ [D] của vũ khí: Minigun, Súng Ngắm, Búa / Rìu, Cung, Phun Lửa. (Kỹ năng [C] có hồi chiêu thì vũ khí nào cũng có sẵn.)', tags: ['TIẾN CÔNG', 'ĐẶC BIỆT'] },
 
     // --- HỆ TRIỆU HỒI / QUÂN ĐỘI / ĐỒNG MINH ---
     { id: 'a_call_rifleman', type: 'Triệu Hồi', name: 'Gọi: Lính Đột Kích', desc: 'Mỗi map có 1 lính AI cầm AR đi theo bạn và tự động xả đạn.', tags: ['TRIEU_HOI'] },
@@ -208,6 +210,12 @@ const WEAPON_TYPES = {
     KNIFE: { id: 17, name: 'Dao Quân Sự', color: '#7f8c8d', ammo: 50, range: 90, fireRate: 150, dmg: 200, type: 'melee', spread: 0.8, kb: 50, speedBoost: 1.5, isThrust: true, maxAmmo: 50 }, // Dao: đâm thẳng
     SPEAR: { id: 18, name: 'Giáo', color: '#e67e22', ammo: 40, range: 160, fireRate: 400, dmg: 75, type: 'melee', spread: 0.3, kb: 250, isThrust: true, maxAmmo: 40 },
     GRENADE: { id: 19, name: 'Lựu Đạn', color: '#27ae60', ammo: 1, type: 'explosive', fuseTime: 2500, maxAmmo: 1 },
+    // GẬY: hất văng quái. Gậy Sắt rất khó gãy và đánh đau hơn nhưng vung chậm hơn
+    BAT: { id: 33, name: 'Gậy Bóng Chày', color: '#c8a165', ammo: 70, range: 105, fireRate: 380, dmg: 130, type: 'melee', spread: 1.9, kb: 750, maxAmmo: 70, isBat: true },
+    IRON_BAT: { id: 34, name: 'Gậy Sắt', color: '#95a5a6', ammo: 180, range: 110, fireRate: 640, dmg: 270, type: 'melee', spread: 1.9, kb: 900, maxAmmo: 180, isBat: true },
+    // VŨ KHÍ NÉM: nút bắn và nút Ném [B] cho hai đòn khác nhau
+    SHURIKEN: { id: 31, name: 'Phi Tiêu', color: '#b2bec3', ammo: 24, range: 620, fireRate: 260, dmg: 150, critCh: 0.25, type: 'gun', isThrown: true, bk: 14, spd: 1000, pierce: 1, maxAmmo: 24 },
+    MOLOTOV: { id: 32, name: 'Bom Lửa', color: '#e17055', ammo: 3, type: 'explosive', fuseTime: 2500, isMolotov: true, maxAmmo: 3 },
 
     GLAUNCHER: { id: 13, name: 'Phóng Lựu', color: '#16a085', ammo: 8, range: 1000, fireRate: 900, dmg: 120, type: 'gun', isExplosiveProj: true, maxAmmo: 8 },
     MINIGUN: { id: 10, name: 'Minigun', color: '#d35400', ammo: 250, range: 650, fireRate: 20, dmg: 50, wallPiercing: true, type: 'gun', slowDown: 0.65, maxAmmo: 550 },
@@ -232,10 +240,10 @@ const WEAPON_TYPES = {
 // Mọi loại katana (đơn, kép, huyền thoại) đều hưởng toàn bộ nâng cấp Kiếm / Kiếm Sư
 function isKatanaW(w) { return !!w && (w.name === 'Kiếm' || !!w.isKatana || !!w.isLegendary); }
 for (const k in WEAPON_TYPES) WEAPON_TYPES[k].key = k; // mỗi vũ khí nhớ khóa của mình (dùng cho đồng bộ online & kiểm tra loại)
-const NORMAL_WEAPONS = ['PISTOL', 'SMG', 'AR', 'SHOTGUN', 'SNIPER', 'BOW', 'KATANA', 'AXE', 'HAMMER', 'GLAUNCHER', 'KNIFE', 'SPEAR', 'GRENADE'];
+const NORMAL_WEAPONS = ['PISTOL', 'SMG', 'AR', 'SHOTGUN', 'SNIPER', 'BOW', 'KATANA', 'AXE', 'HAMMER', 'GLAUNCHER', 'KNIFE', 'SPEAR', 'GRENADE', 'SHURIKEN', 'MOLOTOV', 'BAT', 'IRON_BAT'];
 const SUPER_WEAPONS = ['MINIGUN', 'FLAMETHROWER', 'ACID_SPRAYER', 'LIGHTSABER', 'RADIO'];
 const ELECTRO_WEAPONS = ['ELECTRO_WHIP', 'ELECTRO_CANNON'];
-const MELEE_ONLY_POOL = ['KATANA', 'AXE', 'HAMMER', 'LIGHTSABER', 'KNIFE', 'SPEAR'];
+const MELEE_ONLY_POOL = ['KATANA', 'AXE', 'HAMMER', 'LIGHTSABER', 'KNIFE', 'SPEAR', 'BAT', 'IRON_BAT'];
 
 let players = [], zombies = [], bullets = [], enemyBullets = [], slashes = [];
 let thrownItems = [], drops = [], obstacles = [], particles = [], vfxList = [];

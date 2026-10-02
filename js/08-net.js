@@ -5,7 +5,7 @@
 const NET_PREFIX = 'zsurv-coop-';
 const NET_DROP_T = ['FOOD', 'MEDKIT', 'BLINDBOX', 'SUPERBOX', 'SHARD', 'HEAVYBOX'];
 const NET_EB_T = ['acid', 'net', 'electric', 'rock', 'rocket', 'arrow', 'shotgun'];
-const NET_HZ_T = ['electric', 'slow', 'magnet', 'rock', 'slam', 'artillery', 'strike', 'collapse', 'emp', 'cage', 'beam', 'mine', 'quake', 'rockfall', 'acidbomb', 'quad', 'd_arc', 'd_scythe', 'd_moon', 'soul', 'rift', 'deadzone', 'firewall', 'lancefall', 'plunge'];
+const NET_HZ_T = ['electric', 'slow', 'magnet', 'rock', 'slam', 'artillery', 'strike', 'collapse', 'emp', 'cage', 'beam', 'mine', 'quake', 'rockfall', 'acidbomb', 'quad', 'd_arc', 'd_scythe', 'd_moon', 'soul', 'rift', 'deadzone', 'firewall', 'lancefall', 'plunge', 'slashzone'];
 const NET_OB_T = ['wall', 'tree', 'rock', 'power', 'ruin', 'cave', 'plant_wall', 'building', 'rubble', 'rockwall'];
 const NET_ALLY_T = ['rifleman', 'medic', 'vanguard'];
 const NET_STATUS = ['burn', 'electric', 'overload', 'corrosion', 'fear'];

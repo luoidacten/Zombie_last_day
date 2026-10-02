@@ -492,10 +492,11 @@ class Player {
 
         // Lựu đạn nổ trên tay nếu quá giờ
         if (this.pullingPin && Date.now() >= this.pinTime) {
-            explode(this.x, this.y, 250, 200, this);
+            if (this.weapon && this.weapon.isMolotov) { skillMolotovBurst(this.x, this.y, this); this.takeDot(25); }
+            else explode(this.x, this.y, 250, 200, this);
             this.pullingPin = false;
-            // Nếu là lựu đạn thì mất 1 viên, hết thì vứt
-            if (this.weapon && this.weapon.name === 'Lựu Đạn') {
+            // Nếu là lựu đạn / bom lửa thì mất 1 quả, hết thì vứt
+            if (this.weapon && this.weapon.type === 'explosive') {
                 this.weapon.ammo--;
                 if (this.weapon.ammo <= 0) this.weapon = null;
             } else {
@@ -532,6 +533,7 @@ class Player {
             createParticles(this.x, this.y, '#00ffff', 20, 400);
             addScreenShake(isGiantWave ? 15 : 5);
         }
+        else if (canUseWeapon && isPressedC && objState !== 'TRAIN' && skillTryC(this)) { /* kỹ năng vũ khí [C] (16-skills.js) */ }
         else if (canUseWeapon && isPressedC && this.perks.tk_blink && !(this.perks.nhatKiem && isKatanas) && !(this.blinkCD > 0)) arsenalBlink(this);
 
         if (canUseWeapon && isPressedD && this.tags['KIẾM SƯ'] >= 5 && this.dCharge >= 50 && isKatanas) {
@@ -590,9 +592,11 @@ class Player {
 
         // Nhấn B để ném lựu đạn hoặc vứt vũ khí
         if (canUseWeapon && getButtonState(this.id, 'B', 'justPressed')) {
-            if (this.weapon && this.weapon.name === 'Lựu Đạn' && this.pullingPin) {
+            if (this.weapon && this.weapon.type === 'explosive' && this.pullingPin) {
                 this.throwGrenade();
-            } else if (!this.weapon || this.weapon.name !== 'Lựu Đạn') {
+            } else if (objState !== 'TRAIN' && skillThrowB(this)) {
+                // Phi Tiêu / Phi Dao: tung vòng quanh người
+            } else if (!this.weapon || this.weapon.type !== 'explosive') {
                 this.throwWeapon();
             }
         }
@@ -686,7 +690,7 @@ class Player {
 
     shoot() {
         if (!this.weapon || arsenalBlockShot(this)) return;
-        if (empStorm.active && this.weapon.type !== 'melee') {
+        if (empStorm.active && this.weapon.type !== 'melee' && !this.weapon.isThrown) {
             if (!(this.empTextCD > Date.now())) { this.empTextCD = Date.now() + 500; vfxList.push({ type: 'text', text: 'BỊ NHIỄU ĐIỆN TỪ!', x: this.x, y: this.y - 35, life: 0.5, color: '#48dbfb' }); }
             return;
         }
@@ -804,11 +808,11 @@ class Player {
 
             slashes.push(new Slash(this.x, this.y, angle, wep, this));
             arsenalMeleeSwing(this, wep, angle);
-            Sound.play(wep.name === 'Laser' || wep.isElectric ? 'saber' : (wep.name === 'Rìu' || wep.name === 'Búa' || wep.isScythe) ? 'slash_heavy' : isThrust ? 'stab' : 'slash');
+            Sound.play(wep.isBat ? 'swing' : wep.name === 'Laser' || wep.isElectric ? 'saber' : (wep.name === 'Rìu' || wep.name === 'Búa' || wep.isScythe) ? 'slash_heavy' : isThrust ? 'stab' : 'slash');
             if (wep.name === 'Búa') addScreenShake(5); if (wep.name === 'Laser') addScreenShake(2);
         } else {
             let mz = gunMuzzleDist(this.weapon, this.radius); // chớp lửa nằm đúng đầu nòng của từng loại súng
-            vfxList.push({ type: 'muzzle', x: this.x + this.facingX * mz, y: this.y + this.facingY * mz, life: 0.1, angle: angle, k: this.weapon.key });
+            if (!this.weapon.isThrown) vfxList.push({ type: 'muzzle', x: this.x + this.facingX * mz, y: this.y + this.facingY * mz, life: 0.1, angle: angle, k: this.weapon.key });
             if (this.weapon.name === 'Súng Săn') { for (let i = 0; i < this.weapon.bullets; i++) bullets.push(new Bullet(this.x, this.y, angle - this.weapon.spread / 2 + Math.random() * this.weapon.spread, wepClone, this)); Sound.play('shotgun'); addScreenShake(4); }
             else if (this.weapon.isFlamethrower || this.weapon.isAcidSprayer) {
                 let boosted = this.perks.a_apSuatCao ? 1.18 : 1;
@@ -821,7 +825,7 @@ class Player {
                         isAcid: !!this.weapon.isAcidSprayer
                     }, this));
                 }
-                if (!this.weapon.isFlamethrower) Sound.play('shoot'); // súng phun lửa dùng tiếng lặp riêng
+                // súng phun lửa và phun acid dùng chung tiếng lặp (updateLoopSounds)
             }
             else if (this.perks.v_miniRain && this.weapon.name === 'Minigun') {
                 // MINIGUN MƯA ĐẠN
@@ -833,10 +837,13 @@ class Player {
             else {
                 arsenalPreShot(this, wepClone, now);
                 bullets.push(new Bullet(this.x, this.y, angle, wepClone, this));
+                skillExtraShot(this, angle, wepClone);   // SMG Song Súng
                 // Sniper có tiếng nổ riêng; Minigun dùng tiếng lặp; súng điện bắn chậm dùng tiếng plasma
                 let wk = this.weapon.key;
                 if (wk === 'SNIPER') Sound.play('sniper');
                 else if (wk === 'MINIGUN') { /* loop */ }
+                else if (wk === 'SHURIKEN') Sound.play('throw');
+                else if (wk === 'PISTOL') Sound.play('pistol');
                 else if (wk === 'AR') Sound.play('ar');
                 else if (wk === 'SMG') Sound.play('smg');
                 else if (wk === 'PISTOL_ELECTRO') Sound.play('laser');
@@ -856,7 +863,8 @@ class Player {
                 }
             }
         }
-        this.lastFireTime = now; if (!arsenalFreeShot(this)) this.weapon.ammo--; if (this.weapon.ammo <= 0) this.throwWeapon();
+        this.lastFireTime = now; if (!arsenalFreeShot(this)) this.weapon.ammo--;
+        if (this.weapon.ammo <= 0) { if (this.weapon.type === 'melee') { Sound.play('wbreak'); arsText(this, this.weapon.name + ' ĐÃ GÃY!', '#b2bec3', 0.9); } this.throwWeapon(); }
     }
     throwWeapon() {
         if (!this.weapon) return;
@@ -986,6 +994,7 @@ class Bullet {
             let boosted = sourcePlayer && sourcePlayer.perks && sourcePlayer.perks.a_apSuatCao;
             speed = (wepData.isAcid ? 520 : 560) + Math.random() * (boosted ? 280 : 220);
         }
+        if (wepData.spd) speed = wepData.spd;
 
         this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
         this.range = wepData.range; this.dmg = wepData.dmg; this.armorPiercing = wepData.armorPiercing;
@@ -1047,6 +1056,7 @@ class Bullet {
             }
 
             explode(this.x, this.y, expRadius, expDmg, this.source, !!this.wepData.friendly);
+            skillBulletBoom(this);   // cầu lửa / cầu sét / đạn EMP
             this.active = false;
             return;
         }
@@ -1091,7 +1101,7 @@ class Bullet {
         // 2. HIỆU ỨNG TRẠNG THÁI
         if (wd.isFire) applyStatus(z, STATUS.BURN, { duration: 3.0, dpsPercent: 0.014, source: src });
         if (wd.isElectric) applyStatus(z, STATUS.ELECTRIC, { duration: 2.2, stacks: 1, dps: Math.max(4, this.dmg * 0.06), maxStacks: 8, source: src });
-        if (wd.isAcid) applyStatus(z, STATUS.CORROSION, { duration: 3.0, stacks: 1, dpsPercent: 0.0045, maxStacks: 8, source: src });
+        if (wd.isAcid) { applyStatus(z, STATUS.CORROSION, { duration: 3.0, stacks: 1, dpsPercent: 0.0045, maxStacks: 8, source: src }); z.hp -= z.maxHp * (isBossType(z.type) ? 0.0003 : 0.0012); }   // acid ăn theo % máu tối đa
         let arsHeld = arsenalBulletHit(this, z); // đạn lửa Minigun, mũi tên Ghim Kẹp
 
         // 3. GIẬT SÉT LAN (chỉ vũ khí nhóm Điện)
@@ -1144,6 +1154,7 @@ class Bullet {
                 vfxList.push({ type: 'laser_beam', x: lastZ.x, y: lastZ.y, tx: nextZ.x, ty: nextZ.y, life: 0.15, jag: true });
                 lastZ = nextZ;
             }
+            if (chainCount > 0) Sound.play('zap');
         }
 
         // 4. HIỆU ỨNG VÀ LOGIC PHỤ
@@ -1203,6 +1214,7 @@ class Slash {
         // Mỗi vũ khí một kiểu chém riêng (vẽ ở drawSweep)
         let nm = wepData.name, st = nm === 'Rìu' ? 'axe' : nm === 'Búa' ? 'hammer' : nm === 'Laser' ? 'saber' : wepData.isLegendary ? 'legend' : wepData.isElectric ? 'whip' : wepData.isScythe ? 'axe' : 'katana';
         if (wepData.isScythe) sweepCol = '255,70,80';
+        if (wepData.isBat) st = 'axe';
         if ((this.spread || 1) <= 0.45 || nm === 'Giáo') st = 'spear';
         if (st === 'axe') sweepCol = '255,140,110'; else if (st === 'hammer') sweepCol = '214,196,170';
         let swLife = st === 'hammer' ? 0.45 : (st === 'axe' ? 0.38 : (st === 'knife' || st === 'spear' ? 0.22 : 0.3));
@@ -1226,6 +1238,8 @@ class Slash {
             if (typeof this.source.onHitEnemy === 'function') this.source.onHitEnemy();
             this.hitTargets.add(z);
             createParticles(z.x, z.y, this.isSaber ? '#00ffff' : '#e74c3c', 12, 300);
+            // Gậy: tiếng va đập + hất văng, quái thường khựng lại một nhịp
+            if (this.wepData.isBat) { Sound.play(this.wepData.key === 'IRON_BAT' ? 'anvil' : 'clang'); if (!isBossType(z.type)) z.stunTimer = Math.max(z.stunTimer || 0, 0.3); }
             // Kiếm Hỏa: đòn chém gây Thiêu Đốt
             if (this.isFire) applyStatus(z, STATUS.BURN, { duration: 3.0, dpsPercent: 0.016, source: this.source });
 
@@ -1272,7 +1286,7 @@ class ThrownItem {
         this.friction = 1050;           // ma sát mặt đất (px/s²): vật ném chậm dần đều rồi dừng hẳn
         this.state = 'fly'; this.rest = 0; this.alpha = 1;
         this.hitSet = new Set();
-        this.pierceLeft = (!isGrenade && perks.n_pierce) ? 2 : 0;
+        this.pierceLeft = ((!isGrenade && perks.n_pierce) ? 2 : 0) + (!isGrenade && wepData && wepData.key === 'SPEAR' ? 5 : 0);   // Giáo phi xuyên 5 mục tiêu
         this.boomerang = !isGrenade && !this.ghost && this.isMelee && !!perks.n_boomerang;
         this.explosive = !isGrenade && !!perks.n_explode;
         this.stunBonus = nemLvl >= 4 ? 0.35 : 0;
@@ -1307,6 +1321,11 @@ class ThrownItem {
         if (this.isGrenade) {
             this.x += this.vx * dt; this.y += this.vy * dt; this.rotation += this.spin * dt;
             let drag = Math.pow(0.025, dt); this.vx *= drag; this.vy *= drag;
+            if (this.wepData && this.wepData.isMolotov) {
+                // Bom Lửa: vỡ khi chạm quái, khi hết đà hoặc hết ngòi
+                if (this.age > 0.75 || Date.now() >= this.expTime || zombies.some(z => z.hp > 0 && !z.flying && Math.hypot(z.x - this.x, z.y - this.y) < z.radius + 14)) { skillMolotovBurst(this.x, this.y, this.source); this.active = false; }
+                return;
+            }
             if (Date.now() >= this.expTime) { explode(this.x, this.y, 250, 250, this.source); this.active = false; }
             return;
         }
@@ -1706,8 +1725,9 @@ class Ally {
             }
         }
         let owner = this.owner && !this.owner.isDowned ? this.owner : (players.find(p => !p.isDowned) || players[0]);
+        if (this.post) owner = this.post;                 // lính thuê: giữ vị trí gác ở cổng căn cứ
         let anchor = owner;
-        let desiredDist = this.kind === 'vanguard' ? 85 : 145;
+        let desiredDist = this.post ? 40 : (this.kind === 'vanguard' ? 85 : 145);
         if (target && this.kind === 'vanguard' && Math.hypot(owner.x - this.x, owner.y - this.y) < 420) anchor = target; // xông lên nhưng không bỏ chủ quá xa
         let distAnchor = Math.hypot(anchor.x - this.x, anchor.y - this.y);
         let speed = 175 * (summon >= 5 ? 1.3 : 1) * (hasTeamPerk('a_overdrive_matrix') ? 1.25 : 1);
@@ -2076,7 +2096,7 @@ class Zombie {
         }
         // Đường cong về sau: các loại trước đây không tăng máu theo map giờ cũng tăng; từ map 7 mọi quái trâu & nhanh dần
         if ([13, 14, 15, 26, 27, 28, 29].includes(this.type)) this.maxHp *= 1 + (currentLevel - 1) * 0.3;
-        this.maxHp *= enemyLateHpMult();
+        this.maxHp *= enemyLateHpMult() * diff().hp;
         if (this.type < 30 || (this.type >= 40 && this.type <= 43)) this.baseSpeed *= enemyLateSpeedMult();
         this.hp = this.maxHp;
     }

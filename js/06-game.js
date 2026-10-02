@@ -1,4 +1,5 @@
 function toggleGuideModal(show) {
+    if (show) renderWiki();
     document.getElementById('guideModal').style.display = show ? 'flex' : 'none';
 }
 
@@ -6,7 +7,7 @@ function toggleGuideModal(show) {
 function resetRunState() {
     currentLevel = 1;
     shopScrap = 0;
-    hasPowerPlantMap = false;
+    hasPowerPlantMap = false; ownedMaps = {};
     nextRoute = 'balanced';
     nextMapPreference = null;
     nextMissionPreference = null;
@@ -521,6 +522,7 @@ function gameLoop(time) {
 
         // Giới hạn tổng số quái để giữ khung hình ổn định
         if (zombies.length > 240 || story.noSpawn) zCount = 0;
+        zCount = Math.ceil(zCount * diff().spawn);   // độ khó
         if (isCaveMap()) zCount = caveSpawnCount(zCount);
         for (let i = 0; i < zCount; i++) {
             // Sinh quanh MỘT người chơi còn sống bất kỳ (không chỉ người chơi 1), ngoài tầm an toàn
@@ -561,6 +563,8 @@ function gameLoop(time) {
                 if (fz.kind === 'acid') {
                     applyStatus(z, STATUS.CORROSION, { duration: 2.2, stacks: 1, dpsPercent: 0.0035, maxStacks: 8, source: fz.source });
                     z.hp -= (fz.dmg || 0) * dt * srcMult;
+                    // Acid ăn mòn theo % MÁU TỐI ĐA mỗi giây (nhiều vũng chồng nhau không cộng dồn)
+                    if (z._acF !== survivalTime) { z._acF = survivalTime; z.hp -= z.maxHp * (isBossType(z.type) ? 0.008 : 0.04) * Math.min(3, srcMult) * dt; }
                     if (Math.random() < 0.25) createParticles(z.x, z.y, '#2ecc71', 1, 50);
                 } else if (fz.kind === 'arrow') {
                     z.hp -= fz.dmg * dt * srcMult;
@@ -1009,7 +1013,7 @@ function predictNextMission() {
 }
 
 // Giá DUY NHẤT cho mỗi món (trước đây bảng giá hiển thị và bảng giá trừ tiền lệch nhau)
-const SHOP_COSTS = { heal: 18, ammo: 14, box: 24, factoryMap: 35, flare: 20, minekit: 22, batteryPack: 16, rebreather: 28, herbicide: 20, urbanMap: 18 };
+const SHOP_COSTS = { heal: 18, ammo: 14, box: 24, factoryMap: 500, flare: 20, minekit: 22, batteryPack: 16, rebreather: 28, herbicide: 20, urbanMap: 18 };
 // Tuyến đường: min = map kế tiếp tối thiểu để mở
 const ROUTE_DEFS = {
     balanced: { el: 'routeBalanced', min: 1 }, hunt: { el: 'routeHunt', min: 1 }, rescue: { el: 'routeRescue', min: 1 },
@@ -1020,7 +1024,7 @@ function routeLocked(route) {
     let def = ROUTE_DEFS[route];
     if (!def) return true;
     if (currentLevel + 1 < def.min) return true;
-    if (route === 'power' && !hasPowerPlantMap) return true;
+    if (routeNeedsMap(route)) return true;
     if (route === 'mine' && !mineUnlocked) return true;
     return false;
 }
@@ -1034,7 +1038,7 @@ function getDynamicShopItems() {
         { id: 'ammo', name: 'Hộp đạn', desc: 'Hồi 40% độ bền/đạn vũ khí đang cầm.' },
         { id: 'box', name: 'Thùng vũ khí', desc: 'Rơi 1 hòm thính ở đầu map sau.' }
     ];
-    if (!hasPowerPlantMap) list.push({ id: 'factoryMap', name: 'Bản đồ Nhà Máy Điện', desc: 'Mở tuyến Nhà Máy Điện (3 tầng + Boss, mở thẻ hệ ĐIỆN).' });
+
     if (nextMission === 'RESCUE' && !shopFlags.flare) list.push({ id: 'flare', name: 'Pháo sáng cứu hộ', desc: 'NPC ở gần bạn hơn và trực thăng đến nhanh hơn 8s.' });
     if (nextMission === 'KILL') list.push({ id: 'minekit', name: 'Bộ mìn phòng tuyến', desc: 'Đầu map sau rải 3 quả mìn quanh điểm xuất phát.' });
     if (nextMap === 6) list.push({ id: 'batteryPack', name: 'Pin dự phòng', desc: 'Bắt đầu map điện với +1 pin cầm tay.' });
@@ -1071,6 +1075,7 @@ function updateRouteShopUI() {
         if (route === nextRoute) el.classList.add('border-emerald-500', 'ring-4', 'ring-emerald-500/50', 'bg-emerald-950/20');
         else el.classList.add('border-gray-600', 'bg-gray-800');
         if (routeLocked(route)) el.classList.add('route-locked');
+        routeMapBadge(route, el);
     }
     renderDynamicShopItems();
     storyShopBanner();
@@ -1097,6 +1102,7 @@ function askConfirm(title, text, onYes) {
 function selectRoute(route, confirmed = false) {
     if (!ROUTE_DEFS[route]) return;
     if (storyForcedRoute()) { Sound.play('hit'); netToast('Cốt truyện đang khoá điểm đến kế tiếp — hãy mua tiếp tế rồi bấm TIẾP TỤC.', 2200); return; }
+    if (routeNeedsMap(route) && currentLevel + 1 >= ROUTE_DEFS[route].min && !(route === 'mine' && !mineUnlocked)) { routeBuyMap(route); return; }
     if (routeLocked(route)) {
         Sound.play('hit');
         netToast(route === 'power' ? 'Cần mua Bản đồ Nhà Máy Điện trước!' : (route === 'mine' && !mineUnlocked) ? 'Hộ tống Tiến Sĩ thoát khỏi Hang Z (tầng 3) để mở Hầm Mỏ!' : `Tuyến này mở từ Map ${ROUTE_DEFS[route].min}.`, 2000);

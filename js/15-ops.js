@@ -15,14 +15,30 @@ const TURRETS = {
 };
 const TURRET_KEYS = Object.keys(TURRETS);
 // Ô đặt ụ súng: 2 ô trong cổng trại, 6 ô dọc hai bên con đường
-const BASE_SLOTS = [[2580, 1890], [2580, 2110], [2880, 1838], [2880, 2162], [3180, 1838], [3180, 2162], [3480, 1838], [3480, 2162]];
+// 8 ô đầu thuộc cổng Đông; mỗi cổng mở thêm (Tây, Nam, Bắc) cho thêm 2 ô bên trong cổng đó
+const BASE_SLOTS = [[2580, 1890], [2580, 2110], [2880, 1838], [2880, 2162], [3180, 1838], [3180, 2162], [3480, 1838], [3480, 2162],
+    [1420, 1880], [1420, 2120], [1880, 2420], [2120, 2420], [1790, 1560], [2210, 1560]];
 const BASE = { house: { x: 2000, y: 1640 }, gate: { x: 2682, y: 2000 }, laneEnd: 3860, shopBase: { x: 2000, y: 2390 } };
-function newBase() { return { house: 0, spikes: 0, turrets: [], def: null }; }
+// Bốn con đường địch tràn vào: Đông, Tây, Nam, Bắc. Mỗi lần thủ thành xong lần sau mở thêm một cổng.
+const GATE_NAMES = ['Đông', 'Tây', 'Nam', 'Bắc'];
+const LANES = [
+    { x: 2700, y: 1900, w: 1160, h: 200, sx: 3790, sy: 2000, px: 2600, py: 2000 },
+    { x: 140, y: 1900, w: 1160, h: 200, sx: 210, sy: 2000, px: 1400, py: 2000 },
+    { x: 1900, y: 2550, w: 200, h: 1160, sx: 2000, sy: 3640, px: 2000, py: 2450 },
+    { x: 1900, y: 290, w: 200, h: 1160, sx: 2000, sy: 360, px: 1900, py: 1520 }
+];
+const MAX_GUARDS = 6;
+function newBase() { return { house: 0, spikes: 0, turrets: [], def: null, defCount: 0, guards: 0 }; }
 let base = newBase();
-function baseSave() { return { house: base.house, spikes: base.spikes, turrets: base.turrets.map(t => t ? { t: t.t, l: t.l } : null) }; }
+function baseGates() { return Math.min(4, 1 + (base.defCount || 0)); }                 // số cổng của lần thủ thành kế tiếp
+function baseGatesNow() { return NET.mode === 'guest' ? (story.bg || 1) : (base.def ? base.def.gates : baseGates()); }
+function baseSlotCount() { return 8 + 2 * (baseGates() - 1); }
+function guardCost() { return 30 + base.guards * 5; }
+function baseSave() { return { house: base.house, spikes: base.spikes, dc: base.defCount, g: base.guards, turrets: base.turrets.map(t => t ? { t: t.t, l: t.l } : null) }; }
 function baseLoad(s) {
     base = newBase(); if (!s) return;
     base.house = Math.max(0, Math.min(5, s.house | 0)); base.spikes = Math.max(0, Math.min(3, s.spikes | 0));
+    base.defCount = Math.max(0, s.dc | 0); base.guards = Math.max(0, Math.min(MAX_GUARDS, s.g | 0));
     if (Array.isArray(s.turrets)) s.turrets.slice(0, BASE_SLOTS.length).forEach((t, i) => { if (t && TURRETS[t.t]) base.turrets[i] = { t: t.t, l: Math.max(1, Math.min(3, t.l | 0)), cd: 0, ang: 0 }; });
 }
 function baseHouseHp() { return 1500 + base.house * 800 + currentLevel * 100; }
@@ -35,14 +51,19 @@ function turretCost(key, lvl) { return Math.round(TURRETS[key].cost * Math.pow(1
 function buildCamp(defense) {
     obstacles = [];
     const wall = (x, y, w, h) => obstacles.push({ type: 'wall', x, y, w, h });
-    wall(1300, 1450, 1400, 36); wall(1300, 2514, 1400, 36); wall(1300, 1450, 36, 1100);
-    if (defense) {
-        wall(2664, 1450, 36, 450); wall(2664, 2100, 36, 450);                       // tường đông chừa CỔNG
-        wall(2700, 1864, BASE.laneEnd - 2700 + 36, 36); wall(2700, 2100, BASE.laneEnd - 2700 + 36, 36);   // hai hàng rào của con đường
-        wall(BASE.laneEnd, 1900, 36, 200);
-    } else wall(2664, 1450, 36, 1100);
+    let n = defense ? baseGatesNow() : 0;
+    // Bốn mặt tường; mặt nào có cổng mở thì chừa khoảng 200px và dựng hàng rào hai bên con đường
+    if (n >= 1) { wall(2664, 1450, 36, 450); wall(2664, 2100, 36, 450); } else wall(2664, 1450, 36, 1100);
+    if (n >= 2) { wall(1300, 1450, 36, 450); wall(1300, 2100, 36, 450); } else wall(1300, 1450, 36, 1100);
+    if (n >= 3) { wall(1300, 2514, 600, 36); wall(2100, 2514, 600, 36); } else wall(1300, 2514, 1400, 36);
+    if (n >= 4) { wall(1300, 1450, 600, 36); wall(2100, 1450, 600, 36); } else wall(1300, 1450, 1400, 36);
+    for (let g = 0; g < n; g++) {
+        let L = LANES[g];
+        if (L.w > L.h) { wall(L.x, L.y - 36, L.w, 36); wall(L.x, L.y + L.h, L.w, 36); wall(g === 0 ? L.x + L.w : L.x - 36, L.y, 36, L.h); }
+        else { wall(L.x - 36, L.y, 36, L.h); wall(L.x + L.w, L.y, 36, L.h); wall(L.x, g === 2 ? L.y + L.h : L.y - 36, L.w, 36); }
+    }
     for (let t of [[1420, 1560], [2440, 1560], [1420, 2300], [2440, 2300]]) obstacles.push({ type: 'building', x: t[0], y: t[1], w: 150, h: 120 });
-    for (let t of [[1380, 2020], [2560, 2300]]) obstacles.push({ type: 'tree', x: t[0], y: t[1], w: 70, h: 70 });
+    if (!defense) for (let t of [[1380, 2020], [2560, 2300]]) obstacles.push({ type: 'tree', x: t[0], y: t[1], w: 70, h: 70 });
     GROUND_DOTS.length = 0;
     for (let i = 0; i < 500; i++) GROUND_DOTS.push({ x: 1300 + Math.random() * 1400, y: 1450 + Math.random() * 1100, r: Math.random() * 2.5 + 0.5 });
 }
@@ -54,13 +75,16 @@ function renderBasePanel() {
     let box = document.getElementById('baseItems'); if (!box) return;
     const btn = (label, fn, ok, cls) => `<button class="px-2 py-2 rounded-lg text-xs font-bold border ${ok ? (cls || 'bg-emerald-700 border-emerald-400 text-white') : 'bg-gray-800 border-gray-600 text-gray-500'}" onclick="${fn}">${label}</button>`;
     let hc = 30 + base.house * 25, sc = 25 + base.spikes * 20;
-    let html = `<p class="text-xs text-gray-400 mb-2">Phế liệu: <span class="highlight">⚙ ${shopScrap}</span> · Cứ 5 map căn cứ bị tấn công một lần (map ${Math.ceil((currentLevel + 1) / 5) * 5}). Ụ súng và Nhà Chính được giữ suốt lượt chơi.</p>`;
+    let html = `<p class="text-xs text-gray-400 mb-2">Phế liệu: <span class="highlight">⚙ ${shopScrap}</span> · Cứ 5 map căn cứ bị tấn công một lần (map ${Math.ceil((currentLevel + 1) / 5) * 5}). Ụ súng và Nhà Chính được giữ suốt lượt chơi.<br>Lần tới địch tràn vào từ <b class="text-orange-300">${baseGates()} cổng: ${GATE_NAMES.slice(0, baseGates()).join(', ')}</b> — mỗi lần thủ thành xong sẽ mở thêm một cổng (tối đa 4).</p>`;
     html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
         <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-600 flex items-center justify-between gap-2"><div class="text-xs text-white"><b>🏠 Nhà Chính</b> cấp ${base.house}/5<br><span class="text-gray-400">Máu ${baseHouseHp()}</span></div>${base.house < 5 ? btn('Nâng cấp ⚙' + hc, 'baseBuy(\'house\')', shopScrap >= hc) : '<span class="text-emerald-400 text-xs font-bold">TỐI ĐA</span>'}</div>
         <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-600 flex items-center justify-between gap-2"><div class="text-xs text-white"><b>🪤 Bẫy gai trên đường</b> cấp ${base.spikes}/3<br><span class="text-gray-400">Địch đi qua bị thương &amp; chậm</span></div>${base.spikes < 3 ? btn('Nâng cấp ⚙' + sc, 'baseBuy(\'spikes\')', shopScrap >= sc) : '<span class="text-emerald-400 text-xs font-bold">TỐI ĐA</span>'}</div></div>`;
+    let gc = guardCost();
+    html += `<div class="p-2 mb-3 rounded-lg bg-slate-900/80 border border-slate-600 flex items-center justify-between gap-2"><div class="text-xs text-white"><b>💂 Lính gác thuê</b> ${base.guards}/${MAX_GUARDS}<br><span class="text-gray-400">Chia đều ra giữ các cổng khi căn cứ bị tấn công. Lính chết trong trận là mất.</span></div>${base.guards < MAX_GUARDS ? btn('Thuê lính ⚙' + gc, 'baseBuy(\'guard\')', shopScrap >= gc) : '<span class="text-emerald-400 text-xs font-bold">ĐỦ QUÂN</span>'}</div>`;
     html += '<div class="space-y-2">';
     BASE_SLOTS.forEach((s, i) => {
-        let t = base.turrets[i], where = i < 2 ? 'trong cổng' : 'bên đường';
+        if (i >= baseSlotCount()) return;
+        let t = base.turrets[i], where = i < 2 ? 'trong cổng Đông' : (i < 8 ? 'bên đường Đông' : 'trong cổng ' + GATE_NAMES[1 + Math.floor((i - 8) / 2)]);
         html += `<div class="p-2 rounded-lg bg-slate-900/80 border border-slate-600"><div class="text-xs text-gray-300 mb-1"><b class="text-white">Ô ${i + 1}</b> <span class="text-gray-500">(${where})</span> — `;
         if (t) {
             let d = TURRETS[t.t], uc = turretCost(t.t, t.l);
@@ -79,9 +103,10 @@ function baseBuy(what, slot) {
     const pay = (c) => { if (shopScrap < c) { Sound.play('hit'); netToast('Không đủ phế liệu!', 1500); return false; } shopScrap -= c; Sound.play('upgrade'); return true; };
     if (what === 'house') { if (base.house < 5 && pay(30 + base.house * 25)) base.house++; }
     else if (what === 'spikes') { if (base.spikes < 3 && pay(25 + base.spikes * 20)) base.spikes++; }
+    else if (what === 'guard') { if (base.guards < MAX_GUARDS && pay(guardCost())) base.guards++; }
     else if (what === 'up') { let t = base.turrets[slot]; if (t && t.l < 3 && pay(turretCost(t.t, t.l))) t.l++; }
     else if (what === 'sell') { let t = base.turrets[slot]; if (t) { shopScrap += Math.floor(TURRETS[t.t].cost * 0.5); base.turrets[slot] = null; Sound.play('select'); } }
-    else if (TURRETS[what] && !base.turrets[slot] && slot >= 0 && slot < BASE_SLOTS.length) { if (pay(TURRETS[what].cost)) base.turrets[slot] = { t: what, l: 1, cd: 0, ang: 0 }; }
+    else if (TURRETS[what] && !base.turrets[slot] && slot >= 0 && slot < baseSlotCount()) { if (pay(TURRETS[what].cost)) base.turrets[slot] = { t: what, l: 1, cd: 0, ang: 0 }; }
     renderBasePanel(); netSendSync();
 }
 // Băng thông báo ở Bàn Chiến Dịch khi map kế tiếp là màn phòng thủ
@@ -97,8 +122,8 @@ function baseShopBanner() {
 // ---------------------------------------------------------------------------
 function genBaseDefense(level) {
     bgMapColor = '#2f3b2c'; currentWeather = 1;
+    base.def = { wave: 0, total: Math.min(8, 4 + Math.floor(level / 5)), left: 0, spawnT: 0, breakT: 6, kind: Math.random() < 0.5 ? 'bandit' : 'zombie', endT: 0, win: false, spikeT: 0, gates: baseGates() };
     buildCamp(true);
-    base.def = { wave: 0, total: Math.min(8, 4 + Math.floor(level / 5)), left: 0, spawnT: 0, breakT: 6, kind: Math.random() < 0.5 ? 'bandit' : 'zombie', endT: 0, win: false, spikeT: 0 };
 }
 function baseAfterGenerate(level) {
     let d = base.def;
@@ -107,11 +132,18 @@ function baseAfterGenerate(level) {
     drops = drops.filter(q => q.x > 1340 && q.x < 2660 && q.y > 1490 && q.y < 2510).slice(0, 10);
     players.forEach((p, i) => { p.x = 2480; p.y = 2000 + (i ? 50 : -50); });
     allies.forEach((a, i) => { a.x = 2380; a.y = 1960 + i * 40; });
+    // Lính gác thuê: chia đều ra các cổng đang mở
+    for (let i = 0; i < base.guards; i++) {
+        let L = LANES[i % d.gates], row = Math.floor(i / d.gates);
+        let gx = L.px + (L.w > L.h ? 0 : (row % 2 ? 60 : -60)), gy = L.py + (L.w > L.h ? (row % 2 ? 60 : -60) : 0);
+        let a = new Ally(gx, gy, 'rifleman'); a.post = { x: gx, y: gy }; a.guard = true; allies.push(a);
+    }
     mission = { type: 'BASE_DEF', progress: 0, required: d.total, complete: false }; objState = 'BASE_DEF';
     story.noSpawn = true;
     navRebuild(); navFlood([{ x: 2480, y: 2000 }], NAV.field); NAV.reach.length = 0;
-    for (let i = 0; i < NAV.field.length; i++) if (NAV.field[i] >= 2 && (i % NAV.n) * NAV.cs < 2660) NAV.reach.push(i);
-    queueRadio(d.kind === 'bandit' ? 'Lính gác: BĂNG CƯỚP đang kéo tới theo con đường phía đông! Giữ Nhà Chính bằng mọi giá!' : 'Lính gác: Một BẦY XÁC SỐNG đang tràn theo con đường phía đông! Giữ Nhà Chính bằng mọi giá!', null, 6);
+    for (let i = 0; i < NAV.field.length; i++) { let cx = (i % NAV.n) * NAV.cs, cy = Math.floor(i / NAV.n) * NAV.cs; if (NAV.field[i] >= 2 && cx > 1340 && cx < 2660 && cy > 1490 && cy < 2510) NAV.reach.push(i); }
+    let where = d.gates > 1 ? `${d.gates} CỔNG (${GATE_NAMES.slice(0, d.gates).join(', ')})` : 'con đường phía ĐÔNG';
+    queueRadio(`Lính gác: ${d.kind === 'bandit' ? 'BĂNG CƯỚP' : 'Một BẦY XÁC SỐNG'} đang tràn vào từ ${where}! Giữ Nhà Chính bằng mọi giá!`, null, 6);
 }
 function banditRandomType() { let r = Math.random(); return r < 0.55 ? 12 : (r < 0.72 ? 9 : (r < 0.84 ? 8 : (r < 0.95 || currentLevel < 7 ? 3 : 27))); }
 
@@ -123,6 +155,9 @@ function updateBase(dt) {
         if (d.endT <= 0) {
             mission.complete = true; base.def = null;
             rescueNPCs = [];
+            base.defCount++;                                                   // lần sau mở thêm một cổng
+            base.guards = allies.filter(a => a.guard && a.hp > 0).length;      // lính gác chết là mất
+            allies = allies.filter(a => !a.guard);
             if (d.win) {
                 let reward = 60 + currentLevel * 6; shopScrap += reward; breakthroughShards++;
                 netToast(`🛡 GIỮ VỮNG CĂN CỨ! +${reward} ⚙, +1 ◆ Mảnh Bức Phá.`, 4500); Sound.play('level');
@@ -145,7 +180,8 @@ function updateBase(dt) {
         d.spawnT -= dt;
         if (d.spawnT <= 0 && enemies < 70) {
             d.spawnT = Math.max(0.28, 0.6 - d.wave * 0.04);
-            let x = BASE.laneEnd - 40 - Math.random() * 60, y = 1935 + Math.random() * 130, last = d.wave === d.total;
+            let L = LANES[Math.floor(Math.random() * d.gates)], horiz = L.w > L.h, last = d.wave === d.total;
+            let x = L.sx + (horiz ? (Math.random() - 0.5) * 60 : (Math.random() - 0.5) * 130), y = L.sy + (horiz ? (Math.random() - 0.5) * 130 : (Math.random() - 0.5) * 60);
             let t = d.kind === 'bandit' ? banditRandomType() : -1;
             if (last && d.left % 9 === 0) t = d.kind === 'bandit' ? 27 : 4;
             let nz = new Zombie(x, y, t); nz.maxHp *= 1.5; nz.hp = nz.maxHp; zombies.push(nz); d.left--;
@@ -166,7 +202,7 @@ function updateBase(dt) {
         d.spikeT -= dt;
         if (d.spikeT <= 0) {
             d.spikeT = 0.5;
-            for (let z of zombies) if (z.hp > 0 && !z.flying && z.x > 2760 && z.x < 3700 && z.y > 1900 && z.y < 2100) { z.hp -= (14 + currentLevel * 3) * base.spikes; z.dzT = 0.6; z.lastHitBy = players[0]; }
+            for (let z of zombies) if (z.hp > 0 && !z.flying && LANES.some((L, g) => g < d.gates && z.x > L.x + 50 && z.x < L.x + L.w - 50 && z.y > L.y + 50 - (L.w > L.h ? 50 : 0) && z.y < L.y + L.h - 50 + (L.w > L.h ? 50 : 0))) { z.hp -= (14 + currentLevel * 3) * base.spikes; z.dzT = 0.6; z.lastHitBy = players[0]; }
         }
     }
     updateTurrets(dt);
@@ -214,16 +250,19 @@ function drawBase(T) {
     let defense = objState === 'BASE_DEF';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     if (defense) {
-        ctx.fillStyle = 'rgba(194, 178, 128, 0.28)'; ctx.fillRect(2700, 1900, BASE.laneEnd - 2700, 200);
-        if (base.spikes > 0) { ctx.fillStyle = 'rgba(190, 190, 200, 0.55)'; for (let x = 2780; x < 3700; x += 46 - base.spikes * 8) for (let y = 1915; y < 2095; y += 36) { ctx.beginPath(); ctx.moveTo(x - 5, y + 6); ctx.lineTo(x, y - 7); ctx.lineTo(x + 5, y + 6); ctx.fill(); } }
-        ctx.fillStyle = `rgba(231, 76, 60, ${0.25 + 0.15 * Math.sin(T * 5)})`; ctx.fillRect(BASE.laneEnd - 110, 1900, 110, 200);
-        outlinedText('☠ LỐI ĐỊCH TRÀN VÀO', BASE.laneEnd - 150, 1880, '#ff7675', 'bold 13px Arial');
-        outlinedText('CỔNG', BASE.gate.x, 1880, '#f1c40f', 'bold 13px Arial');
+        for (let g = 0, n = baseGatesNow(); g < n; g++) {
+            let L = LANES[g], st = 46 - base.spikes * 8;
+            ctx.fillStyle = 'rgba(194, 178, 128, 0.28)'; ctx.fillRect(L.x, L.y, L.w, L.h);
+            if (base.spikes > 0) { ctx.fillStyle = 'rgba(190, 190, 200, 0.55)'; for (let x = L.x + 60; x < L.x + L.w - 60; x += L.w > L.h ? st : 36) for (let y = L.y + (L.w > L.h ? 15 : 60); y < L.y + L.h - (L.w > L.h ? 5 : 60); y += L.w > L.h ? 36 : st) { ctx.beginPath(); ctx.moveTo(x - 5, y + 6); ctx.lineTo(x, y - 7); ctx.lineTo(x + 5, y + 6); ctx.fill(); } }
+            ctx.beginPath(); ctx.arc(L.sx, L.sy, 90, 0, Math.PI * 2); ctx.fillStyle = `rgba(231, 76, 60, ${0.25 + 0.15 * Math.sin(T * 5 + g)})`; ctx.fill();
+            outlinedText('☠ LỐI ĐỊCH — CỔNG ' + GATE_NAMES[g].toUpperCase(), L.sx, L.sy, '#ff7675', 'bold 13px Arial');
+        }
     } else if (!rescueNPCs.some(n => n.kind === 'house')) drawBaseHouse({ x: BASE.house.x, y: BASE.house.y, hp: 1, maxHp: 1 });
     let list = NET.mode === 'guest' ? (story.bs || []) : base.turrets;
     BASE_SLOTS.forEach((s, i) => {
-        if (!defense && i >= 2) return;                       // ở trại chỉ thấy 2 ụ trong cổng
+        if (!defense && i >= 2 && i < 8) return;              // ở trại chỉ thấy các ụ nằm trong tường
         let t = list[i], x = s[0], y = s[1];
+        if (!t && i >= 8 + 2 * (baseGatesNow() - 1)) return;   // cổng chưa mở: chưa có ô
         ctx.beginPath(); ctx.arc(x, y, 26, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill(); ctx.strokeStyle = t ? '#dfe6e9' : 'rgba(223,230,233,0.3)'; ctx.lineWidth = 2; ctx.setLineDash(t ? [] : [5, 6]); ctx.stroke(); ctx.setLineDash([]);
         if (!t) return;
         let d = TURRETS[t.t] || TURRETS.mg;
@@ -351,10 +390,10 @@ function drawHoldPoint(p, T) {
 // ---------------------------------------------------------------------------
 // THƯỞNG NHIỆM VỤ & BẢNG "NHIỆM VỤ HIỆN TẠI" Ở TRẠI
 // ---------------------------------------------------------------------------
-const MISSION_BONUS = { RAID: 30, LAST_STAND: 25, RESCUE: 20, KILL: 8, COLLECT: 8, POWER_CHARGE: 12, DEFEND: 20 };
+const MISSION_BONUS = { BURN_PLANTS: 22, RAID: 30, LAST_STAND: 25, RESCUE: 20, KILL: 8, COLLECT: 8, POWER_CHARGE: 12, DEFEND: 20 };
 function missionReward(type, level = currentLevel) {
     let boss = ['BOSS', 'POWER_BOSS', 'CITY_BOSS', 'HANGZ_ESCAPE', 'STORM_BOSS', 'ZAP_BOSS'].includes(type);
-    return (boss ? 80 + level * 5 : 30 + level * 5) + (MISSION_BONUS[type] || 0);
+    return Math.round(((boss ? 80 + level * 5 : 30 + level * 5) + (MISSION_BONUS[type] || 0)) * diff().scrap);
 }
 function hubTaskLines() {
     let L = [], next = currentLevel + 1;
@@ -369,7 +408,7 @@ function hubTaskLines() {
         L.push([`💰 Thưởng hoàn thành: khoảng +${missionReward(known ? mt : 'TOWERS', next)} ⚙`, '#f1c40f']);
     }
     let until = 5 - (next % 5); if (next % 5 !== 0) L.push([`🛡 Căn cứ bị tấn công sau ${until} map nữa (Map ${next + until})`, '#b2bec3']);
-    L.push([`🏠 Nhà Chính cấp ${base.house} · ${base.turrets.filter(t => t).length}/${BASE_SLOTS.length} ụ súng · bẫy gai cấp ${base.spikes}`, '#b2bec3']);
+    L.push([`🏠 Nhà Chính cấp ${base.house} · ${base.turrets.filter(t => t).length}/${baseSlotCount()} ụ súng · bẫy gai cấp ${base.spikes} · ${base.guards} lính gác · lần tới ${baseGates()} cổng`, '#b2bec3']);
     if (players.some(p => p.pendingUpgrades > 0)) L.push(['🃏 Có lượt chọn thẻ đang chờ (chọn khi bắt đầu chiến dịch)', '#2ecc71']);
     return L;
 }

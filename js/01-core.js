@@ -57,8 +57,12 @@ const Sound = (() => {
         boss_pm: 'nhac/Boss_ost_PM_MAP.mp3',
         boss_insect: 'nhac/Insetboss.mp3',             // Kiến Chúa
         dead1: 'nhac/theDead_1.mp3',                   // The Dead
-        dead2: 'nhac/theDead_2.mp3'                    // The Dead dưới 50% máu
+        dead2: 'nhac/theDead_2.mp3',                   // The Dead dưới 50% máu
+        boss_zap: 'nhac/boss_zap.mp3',                 // ZAP-1624 khi đang đánh được
+        boss_zap_p1: 'nhac/boss_phase1(lúc tìm nạp nl).mp3', // ZAP-1624 lúc còn bất tử, đi tìm pin nạp máy phá sóng
+        boss_hucker: 'nhac/boss_kéo_x2 tộc phát.mp3'   // The Hucker & pha nóc tàu (phát tốc độ x2)
     };
+    const MUSIC_RATE = { boss_hucker: 2 };
     const MUSIC_VOL = 0.24;
 
     // Hiệu ứng một lần. s/e = điểm bắt đầu/kết thúc (giây) đã đo trên sóng âm để bỏ khoảng lặng đầu file,
@@ -69,7 +73,27 @@ const Sound = (() => {
         zombie_groan: { f: 'quai-boss/dragon-studio-zombie-sound-2-357976.mp3', g: 'amb', s: 0.5, e: 7.9, v: 0.3, gap: 4000, voices: 1, keep: true },
         witch: { f: 'quai-boss/-female-zombie-screams-witch.mp3', g: 'amb', segs: [[0.3, 7.4], [8.4, 15.4], [16.3, 24.0], [25.0, 28.7]], v: 0.5, gap: 6000, voices: 1, keep: true },
         sniper: { f: 'sung/gun-Sniper.mp3', s: 0.06, e: 1.3, v: 0.55, gap: 200, voices: 2 },
-        ar: { f: 'sung/Ar_gun.mp3', s: 0, e: 0.9, v: 0.4, gap: 95, voices: 4, rate: [0.97, 1.03] },
+        ar: { f: 'sung/Ar_gun_súng trường.mp3', segs: [[0.1, 0.42], [2.2, 2.52]], v: 0.9, gap: 95, voices: 4, rate: [0.97, 1.03] },
+        pistol: { f: 'sung/lục.mp3', s: 0.04, e: 0.4, v: 0.3, gap: 110, voices: 3, rate: [0.96, 1.04] },
+        energy: { f: 'sung/nạp năng lượng.mp3', s: 0.06, e: 4.2, v: 0.7, gap: 2500, voices: 1, keep: true },
+        // Điện
+        zap: { f: 'dien/biww-short-electric-561891.mp3', s: 0.17, e: 0.72, v: 0.9, gap: 130, voices: 3, rate: [0.92, 1.1] },
+        discharge: { f: 'dien/dragon-studio-electric-discharge-386160.mp3', s: 0.21, e: 0.83, v: 0.4, gap: 200, voices: 3, rate: [0.92, 1.08] },
+        eshock: { f: 'dien/freesound_community-075681_electric-shock-33018.mp3', s: 0.05, e: 1.35, v: 0.22, gap: 500, voices: 2 },
+        eimpact: { f: 'dien/freesound_community-electric-impact-37128.mp3', s: 0.05, e: 1.75, v: 0.5, gap: 500, voices: 2 },
+        eskill: { f: 'dien/điện_cho_Skill_hay_đó.mp3', s: 0.02, e: 0.88, v: 0.3, gap: 300, voices: 2 },
+        // Cận chiến / kim loại
+        swing: { f: 'can-chien/freesound_community-swing-6045.mp3', s: 0.4, e: 0.66, v: 1.0, gap: 120, voices: 3, rate: [0.9, 1.1] },
+        woosh: { f: 'can-chien/freesound_community-woosh-2-6471.mp3', s: 0.12, e: 0.87, v: 1.0, gap: 200, voices: 2 },
+        swoosh: { f: 'can-chien/universfield-fast-swoosh-383967.mp3', s: 0.08, e: 0.3, v: 0.5, gap: 90, voices: 3, rate: [0.92, 1.1] },
+        anvil: { f: 'can-chien/joe_bou_khalil-realistic-anvil-hit-amp-forging-metal-ring-procedural-558485.mp3', s: 0.03, e: 1.0, v: 0.9, gap: 220, voices: 3, rate: [0.9, 1.05] },
+        wbreak: { f: 'can-chien/tutmozis-metal-crack-606770.mp3', s: 0.06, e: 0.6, v: 0.5, gap: 300, voices: 2 },
+        clang: { f: 'can-chien/u_ml52e3xzf7-metal-impact-247482.mp3', s: 0.03, e: 0.36, v: 1.0, gap: 110, voices: 3, rate: [0.9, 1.12] },
+        // Boss / bộ đàm
+        big_roar: { f: 'quai-boss/big_roar_zombie.mp3', g: 'amb', segs: [[0.7, 1.35], [2.6, 4.0], [4.9, 6.0]], v: 0.8, gap: 1500, voices: 1, keep: true },
+        boss_roar: { f: 'quai-boss/yarzur_ofc-sfx11-boss_roar-324521.mp3', g: 'amb', s: 0.18, e: 2.1, v: 0.5, gap: 2500, voices: 1, keep: true },
+        huck_laugh: { f: 'quai-boss/huck_lauge.mp3', g: 'amb', s: 0.5, e: 3.9, v: 0.8, gap: 4000, voices: 1, keep: true },
+        radio: { f: 'giao-dien/radio.mp3', s: 0.09, e: 1.5, v: 0.9, gap: 2500, voices: 1, keep: true },
         smg: { f: 'sung/SMG_gun.mp3', s: 0, e: 0.34, v: 0.42, gap: 75, voices: 4, rate: [0.96, 1.05] },
         bow: { f: 'sung/bow_shoot.mp3', s: 0.42, e: 0.9, v: 0.85, gap: 120, voices: 2 },
         laser: { f: 'sung/voicebosch-laser-gun-174976.mp3', s: 0.5, e: 1.5, v: 0.4, gap: 150, voices: 3 },
@@ -105,7 +129,8 @@ const Sound = (() => {
         spray: { f: 'sung/gun-các_sung_xấy_khác.mp3', ls: 0.6, le: 4.38, fade: 0.12, rate: 1.18 },
         heli: { f: 'moi-truong/gd_salman-helicopter-ambience-353004.mp3', g: 'amb', ls: 0.5, le: 19.5, fade: 0.03 },
         rain: { f: 'moi-truong/lofivision-rain-and-thunder-321270.mp3', g: 'amb', ls: 1.0, fade: 0.015 },
-        cave: { f: 'moi-truong/dragon-studio-droplets-in-a-cave-482871.mp3', g: 'amb', ls: 0.6, le: 5.9, fade: 0.02 }
+        cave: { f: 'moi-truong/dragon-studio-droplets-in-a-cave-482871.mp3', g: 'amb', ls: 0.6, le: 5.9, fade: 0.02 },
+        ezone: { f: 'dien/freesound_community-electric-shock-97989.mp3', ls: 0.3, le: 4.1, fade: 0.05 }   // vùng điện đang hoạt động
     };
 
     const broken = {}, pools = {}, lastFile = {}, loops = {}, fading = [], holdUntil = {};
@@ -182,7 +207,7 @@ const Sound = (() => {
         if (music) { music._target = 0; fading.push(music); }
         music = null; musicKey = key;
         if (!key || broken[key] || !MUSIC[key]) return;
-        music = makeAudio(MUSIC[key], key); music.loop = true; music.volume = 0; music._target = MUSIC_VOL * vol.music;
+        music = makeAudio(MUSIC[key], key); music.loop = true; music.volume = 0; music.playbackRate = MUSIC_RATE[key] || 1; music._target = MUSIC_VOL * vol.music;
         music.play().catch(() => { });
     }
 
@@ -313,6 +338,9 @@ const Sound = (() => {
         src.stop(t + duration + 0.02);
     }
 
+    // Tiếng chỉ có ở file (file lỗi thì rơi về âm tổng hợp gần nghĩa nhất)
+    const FILE_ONLY = new Set(['pistol', 'energy', 'zap', 'discharge', 'eshock', 'eimpact', 'eskill', 'swing', 'woosh', 'anvil', 'wbreak', 'clang', 'boss_roar', 'huck_laugh', 'radio']);
+    const FILE_ONLY_FALLBACK = { pistol: 'shoot', energy: 'charge', swing: 'melee', woosh: 'throw', boss_roar: 'tank', huck_laugh: 'tank', radio: 'select', zap: 'charge', eskill: 'charge' };
     function startAmbience() { resume(); }
     function stopAmbience() { for (let k in loops) loops[k]._target = 0; }
     function play(name) {
@@ -329,7 +357,9 @@ const Sound = (() => {
         else if (name === 'level') sfxFile('levelup');
         else if (name === 'heli_arrive') { sfxFile('heli_arrive'); return; }
         else if (name === 'witch') { if (sfxFile('witch')) return; name = 'melee'; }
-        else if (name === 'roar') { if (sfxFile('zombie_groan', 2.2)) return; name = 'tank'; }
+        else if (name === 'roar') { if (sfxFile('big_roar') || sfxFile('zombie_groan', 2.2)) return; name = 'tank'; }
+        else if (name === 'throw') { if (sfxFile('swoosh')) return; }
+        else if (FILE_ONLY.has(name)) { if (sfxFile(name)) return; name = FILE_ONLY_FALLBACK[name] || 'hit'; }
         else if (name === 'thunder') { sfxFile('thunder'); return; }
         else if (name === 'slash' || name === 'slash_heavy' || name === 'stab' || name === 'saber') { if (sfxFile(name)) return; name = 'melee'; }
         else if (name === 'shotgun') { if (sfxFile('shotgun')) return; }

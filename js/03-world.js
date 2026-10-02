@@ -155,9 +155,10 @@ function getXpRequired(level) {
 
 // ĐƯỜNG CONG ĐỘ KHÓ: map đầu nhẹ tay hơn, càng về sau quái càng đau và càng trâu để người chơi không "vô đối"
 function enemyDmgScale() {
-    if (currentLevel <= 2) return 0.75;
-    if (currentLevel <= 4) return 0.9;
-    return Math.min(3.5, 1 + (currentLevel - 4) * 0.09);
+    let d = diff().dmg;   // độ khó người chơi chọn ở menu
+    if (currentLevel <= 2) return 0.75 * d;
+    if (currentLevel <= 4) return 0.9 * d;
+    return Math.min(3.5, 1 + (currentLevel - 4) * 0.09) * d;
 }
 function enemyLateHpMult() { return currentLevel > 6 ? Math.min(12, Math.pow(1.1, currentLevel - 6)) : 1; }
 function enemyLateSpeedMult() { return currentLevel > 6 ? Math.min(1.3, 1 + (currentLevel - 6) * 0.02) : 1; }
@@ -221,7 +222,7 @@ function getMissionName(type = objState) {
         POWER_CHARGE: 'Nạp điện', RESCUE: 'Giải cứu người sống sót',
         CAVE_ESCORT: 'Hộ tống Tiến Sĩ đặt 3 ngòi nổ C4', CAVE_RUN: 'Chạy ra cửa hầm', MINE_NESTS: 'Phá toàn bộ tổ kiến', MINE_EXIT: 'Xuống tầng 5',
         MINE_BOMB: 'Gài bom phá sập lõi tổ kiến', QUEEN: 'Boss: Kiến Chúa', QUEEN_RUN: 'Cuộc đào tẩu 45 giây',
-        RAID: 'Đột kích 3 sào huyệt cướp', LAST_STAND: 'Tiền tuyến cuối cùng', BASE_DEF: 'Phòng thủ Nhà Chính',
+        BURN_PLANTS: 'Thiêu thực vật đột biến', RAID: 'Đột kích 3 sào huyệt cướp', LAST_STAND: 'Tiền tuyến cuối cùng', BASE_DEF: 'Phòng thủ Nhà Chính',
         STORM_STATIONS: 'Phá hủy 3 Trạm Điện Cao Áp', STORM_BOSS: 'Boss: Tàn Vết Chớp', ZAP_HOLD: 'Kích hoạt Lõi Máy Phát', ZAP_BOSS: 'Boss cuối: ZAP-1624 "Kình Lôi"',
         LAB_C4: 'Bảo vệ Binh sĩ gài C4 phá cửa', LAB_DECON: 'Khử độc & cứu viện', LAB_ESCORT: 'Dẫn Nhà Khoa Học ra Nhà Ga X', STATION_HOLD: 'Tử thủ bến tàu', TRAIN: 'Tẩu thoát trên tàu hoả'
     };
@@ -250,8 +251,10 @@ function updateMoodMusic() {
     let dead = zombies.find(z => z.type === 50 && z.hp > 0);
     if (dead) key = dead.hp < dead.maxHp * 0.5 ? 'dead2' : 'dead1';
     else if (zombies.some(z => z.type === 45 && z.hp > 0)) key = 'boss_insect';
-    else if (zombies.some(z => (z.type === 35 || z.type === 36) && z.hp > 0)) key = 'boss_electric';
-    else if (objState === 'TRAIN' || zombies.some(z => ((z.type >= 30 && z.type <= 32) || z.type === 37) && z.hp > 0)) key = electric ? 'boss_electric' : (dark || isRainyWeather() ? 'boss_pm' : 'boss');
+    else if (zombies.some(z => z.type === 36 && z.hp > 0)) key = (story.zx && !(story.zx.jam > 0) && !(story.zx.final > 0)) ? 'boss_zap_p1' : 'boss_zap';   // bất tử, đang tìm pin: nhạc pha 1
+    else if (zombies.some(z => z.type === 35 && z.hp > 0)) key = 'boss_electric';
+    else if (objState === 'TRAIN' || zombies.some(z => z.type === 37 && z.hp > 0)) key = 'boss_hucker';
+    else if (zombies.some(z => (z.type >= 30 && z.type <= 32) && z.hp > 0)) key = electric ? 'boss_electric' : (dark || isRainyWeather() ? 'boss_pm' : 'boss');
     else if (electric) key = 'map_electric';
     else if (isRainyWeather() || currentMapType === 9) key = 'map_rain';
     else if (dark) key = 'map_pm';
@@ -265,10 +268,11 @@ function updateLoopSounds(dt) {
     moodTimer -= dt;
     if (moodTimer <= 0) { moodTimer = 1; updateMoodMusic(); }
     let fire = false, mg = false;
-    for (let b of bullets) { let k = bulletKind(b); if (k === 4) fire = true; else if (k === 12) mg = true; }
+    for (let b of bullets) { let k = bulletKind(b); if (k === 4 || k === 5) fire = true; else if (k === 12) mg = true; }   // phun acid dùng chung tiếng với phun lửa
     Sound.loop('flame', fire, 0.33);
     Sound.loop('minigun', mg, 0.38);
     Sound.loop('heli', heliSupport.active, 0.26);
+    Sound.loop('ezone', hazards.some(h => h.type === 'electric' && h.life > 0 && !(h.timer > 0)), 0.22);
     // Tiếng mưa nền: bão to hơn mưa thường, mưa acid nhỏ hơn
     // Hang động / hầm mỏ: tiếng nước nhỏ giọt vang trong hang
     Sound.loop('cave', isCaveMap(), caveSlippery() ? 0.5 : 0.3);
@@ -318,6 +322,7 @@ window.addEventListener('keydown', e => { if (e.code === 'KeyM' && !(e.target &&
 
 function queueRadio(text, audioKey = null, life = 5) {
     radioDialogs.push({ text, audioKey, life, maxLife: life });
+    Sound.play('radio');
     if (NET.mode === 'host') NET.ev.push(['r', text]);
     if (audioKey) Sound.playExternal(audioKey, 0.9);
 }
@@ -603,6 +608,8 @@ function generateMap(level) {
     if (currentMapType === 4 || currentMapType === 5) lastSpecialMapLevel = level;
 
     let missionType = pickMissionType(level);
+    // Vườn Thực Vật: nhiệm vụ riêng — thiêu các thực vật đột biến
+    if (currentMapType === 12 && !nextMissionPreference && ['TOWERS', 'COLLECT', 'KILL', 'LAST_STAND'].includes(missionType)) missionType = 'BURN_PLANTS';
     // Vườn Thực Vật / Thành Phố N đôi khi là nhiệm vụ Giải Cứu (quyết định TRƯỚC khi dựng nhiệm vụ để NPC được sinh ra đúng)
     if (!nextMissionPreference && ['TOWERS', 'COLLECT', 'KILL', 'LAST_STAND'].includes(missionType) &&
         ((currentMapType === 12 && Math.random() < 0.35) || (currentMapType === 13 && Math.random() < 0.3))) missionType = 'RESCUE';
@@ -711,7 +718,7 @@ function generateMap(level) {
         for (let i = 0; i < 8; i++) lightFlowers.push({ x: 240 + Math.random() * (MAP_SIZE.w - 480), y: 240 + Math.random() * (MAP_SIZE.h - 480), radius: 24, charge: 100 });
     }
     else if (currentMapType === 12) { // Vuon Thuc Vat
-        bgMapColor = '#16351f';
+        bgMapColor = '#1d4a28';
         currentWeather = 5;
         let vineCount = shopFlags.herbicide ? 28 : 48;
         shopFlags.herbicide = false;
@@ -864,7 +871,7 @@ function pointInBush(x, y) {
     return null;
 }
 function igniteBush(bush, source = null) {
-    if (!bush || bush.burnedOut) return;
+    if (!bush || bush.burnedOut || bush.noBurn) return;   // cỏ Vườn Thực Vật không cháy
     bush.burning = true;
     bush.burnTime = Math.max(bush.burnTime || 0, 10.0);
     bush.source = source || bush.source || null;
@@ -965,6 +972,7 @@ function updateEmpStorm(dt) {
 }
 function updateBushFire(dt) {
     for (let fz of fireZones) {
+        if (fz.kind === 'acid' || fz.kind === 'arrow') continue;   // acid / mưa tên không làm cháy bụi cỏ
         for (let b of bushes) {
             if (!b.burnedOut && Math.hypot(b.x - fz.x, b.y - fz.y) < (fz.radius || 40) + Math.max(b.rx, b.ry) * 0.65) {
                 igniteBush(b, fz.source);
@@ -985,6 +993,11 @@ function updateBushFire(dt) {
                 z.hp -= z.maxHp * 0.012 * dt;
             }
         }
+        // Bụi cỏ cháy thiêu MỌI mục tiêu đứng trong nó: người chơi, lính, người được cứu
+        const inB = (e) => { let dx = (e.x - b.x) / b.rx, dy = (e.y - b.y) / b.ry; return dx * dx + dy * dy <= 1; };
+        if (!tank.active) for (let pl of players) if (!pl.isDowned && inB(pl)) { pl.takeDot(10 * dt); if (Math.random() < dt * 6) createParticles(pl.x, pl.y, '#e67e22', 2, 80); }
+        for (let a of allies) if (a.hp > 0 && inB(a)) a.takeDamage(8 * dt);
+        for (let n of rescueNPCs) if (n.hp > 0 && n.kind !== 'house' && inB(n)) n.takeDamage(8 * dt);
         if (b.burnTime <= 0) {
             b.burning = false;
             b.burnedOut = true;
@@ -1054,6 +1067,7 @@ function damageZombiesInRadius(x, y, radius, dmg, skipElectric = false, opts = {
     }
 }
 function electricBurst(x, y, radius, dmg, stun = 0.6) {
+    Sound.play('discharge');
     createParticles(x, y, '#00d2d3', 35, 360);
     spawnRing(x, y, '#00d2d3', radius, 0.3);
     addScreenShake(6);
@@ -1113,6 +1127,7 @@ function pickAlivePlayer() {
 
 // Phóng điện của phe ta: chỉ gây sát thương lên quái
 function friendlyZap(x, y, radius, dmg, source = null) {
+    Sound.play('discharge');
     createParticles(x, y, '#00d2d3', 18, 260);
     spawnRing(x, y, '#00d2d3', radius, 0.3);
     for (let z of zombies) {

@@ -5,7 +5,7 @@
 //  Chương "PHÒNG THÍ NGHIỆM Z & NHÀ GA X" nằm ở 13-labz.js (dùng chung trạng thái `story`).
 //  Chỉ chủ phòng chạy logic; khách nhận trạng thái qua storyNetState / storyNetApply.
 // ============================================================================
-const STORY_PROP_T = ['station', 'core', 'machine', 'print', 'traindoor', 'labdoor', 'wreck', 'chain', 'holdpt'];
+const STORY_PROP_T = ['station', 'core', 'machine', 'print', 'traindoor', 'labdoor', 'wreck', 'chain', 'holdpt', 'plant'];
 const STORY_NPC_T = ['soldier', 'aegis', 'scientist', 'house'];
 const STORY_ARENA_BOSSES = new Set([30, 31, 32, 35, 36, 50]);
 const BOSS_SUBS = {
@@ -92,7 +92,7 @@ function startBossIntro(z) {
     spawnRing(z.x, z.y, z.color, 360, 0.9, 10); spawnRing(z.x, z.y, '#ffffff', 220, 0.6, 5);
     createParticles(z.x, z.y, z.color, 60, 420);
     addScreenShake(big ? 16 : 9);
-    Sound.play('boss_intro'); Sound.play('roar');
+    Sound.play('boss_intro'); Sound.play(z.type === 37 ? 'huck_laugh' : 'boss_roar');
     clearPcInputs();
 }
 
@@ -264,7 +264,7 @@ function updateZapExtras(dt) {
         }
         if (core && zx.held > 0 && Math.hypot(p.x - core.x, p.y - core.y) < 140) {
             zx.jam = Math.min(60, Math.max(0, zx.jam) + 20 * zx.held); zx.held = 0;
-            spawnRing(core.x, core.y, '#48dbfb', 520, 0.7, 10); Sound.play('level'); addScreenShake(8);
+            spawnRing(core.x, core.y, '#48dbfb', 520, 0.7, 10); Sound.play('energy'); addScreenShake(8);
             vfxList.push({ type: 'text', text: `MÁY PHÁ SÓNG BẬT ${Math.ceil(zx.jam)}s — BOSS NHẬN SÁT THƯƠNG!`, x: core.x, y: core.y - 90, life: 2.2, color: '#48dbfb' });
         }
     }
@@ -301,6 +301,7 @@ function updateStoryProps(dt) {
     if (!story.props.some(p => p.breakable)) return;
     for (let s of story.props) {
         if (!s.breakable) continue;
+        if (s.fireOnly) { gardenPropHits(s, dt); continue; }   // thực vật đột biến: chỉ lửa mới thiêu được
         for (let b of bullets) {
             if (!b.active || b.isHeli || Math.hypot(b.x - s.x, b.y - s.y) > s.r + 6) continue;
             let exp = b.isTankShell || b.isExplosiveProj || b.isBomb;
@@ -323,6 +324,7 @@ function updateStoryProps(dt) {
         if (!s.breakable || s.hp > 0) continue;
         story.props.splice(i, 1);
         if (s.kind === 'chain') { railChainBroken(s); continue; }
+        if (s.kind === 'plant') { gardenPlantDead(s); continue; }
         if (s.kind === 'wreck') {
             // Công trình bỏ hoang: phá để nhặt phế liệu
             let gain = s.scrap || 4; shopScrap += gain;
@@ -340,7 +342,7 @@ function updateStoryProps(dt) {
 }
 // Vụ nổ làm hỏng trạm điện (móc trong explode)
 function storyOnExplosion(x, y, radius, dmg) {
-    for (let s of story.props) if (s.breakable && Math.hypot(s.x - x, s.y - y) < radius + s.r) s.hp -= dmg * 0.8;
+    for (let s of story.props) if (s.breakable && !s.fireOnly && Math.hypot(s.x - x, s.y - y) < radius + s.r) s.hp -= dmg * 0.8;
     for (let op of outposts) if (!op.dead && Math.hypot(op.x + op.w / 2 - x, op.y + op.h / 2 - y) < radius + 80) outpostHurt(op, dmg * 0.8);
 }
 
@@ -414,6 +416,7 @@ function storyAfterGenerate(level) {
     } else if (currentMapType === 15) labAfterGenerate(level);
     else if (currentMapType === 16) baseAfterGenerate(level);
     else if (mission.type === 'LAST_STAND') lastStandSetup(level);
+    else if (mission.type === 'BURN_PLANTS') gardenSetup(level);
     // Công trình bỏ hoang rải trên map: phá để nhận phế liệu (không có trong hang / hầm mỏ / Lab)
     if (!isCaveMap() && currentMapType !== 15 && currentMapType !== 16) {
         const KINDS = ['XE HỎNG', 'KHO PHẾ LIỆU', 'MÁY PHÁT CŨ', 'CONTAINER'];
@@ -639,6 +642,7 @@ function storyDeflect(b, z) {
     let turn = (Math.random() < 0.5 ? 1 : -1) * (0.9 + Math.random() * 0.6), sp = Math.hypot(b.vx, b.vy);
     b.angle += turn; b.vx = Math.cos(b.angle) * sp; b.vy = Math.sin(b.angle) * sp;
     if (Math.random() < 0.3) createParticles(b.x, b.y, '#74b9ff', 3, 160);
+    Sound.play('clang');
     if (!(z.deflTextCD > Date.now())) { z.deflTextCD = Date.now() + 1400; vfxList.push({ type: 'text', text: 'ĐẠN BỊ LỆCH! Dùng CẬN CHIẾN / NỔ để phá giáp', x: z.x, y: z.y - z.radius - 58, life: 1.3, color: '#74b9ff' }); }
     return true;
 }
@@ -713,8 +717,43 @@ class StoryNPC {
     }
 }
 class Scientist extends RescueNPC {
-    constructor(x, y) { super(x, y); this.isStory = true; this.kind = 'scientist'; this.hp = this.maxHp = 170 + currentLevel * 30; }
+    constructor(x, y) { super(x, y); this.isStory = true; this.kind = 'scientist'; this.hp = this.maxHp = 260 + currentLevel * 45; this.down = 0; this.calm = 0; }
+    // Gục thì chưa chết ngay: có 25 giây để người chơi đứng cạnh 3 giây cứu dậy
+    takeDamage(dmg) {
+        if (this.down > 0 || this.hp <= 0) return;
+        this.calm = 3;
+        this.hp -= (this.rescued ? dmg : dmg * 0.3) * 0.75;
+        if (this.hp <= 0) {
+            this.hp = 1; this.down = 25; this.rescueProgress = 0;
+            createParticles(this.x, this.y, '#c0392b', 16, 160); Sound.play('down');
+            vfxList.push({ type: 'text', text: 'NHÀ KHOA HỌC GỤC — TỚI CỨU!', x: this.x, y: this.y - 40, life: 2.0, color: '#ff7675' });
+        }
+    }
+    update(dt) {
+        if (this.hp <= 0) return;
+        if (this.down > 0) {
+            this.down -= dt;
+            if (players.some(p => !p.isDowned && Math.hypot(p.x - this.x, p.y - this.y) < 80)) this.rescueProgress += dt; else this.rescueProgress = Math.max(0, this.rescueProgress - dt * 0.5);
+            if (this.rescueProgress >= 3) {
+                this.down = 0; this.hp = this.maxHp * 0.5; this.calm = 3; this.rescueProgress = this.rescued ? 0 : 5;
+                createParticles(this.x, this.y, '#2ecc71', 25, 160); spawnRing(this.x, this.y, '#2ecc71', 80, 0.4); Sound.play('heal');
+                vfxList.push({ type: 'text', text: 'ĐÃ CỨU DẬY!', x: this.x, y: this.y - 35, life: 1.2, color: '#2ecc71' });
+            } else if (this.down <= 0) { this.hp = 0; createParticles(this.x, this.y, '#c0392b', 20, 180); addDecal(this.x, this.y, '#7b1a12', 24, 0.5); }
+            return;
+        }
+        // Tự hồi máu khi 3 giây không bị đánh
+        if (this.calm > 0) this.calm -= dt; else if (this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.05 * dt);
+        super.update(dt);
+    }
     draw(ctx) {
+        if (this.down > 0 && this.hp > 0) {
+            drawShadow(this.x, this.y, this.radius);
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = '#95a5a6'; ctx.fill(); ctx.strokeStyle = '#ff7675'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.beginPath(); ctx.arc(this.x, this.y, 80, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,118,117,0.4)'; ctx.stroke();
+            drawMiniBar(this.x, this.y + 22, 42, 5, this.rescueProgress || 0, 3, '#2ecc71');
+            outlinedText(`GỤC — CỨU! ${Math.ceil(this.down)}s`, this.x, this.y - 28, '#ff7675', 'bold 10px Arial');
+            return;
+        }
         super.draw(ctx);
         if (this.hp <= 0) return;
         ctx.beginPath(); ctx.arc(this.x, this.y, this.radius - 3, 0.2, Math.PI - 0.2); ctx.fillStyle = '#f5f6fa'; ctx.fill();   // áo blouse
@@ -809,6 +848,7 @@ function drawStoryProps(T, vis) {
         if (p.kind === 'wreck') { drawWreck(p, T); continue; }
         if (p.kind === 'chain') { drawRailChain(p, T); continue; }
         if (p.kind === 'holdpt') { drawHoldPoint(p, T); continue; }
+        if (p.kind === 'plant') { drawGardenPlant(p, T); continue; }
         if (p.kind === 'station') {
             drawShadow(p.x, p.y + 10, p.r);
             ctx.fillStyle = '#2d3436'; ctx.fillRect(p.x - 34, p.y - 22, 68, 50); ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.strokeRect(p.x - 34, p.y - 22, 68, 50);
@@ -849,7 +889,7 @@ function storyObjectiveText() {
         }
         case 'TRAIN': return ['NÓC TÀU: phá MÓC XÍCH · B pháo · C tăng tốc · D chuyển ray', '#f1c40f'];
     }
-    return opsObjectiveText() || labObjectiveText();
+    return gardenObjectiveText() || opsObjectiveText() || labObjectiveText();
 }
 function storyPointers(ptr) {
     for (let p of story.props) {
@@ -859,6 +899,7 @@ function storyPointers(ptr) {
     }
     if (objState === 'STORM_BOSS' || objState === 'ZAP_BOSS') { let b = zombies.find(z => (z.type === 35 || z.type === 36) && !z.hidden); if (b) ptr(b.x, b.y, b.color); }
     labPointers(ptr);
+    gardenPointers(ptr);
     hubPointers(ptr);
     opsPointers(ptr);
     if (objState === 'ZAP_BOSS' && story.zx) { for (let it of missionItems) if (!it.taken) ptr(it.x, it.y, '#f1c40f'); let c = story.props.find(p => p.kind === 'core'); if (c && story.zx.held > 0) ptr(c.x, c.y, '#48dbfb'); for (let l of zombies) if (l.type === 38 && l.big) ptr(l.x, l.y, '#ff7675'); }
@@ -958,7 +999,7 @@ function storyNetState() {
     if (story.props.length) x.pr = story.props.map(p => [STORY_PROP_T.indexOf(p.kind), R(p.x), R(p.y), p.maxHp ? R(Math.max(0, p.hp) / p.maxHp * 100) : 0, p.on ? 1 : 0, p.r || 0]);
     labNetState(x);
     let zx = story.zx; if (zx) x.zx = [R(Math.max(0, zx.jam) * 10), zx.held, R(Math.max(0, zx.final) * 10), R(Math.max(0, zx.spear) * 10)];
-    if (currentMapType === 16) x.bs = base.turrets.map(t => t ? [TURRET_KEYS.indexOf(t.t), t.l, R((t.ang || 0) * 100)] : 0);
+    if (currentMapType === 16) x.bg = baseGatesNow(), x.bs = base.turrets.map(t => t ? [TURRET_KEYS.indexOf(t.t), t.l, R((t.ang || 0) * 100)] : 0);
     return x;
 }
 function storyNetApply(x) {
@@ -973,5 +1014,6 @@ function storyNetApply(x) {
     story.props = Array.isArray(x.pr) ? x.pr.map(e => ({ kind: STORY_PROP_T[e[0]] || 'machine', x: +e[1] || 0, y: +e[2] || 0, hp: +e[3] || 0, maxHp: 100, on: !!e[4], r: +e[5] || 40 })) : [];
     labNetApply(x);
     story.zx = Array.isArray(x.zx) ? { jam: (x.zx[0] | 0) / 10, held: x.zx[1] | 0, final: (x.zx[2] | 0) / 10, spear: (x.zx[3] | 0) / 10 } : null;
+    story.bg = x.bg | 0;
     story.bs = Array.isArray(x.bs) ? x.bs.map(e => Array.isArray(e) ? { t: TURRET_KEYS[e[0]] || 'mg', l: e[1] | 0, ang: (e[2] | 0) / 100 } : null) : null;
 }
