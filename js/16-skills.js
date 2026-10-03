@@ -232,6 +232,7 @@ function skillTick(p, dt) {
 
 // Vùng chém của Song Kiếm + Vườn Thực Vật (gọi cuối updateArsenal)
 function updateSkills(dt) {
+    updateBossExtras(dt);   // chiêu boss mới, mưa đá, hút chiến lợi phẩm sau khi hạ boss (17-bosses.js)
     for (let h of hazards) {
         if (h.type !== 'slashzone') continue;
         h.tick -= dt; if (h.tick > 0) continue;
@@ -536,8 +537,12 @@ function renderWiki() {
         + sec('⚔ KỸ NĂNG VŨ KHÍ [C / phím Q] — có sẵn, chỉ cần chờ hồi chiêu', '#ffeaa7', sk)
         + sec('💢 NỘ [D / phím R] — cần thẻ "Thịnh Nộ"', '#e056fd', rage + '<br>Hạ quái để nạp Nộ. Katana dùng Nộ KIẾM CƯỜNG theo Link Kiếm Sư 5, không cần thẻ.')
         + sec('🎯 VŨ KHÍ NÉM', '#fab1a0', '<b class="text-white">Phi Tiêu</b>: bắn 1 phi tiêu; Ném [B] tung vòng quanh người theo số còn lại. <b class="text-white">Bom Lửa</b>: giữ bắn để châm, [B] để ném, vỡ thành biển lửa. <b class="text-white">Lựu Đạn</b>: giữ bắn rút chốt, [B] ném.')
-        + sec('🗺 BẢN ĐỒ CHIẾN DỊCH (mua ở Bàn Chiến Dịch, một lần cho cả lượt chơi)', '#48dbfb', maps);
+        + sec('🗺 BẢN ĐỒ CHIẾN DỊCH (mua ở Bàn Chiến Dịch, một lần cho cả lượt chơi)', '#48dbfb', maps)
+        + sec('🌩 THỜI TIẾT', '#74b9ff', '<b class="text-white">Xấu</b> (Mưa, Gió mạnh, Sương mù, Nắng nóng, Bóng tối): trực thăng tới & đón <b>nhanh x1.5</b>. <b class="text-white">Khắc nghiệt</b> (Bão sét, Bão tuyết, Mưa acid, Bão điện từ, Mưa đá): <b>nhanh x2</b>. Mưa đá: hạt đá rơi trúng cả người lẫn quái, đi chậm 15%.<br>Map 1-4: 45% thời tiết xấu · map 5-9: 65% → 81% và hay mưa hơn · map 10: 85% · map 20: 100%.')
+        + sec('🏘 CƯ DÂN & CĂN CỨ', '#f39c12', 'Người được giải cứu (nhiệm vụ Giải Cứu, Nhà Khoa Học ở Lab Z) sẽ về căn cứ. Mỗi <b class="text-white">ụ súng cần 1 cư dân vận hành</b> — thiếu người thì ụ không bắn. Người còn lại làm <b class="text-white">thợ</b>: mỗi chiến dịch chế tạo 2 🧱 Vật Liệu và sửa Nhà Chính khi bị tấn công. Nâng Nhà Chính cần đủ dân (2/4/6/9/12) và vật liệu; ụ súng lên cấp 4-5 cần vật liệu. <b class="text-white">Lò Rèn</b> ở Xưởng: +12% sát thương mỗi cấp cho loại vũ khí đang cầm (tối đa 5).<br>Mỗi map chỉ có 1-4 loại quái (xem ở thẻ giới thiệu map). Map ngẫu nhiên không lặp lại liên tục; Thị Trấn Cướp, Vườn Thực Vật, Thành Phố N chỉ xuất hiện ngẫu nhiên khi đã mua bản đồ.')
+        + sec('☣ BIẾN DỊ', '#e056fd', 'Cứ 3 map tăng 1 cấp biến dị: quái thường +12% máu, +3% tốc độ mỗi cấp. Có tỉ lệ (3.5% mỗi cấp, tối đa 30%) xuất hiện <b class="text-white">quái BIẾN DỊ</b> viền tím: to hơn, x1.8 máu, nhanh hơn 15%, đánh đau x1.4, khó bị đẩy lùi; hạ được +1 ⚙.');
 }
 
 refreshDiffUI();
 refreshSaveUI();
+if (typeof refreshTutUI === 'function') refreshTutUI();

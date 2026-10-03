@@ -468,6 +468,8 @@ function drawArsenalHazard(h, T) {
         ctx.globalCompositeOperation = 'source-over'; ctx.lineCap = 'butt';
     } else if (h.type === 'slashzone') {
         drawSkillHazard(h, T);
+    } else if (h.type === 'hspin' || h.type === 'hboulder' || h.type === 'hsweep') {
+        drawBossHazard(h, T);   // chiêu The Hucker (17-bosses.js)
     } else if (h.type === 'deadzone') {
         ctx.beginPath(); ctx.arc(h.x, h.y, h.radius, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(30, 60, 90, ${0.26 + 0.04 * Math.sin(T * 3 + h.x)})`; ctx.fill();

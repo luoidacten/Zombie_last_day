@@ -5,7 +5,7 @@
 const NET_PREFIX = 'zsurv-coop-';
 const NET_DROP_T = ['FOOD', 'MEDKIT', 'BLINDBOX', 'SUPERBOX', 'SHARD', 'HEAVYBOX'];
 const NET_EB_T = ['acid', 'net', 'electric', 'rock', 'rocket', 'arrow', 'shotgun'];
-const NET_HZ_T = ['electric', 'slow', 'magnet', 'rock', 'slam', 'artillery', 'strike', 'collapse', 'emp', 'cage', 'beam', 'mine', 'quake', 'rockfall', 'acidbomb', 'quad', 'd_arc', 'd_scythe', 'd_moon', 'soul', 'rift', 'deadzone', 'firewall', 'lancefall', 'plunge', 'slashzone'];
+const NET_HZ_T = ['electric', 'slow', 'magnet', 'rock', 'slam', 'artillery', 'strike', 'collapse', 'emp', 'cage', 'beam', 'mine', 'quake', 'rockfall', 'acidbomb', 'quad', 'd_arc', 'd_scythe', 'd_moon', 'soul', 'rift', 'deadzone', 'firewall', 'lancefall', 'plunge', 'slashzone', 'hrock', 'hspin', 'hboulder', 'hsweep', 'hail'];
 const NET_OB_T = ['wall', 'tree', 'rock', 'power', 'ruin', 'cave', 'plant_wall', 'building', 'rubble', 'rockwall'];
 const NET_ALLY_T = ['rifleman', 'medic', 'vanguard'];
 const NET_STATUS = ['burn', 'electric', 'overload', 'corrosion', 'fear'];
@@ -287,7 +287,7 @@ function netSendMap() {
         bu: bushes.map(b => [R(b.x), R(b.y), R(b.rx), R(b.ry), +(b.rot || 0).toFixed(2), b.alpha]),
         fl: lightFlowers.map(f => [R(f.x), R(f.y)]),
         co: powerCoils.map(c => [R(c.x), R(c.y), R(c.radius)]),
-        intro: [mapIntro.map, mapIntro.mission, mapIntro.weather, mapIntro.timer]
+        intro: [mapIntro.map, mapIntro.mission, mapIntro.weather, mapIntro.timer, mapIntro.roster || '']
     });
     NET.sig = {};
 }
@@ -346,7 +346,7 @@ function netBuildSnapshot(slow) {
         let mask = 0;
         if (z.status) for (let id in z.status) { let i = NET_STATUS.indexOf(id); if (i >= 0 && z.status[id].timer > 0) mask |= (1 << i); }
         let beam = z.warnBeamTimer > 0; // vạch báo đòn: E.L, Witch, Crusher, Boomer, Điện Quang, Khổng Lồ
-        let flags = (z.hidden ? 1 : 0) | (z.isFrenzied > 0 ? 2 : 0) | (beam ? 4 : 0) | (z.phase2Done ? 8 : 0) | (z.hitFlash > 0 ? 16 : 0) | ((z.flying || z.airborne) ? 32 : 0) | (z.downed ? 64 : 0) | (z.carry ? 128 : 0);
+        let flags = (z.hidden ? 1 : 0) | (z.isFrenzied > 0 ? 2 : 0) | (beam ? 4 : 0) | (z.phase2Done ? 8 : 0) | (z.hitFlash > 0 ? 16 : 0) | ((z.flying || z.airborne) ? 32 : 0) | (z.downed ? 64 : 0) | (z.carry ? 128 : 0) | (z.mutant ? 256 : 0);
         let e = [z.nid, R(z.x), R(z.y), z.type, Math.max(1, R(z.hp / z.maxHp * 100)), flags, mask];
         if (beam) e.push(R(z.targetX), R(z.targetY));
         s.z.push(e);
@@ -445,7 +445,7 @@ function netApplyMap(m) {
     NET.zmap = new Map(); NET.lastSeq = 0;
     for (let p of players) { p._init = false; p.isDowned = false; }
     let it = Array.isArray(m.intro) ? m.intro : [];
-    mapIntro = { timer: num(it[3], 4), map: String(it[0] || ''), mission: String(it[1] || ''), weather: String(it[2] || '') };
+    mapIntro = { timer: num(it[3], 4), map: String(it[0] || ''), mission: String(it[1] || ''), weather: String(it[2] || ''), roster: String(it[4] || '') };
     levelStartTimer = 3;
 
     document.getElementById('netWait').style.display = 'none';
@@ -573,6 +573,7 @@ function netApplySnapshot(s) {
         let f = e[5];
         z.hidden = !!(f & 1); z.isFrenzied = (f & 2) ? 1 : 0; z.flying = z.airborne = !!(f & 32); z.downed = !!(f & 64); z.phase2Done = !!(f & 8);
         if (z.type === 42) z.carry = (f & 128) ? 'BLINDBOX' : null;
+        if ((f & 256) && !z.mutant) { z.mutant = true; z.radius = Math.round(z.radius * 1.15); }
         z.color = (f & 8) && NET_PHASE2[z.type] ? NET_PHASE2[z.type] : z.baseColor;
         if (f & 16) z.hitFlash = 0.1;
         if (f & 4) { z.warnBeamTimer = 1; z.targetX = e[7]; z.targetY = e[8]; } else z.warnBeamTimer = 0;

@@ -230,7 +230,7 @@ function getMissionName(type = objState) {
 }
 
 function getWeatherName(w = currentWeather) {
-    const names = { 1: 'Trời đẹp', 2: 'Mưa', 3: 'Gió mạnh', 4: 'Bão sét', 5: 'Nhiều mây', 6: 'Sương mù', 7: 'Nắng nóng', 9: 'Bão tuyết', 10: 'Mưa acid', 11: 'Bóng tối', 12: 'Bão điện từ' };
+    const names = { 1: 'Trời đẹp', 2: 'Mưa', 3: 'Gió mạnh', 4: 'Bão sét', 5: 'Nhiều mây', 6: 'Sương mù', 7: 'Nắng nóng', 9: 'Bão tuyết', 10: 'Mưa acid', 11: 'Bóng tối', 12: 'Bão điện từ', 13: 'Mưa đá' };
     return names[w] || 'Bất ổn';
 }
 let mapIntro = { timer: 0, map: '', mission: '', weather: '' };
@@ -239,7 +239,8 @@ function showMapIntro() {
         timer: 4.0,
         map: getMapName(),
         mission: getMissionName(objState),
-        weather: getWeatherName()
+        weather: weatherIntroText(),
+        roster: rosterText()
     };
 }
 
@@ -260,7 +261,7 @@ function updateMoodMusic() {
     else if (dark) key = 'map_pm';
     Sound.music(key);
 }
-function isRainyWeather() { return currentWeather === 2 || currentWeather === 10 || (currentWeather === 4 && currentMapType !== 6) || storyRain(); } // ZAP-1624 xuất hiện: trời đổ mưa
+function isRainyWeather() { return currentWeather === 2 || currentWeather === 10 || currentWeather === 13 || (currentWeather === 4 && currentMapType !== 6) || storyRain(); } // ZAP-1624 xuất hiện: trời đổ mưa
 
 // Tiếng lặp & tiếng nền theo trạng thái game (chạy ở cả chủ phòng lẫn khách)
 let moodTimer = 0, groanTimer = 10;
@@ -602,9 +603,10 @@ function generateMap(level) {
     } else if (level >= 5 && level % 5 === 0) {
         currentMapType = 16;   // cứ 5 map: PHÒNG THỦ CĂN CỨ (15-ops.js)
     } else {
-        currentMapType = availableMaps[Math.floor(Math.random() * availableMaps.length)];
+        currentMapType = pickRandomMap(availableMaps);   // không lặp liên tục, map mua bằng bản đồ chỉ vào vòng khi đã mua (18-colony.js)
     }
     nextMapPreference = null;
+    noteMapPlayed(currentMapType); buildMapRoster();
     if (currentMapType === 4 || currentMapType === 5) lastSpecialMapLevel = level;
 
     let missionType = pickMissionType(level);
@@ -1100,6 +1102,7 @@ function getWeatherSpeedMult() {
     if (currentWeather === 3) return 1.2;                            // Gió đẩy
     if (currentWeather === 4 && currentMapType === 9) return 0.64;   // Bão sét rừng mưa
     if (currentWeather === 9) return 0.6;                            // Bão tuyết
+    if (currentWeather === 13) return 0.85;                          // Mưa đá
     return 1;
 }
 
@@ -1111,13 +1114,10 @@ function pickWeatherForMap(initial = false) {
     else if (currentMapType === 6) currentWeather = (initial || storyRain()) ? 4 : 1;
     else if (currentMapType === 15) currentWeather = 5;
     else if (currentMapType === 16) currentWeather = 1;
-    else if (currentMapType === 1 || currentMapType === 2 || currentMapType === 3) currentWeather = 1;
+    else if ((currentMapType === 1 || currentMapType === 2 || currentMapType === 3) && currentLevel < 5) currentWeather = 1;
     else if (currentMapType === 12) currentWeather = Math.random() < 0.5 ? 5 : 10;
     else if (currentMapType === 13) currentWeather = Math.random() < 0.6 ? 6 : 1;
-    else {
-        let wPool = initial ? [1, 1, 2, 3, 5, 7] : [1, 2, 3, 5, 6, 7, 9, 10, 11, 12];
-        currentWeather = wPool[Math.floor(Math.random() * wPool.length)];
-    }
+    else rollWeather(initial);   // map 5+: hay mưa hơn; map 10: 85% thời tiết xấu; map 20: 100% (17-bosses.js)
 }
 
 function pickAlivePlayer() {
@@ -1188,7 +1188,9 @@ function updateHazards(dt) {
     weatherTimer -= dt;
     if (weatherTimer <= 0) {
         weatherTimer = 45 + Math.random() * 30;
+        let prevW = currentWeather;
         pickWeatherForMap(false);
+        weatherChanged(prevW);
     }
 
     let p = pickAlivePlayer();
@@ -1322,6 +1324,7 @@ function updateHazards(dt) {
         } else if (h.type === 'quake' && h.timer <= 0) {
             // Dậm đất của quái: chỉ hại phe người chơi, không làm bị thương quái khác
             hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 30, { stun: h.stun || 0 });
+            if (h.bz) bossHitZombies(h.x, h.y, h.radius, h.bz, 320);   // dậm đất của BOSS trúng cả zombie
             if (tank.active && tank.p2InvulnTimer <= 0 && Math.hypot(tank.x - h.x, tank.y - h.y) < h.radius + tank.radius) tank.hp -= (h.dmg || 30) * 0.5;
             for (let a of allies) if (a.hp > 0 && Math.hypot(a.x - h.x, a.y - h.y) < h.radius) a.takeDamage((h.dmg || 30) * 0.5);
             createParticles(h.x, h.y, '#7f8c8d', 40, 300);

@@ -5,7 +5,7 @@
 //  Chương "PHÒNG THÍ NGHIỆM Z & NHÀ GA X" nằm ở 13-labz.js (dùng chung trạng thái `story`).
 //  Chỉ chủ phòng chạy logic; khách nhận trạng thái qua storyNetState / storyNetApply.
 // ============================================================================
-const STORY_PROP_T = ['station', 'core', 'machine', 'print', 'traindoor', 'labdoor', 'wreck', 'chain', 'holdpt', 'plant'];
+const STORY_PROP_T = ['station', 'core', 'machine', 'print', 'traindoor', 'labdoor', 'wreck', 'chain', 'holdpt', 'plant', 'zgen'];
 const STORY_NPC_T = ['soldier', 'aegis', 'scientist', 'house'];
 const STORY_ARENA_BOSSES = new Set([30, 31, 32, 35, 36, 50]);
 const BOSS_SUBS = {
@@ -248,6 +248,7 @@ function updateZapExtras(dt) {
     let A = story.arena || { x: MAP_SIZE.w / 2, y: MAP_SIZE.h / 2, r: 700 }, core = story.props.find(p => p.kind === 'core');
     if (zx.jam > 0) { zx.jam -= dt; if (zx.jam <= 0) for (let p of players) vfxList.push({ type: 'text', text: 'MÁY PHÁ SÓNG HẾT ĐIỆN — BOSS LẠI BẤT TỬ!', x: p.x, y: p.y - 96, life: 2.2, color: '#ff7675' }); }
     if (zx.spear > 0) zx.spear -= dt;
+    if (zx.fl) return;   // pha bỏ chạy: không còn pin (18-colony.js)
     // Pin rơi quanh đấu trường
     zx.spawnT -= dt;
     missionItems = missionItems.filter(i => !i.taken);
@@ -268,21 +269,10 @@ function updateZapExtras(dt) {
             vfxList.push({ type: 'text', text: `MÁY PHÁ SÓNG BẬT ${Math.ceil(zx.jam)}s — BOSS NHẬN SÁT THƯƠNG!`, x: core.x, y: core.y - 90, life: 2.2, color: '#48dbfb' });
         }
     }
-    // Pha cuối: phá 3 cây Thương Điện trong 60 giây
-    if (zx.final > 0) {
-        zx.final -= dt;
-        let big = zombies.filter(e => e.type === 38 && e.big && e.hp > 0);
-        if (!big.length) { zx.final = 0; z.finalDone = true; z.invuln = false; z.armor = 0; z._hpPrev = 1; z.hp = 0; z.lastHitBy = pickAlivePlayer(); }
-        else if (zx.final <= 0) {
-            zx.final = 0;
-            for (let l of big) { l.big = false; electricBurst(l.x, l.y, 220, 40, 0.6); l.hp = 0; l._credited = true; l.noLoot = true; }
-            z.hp = z._hpPrev = z.maxHp * 0.3; z.armor = z.maxArmor;
-            for (let p of players) vfxList.push({ type: 'text', text: 'HẾT GIỜ! ZAP-1624 SẠC LẠI 30% MÁU', x: p.x, y: p.y - 96, life: 2.6, color: '#ff4757' });
-            Sound.play('roar');
-        }
-    }
 }
-function zapStartFinal(z) {
+// Còn 1 máu: bỏ chạy về Máy Phát Điện (18-colony.js). Bản cũ "phá 3 Thương Điện" giữ lại bên dưới nhưng không còn dùng.
+function zapStartFinal(z) { zapStartFlee(z); }
+function zapStartFinalOld(z) {
     let zx = story.zx; if (!zx || zx.final > 0) return;
     let A = story.arena || { x: z.x, y: z.y, r: 700 };
     zx.final = 60; z.storm = null; z.hidden = false; z.warnBeamTimer = 0; z.grounded = 0;
@@ -325,6 +315,7 @@ function updateStoryProps(dt) {
         story.props.splice(i, 1);
         if (s.kind === 'chain') { railChainBroken(s); continue; }
         if (s.kind === 'plant') { gardenPlantDead(s); continue; }
+        if (s.kind === 'zgen') { zapGenDestroyed(s); continue; }
         if (s.kind === 'wreck') {
             // Công trình bỏ hoang: phá để nhặt phế liệu
             let gain = s.scrap || 4; shopScrap += gain;
@@ -522,10 +513,11 @@ function zapSpot(z, target, rMin, rMax) {
     return A ? { x: A.x, y: A.y } : findSafePoint(target.x, target.y, z.radius);
 }
 function zapBlink(z, pt) {
-    createParticles(z.x, z.y, '#74b9ff', 26, 320);
-    vfxList.push({ type: 'laser_beam', x: z.x, y: z.y, tx: pt.x, ty: pt.y, life: 0.2, jag: true });
+    createParticles(z.x, z.y, '#74b9ff', 18, 260);
+    vfxList.push({ type: 'zghost', x: z.x, y: z.y, tx: pt.x, ty: pt.y, r: z.radius, life: 0.7, max: 0.7 });   // bóng mờ + vệt điện (18-colony.js)
     z.x = pt.x; z.y = pt.y;
-    createParticles(z.x, z.y, '#f9ca24', 26, 320); spawnRing(z.x, z.y, '#74b9ff', 110, 0.25, 4);
+    createParticles(z.x, z.y, '#f9ca24', 18, 260); spawnRing(z.x, z.y, '#74b9ff', 110, 0.25, 4);
+    Sound.play('zap');
 }
 // ZAP-1624 "KÌNH LÔI": không lao vào, liên tục dịch chuyển quanh người chơi và phóng điện;
 // thỉnh thoảng lao xuyên qua như một tia chớp (có vạch báo); gọi Thương Sét; tuyệt kỹ Bão Sấm Chớp.
@@ -537,6 +529,7 @@ function updateZap(z, target, dist, ang, dt) {
     let zx = story.zx, finalPhase = !!(zx && zx.final > 0);
     z.invuln = !!z.storm || (!!zx && (zx.jam <= 0 || finalPhase));
     if (finalPhase) { z.spCD = 2; z.stormCD = Math.max(z.stormCD || 0, 5); }
+    if (zx && zx.fl) return zapFleeUpdate(z, target, dt);   // pha cuối: bỏ chạy về Máy Phát Điện (18-colony.js)
 
     // --- Tuyệt kỹ BÃO SẤM CHỚP: biến mất, trời chớp liên tục, thương rơi vào chỗ người chơi, cuối cùng nó cắm thương xuống ---
     if (z.storm) {
@@ -576,14 +569,8 @@ function updateZap(z, target, dist, ang, dt) {
         return true;
     }
 
-    // --- Dịch chuyển vòng quanh + phóng điện ---
-    z.blinkT = (z.blinkT === undefined ? 1.0 : z.blinkT) - dt;
-    if (z.blinkT <= 0) {
-        z.blinkT = (z.phase2Done ? 0.75 : 1.1) + Math.random() * 0.4;
-        zapBlink(z, zapSpot(z, target, 360, 520));
-        if (Math.random() < 0.6) { enemyBullets.push(new EnemyBullet(z.x, z.y, target.x, target.y, 'electric')); if (z.phase2Done) remnantFork(z, Math.atan2(target.y - z.y, target.x - z.x), 3); }
-        else hazards.push({ type: 'strike', x: target.x, y: target.y, radius: 84, timer: 0.7, life: 1.0, dmg: 34, stun: 0.5 });
-    }
+    // --- Sạc điện, dịch chuyển 3-5 lần quanh người chơi rồi mới DỪNG LẠI ra đòn (18-colony.js) ---
+    if (zapBlinkChain(z, target, dt)) { if (z.stormCD > 0) z.stormCD -= dt; return true; }
 
     if (z.spCD <= 0) {
         let lances = zombies.filter(e => e.type === 38 && e.hp > 0).length;
@@ -849,6 +836,7 @@ function drawStoryProps(T, vis) {
         if (p.kind === 'chain') { drawRailChain(p, T); continue; }
         if (p.kind === 'holdpt') { drawHoldPoint(p, T); continue; }
         if (p.kind === 'plant') { drawGardenPlant(p, T); continue; }
+        if (p.kind === 'zgen') { drawZapGen(p, T); continue; }
         if (p.kind === 'station') {
             drawShadow(p.x, p.y + 10, p.r);
             ctx.fillStyle = '#2d3436'; ctx.fillRect(p.x - 34, p.y - 22, 68, 50); ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.strokeRect(p.x - 34, p.y - 22, 68, 50);
@@ -883,7 +871,8 @@ function storyObjectiveText() {
         case 'ZAP_WAIT': return ['TRÙM TỐI THƯỢNG ĐANG TỚI...', '#f9ca24'];
         case 'ZAP_BOSS': {
             let zx = story.zx; if (!zx) return ['HẠ ZAP-1624!', '#f9ca24'];
-            if (zx.final > 0) return [`PHÁ 3 THƯƠNG ĐIỆN: còn ${zombies.filter(e => e.type === 38 && e.hp > 0 && (e.big || e.radius > 20)).length} — ${Math.ceil(zx.final)}s · nhặt PIN để vỡ giáp thương`, '#ff7675'];
+            if (zx.fs === 1) return ['ZAP-1624 BỎ CHẠY — ĐUỔI THEO TỚI MÁY PHÁT ĐIỆN, NÉ TIA SÉT!', '#f9ca24'];
+            if (zx.fs === 2) return [`PHÁ HỦY MÁY PHÁT ĐIỆN: ${Math.ceil(zx.final)}s — nó đang sạc lại!`, '#48dbfb'];
             if (zx.jam > 0) return [`MÁY PHÁ SÓNG: ${Math.ceil(zx.jam)}s — ĐÁNH BOSS! (phá giáp bằng CẬN CHIẾN / NỔ) · PIN ${zx.held}`, '#48dbfb'];
             return [zx.held > 0 ? `MANG ${zx.held} PIN VỀ LÕI MÁY PHÁT ĐỂ BẬT MÁY PHÁ SÓNG!` : 'BOSS BẤT TỬ — NHẶT PIN NẠP MÁY PHÁ SÓNG!', '#f1c40f'];
         }
@@ -896,6 +885,7 @@ function storyPointers(ptr) {
         if (p.kind === 'station') ptr(p.x, p.y, '#f9ca24');
         else if (p.kind === 'core' && !p.on) ptr(p.x, p.y, '#48dbfb');
         else if (p.kind === 'wreck' && p.scrap >= 25) ptr(p.x, p.y, '#f1c40f');
+        else if (p.kind === 'zgen') ptr(p.x, p.y, '#48dbfb');
     }
     if (objState === 'STORM_BOSS' || objState === 'ZAP_BOSS') { let b = zombies.find(z => (z.type === 35 || z.type === 36) && !z.hidden); if (b) ptr(b.x, b.y, b.color); }
     labPointers(ptr);
@@ -943,6 +933,7 @@ function drawStoryOverlay(T) {
     if (story.purple > 0.01) { ctx.fillStyle = `rgba(108, 52, 190, ${0.22 * story.purple})`; ctx.fillRect(0, 0, W, H); }
     drawLabOverlay(T);
     drawRailHud(T);
+    drawBossOverlay(T);   // bảng hạ boss (17-bosses.js)
     drawHubTasks(T);
     let it = story.intro;
     if (it) {
@@ -998,8 +989,10 @@ function storyNetState() {
     if (story.za) x.za = story.za;
     if (story.props.length) x.pr = story.props.map(p => [STORY_PROP_T.indexOf(p.kind), R(p.x), R(p.y), p.maxHp ? R(Math.max(0, p.hp) / p.maxHp * 100) : 0, p.on ? 1 : 0, p.r || 0]);
     labNetState(x);
-    let zx = story.zx; if (zx) x.zx = [R(Math.max(0, zx.jam) * 10), zx.held, R(Math.max(0, zx.final) * 10), R(Math.max(0, zx.spear) * 10)];
+    let zx = story.zx; if (zx) x.zx = [R(Math.max(0, zx.jam) * 10), zx.held, R(Math.max(0, zx.final) * 10), R(Math.max(0, zx.spear) * 10), zx.fs | 0];
+    if (currentMapType === 16) x.bp = base.pop | 0;
     if (currentMapType === 16) x.bg = baseGatesNow(), x.bs = base.turrets.map(t => t ? [TURRET_KEYS.indexOf(t.t), t.l, R((t.ang || 0) * 100)] : 0);
+    bossNetState(x);
     return x;
 }
 function storyNetApply(x) {
@@ -1013,7 +1006,9 @@ function storyNetApply(x) {
     story.purple = (x.pu | 0) / 100; story.za = x.za | 0;
     story.props = Array.isArray(x.pr) ? x.pr.map(e => ({ kind: STORY_PROP_T[e[0]] || 'machine', x: +e[1] || 0, y: +e[2] || 0, hp: +e[3] || 0, maxHp: 100, on: !!e[4], r: +e[5] || 40 })) : [];
     labNetApply(x);
-    story.zx = Array.isArray(x.zx) ? { jam: (x.zx[0] | 0) / 10, held: x.zx[1] | 0, final: (x.zx[2] | 0) / 10, spear: (x.zx[3] | 0) / 10 } : null;
+    story.zx = Array.isArray(x.zx) ? { jam: (x.zx[0] | 0) / 10, held: x.zx[1] | 0, final: (x.zx[2] | 0) / 10, spear: (x.zx[3] | 0) / 10, fs: x.zx[4] | 0 } : null;
+    story.bp = x.bp | 0;
     story.bg = x.bg | 0;
     story.bs = Array.isArray(x.bs) ? x.bs.map(e => Array.isArray(e) ? { t: TURRET_KEYS[e[0]] || 'mg', l: e[1] | 0, ang: (e[2] | 0) / 100 } : null) : null;
+    bossNetApply(x);
 }

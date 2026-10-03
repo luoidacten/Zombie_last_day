@@ -914,6 +914,7 @@ function zombieDown(z, source = null) {
     if (z._credited) return false;
     z._credited = true;
     arsenalOnZombieDeath(z);
+    bossOnZombieDown(z);   // quái biến dị +1 ⚙, hạ boss: màn chiến thắng (17-bosses.js)
     playKillSound(z.x, z.y, z.type >= 40 && z.type <= 46 ? 1 : 0); // âm lượng giảm dần theo khoảng cách; kiến có tiếng riêng
     let src = (source && typeof source.onKill === 'function') ? source : (z.lastHitBy || players.find(p => !p.isDowned) || players[0]);
     if (src && typeof src.onKill === 'function') src.onKill(z.type);
@@ -978,6 +979,7 @@ function calcDamage(baseDmg, wepData, x, y, playerSource, targetZombie = null) {
     }
 
     if (targetZombie && playerSource instanceof Player) targetZombie.lastHitBy = playerSource;
+    finalDmg *= forgeMult(wepData);   // Lò Rèn ở căn cứ (18-colony.js)
     return arsenalOnDamage(finalDmg, wepData, playerSource, targetZombie);
 }
 
@@ -1956,28 +1958,7 @@ class Zombie {
             if (specialCount >= maxSpecial) {
                 this.type = 0;
             } else {
-                let pool = [0, 8];
-                if (currentLevel >= 5) {
-                    pool.push(2, 5, 1, 7, 3, 4, 6);
-                    if (currentMapType === 1) pool.push(10, 10);
-                    if (currentMapType === 2) pool.push(9, 9);
-                    if (currentMapType === 3) pool.push(11, 11);
-                    if (currentMapType === 6) pool.push(16, 16, 17, 17);
-                    if (currentMapType === 7) pool.push(21, 21, 22, 22);
-                    if (currentMapType === 8) pool.push(12, 12, 20);
-                    if (currentMapType === 5) pool.push(13, 13); // Map thành phố: Lính cứu hỏa
-                    if (currentLevel >= 6) pool.push(14, 14); // Map 6+: Bọc thép
-                    if (currentLevel >= 8) pool.push(15, 15); // Map 8+: Nhầy nhụa
-                    if (currentLevel >= 5) pool.push(34);
-                    if (currentLevel >= 4) pool.push(18, 18);
-                    // Các loại quái đã có AI nhưng trước đây không bao giờ xuất hiện
-                    if (currentLevel >= 6) pool.push(26);                       // Witch
-                    if (currentLevel >= 7) pool.push(27);                       // Crusher
-                    if (currentLevel >= 6) pool.push(33);                       // Miner
-                    if (currentMapType === 6) pool.push(28, 29, 29);            // Electrical, E.L
-                    if (currentMapType === 10) pool.push(33, 33, 21);           // Hang Z: thợ mỏ, bóng đen
-                }
-                this.type = pool[Math.floor(Math.random() * pool.length)];
+                this.type = rosterPick();   // mỗi map chỉ 1-4 loại quái cố định (18-colony.js)
             }
         }
 
@@ -2096,11 +2077,12 @@ class Zombie {
         }
         // Đường cong về sau: các loại trước đây không tăng máu theo map giờ cũng tăng; từ map 7 mọi quái trâu & nhanh dần
         if ([13, 14, 15, 26, 27, 28, 29].includes(this.type)) this.maxHp *= 1 + (currentLevel - 1) * 0.3;
+        zombieMutate(this);   // BIẾN DỊ: mạnh dần theo cấp đột biến, đôi khi ra quái biến dị (17-bosses.js)
         this.maxHp *= enemyLateHpMult() * diff().hp;
         if (this.type < 30 || (this.type >= 40 && this.type <= 43)) this.baseSpeed *= enemyLateSpeedMult();
         this.hp = this.maxHp;
     }
-    knockback(vx, vy) { if ((this.type >= 45 && this.type !== 51) || (this.type >= 35 && this.type <= 38)) return; if (this.type === 4 || this.type === 6) { vx *= 0.2; vy *= 0.2; } this.kbX = vx; this.kbY = vy; }
+    knockback(vx, vy) { if ((this.type >= 45 && this.type !== 51) || (this.type >= 35 && this.type <= 38)) return; if (this.type === 4 || this.type === 6) { vx *= 0.2; vy *= 0.2; } if (this.mutant) { vx *= 0.5; vy *= 0.5; } this.kbX = vx; this.kbY = vy; }
     update(dt) {
         this.kbX *= 0.85; this.kbY *= 0.85; this.atkCD -= dt; this.spCD -= dt;
         let target = players[0];
@@ -2228,7 +2210,7 @@ class Zombie {
                 tank.hp -= (this.type === 1 ? 30 : 10) * meleeDmgReduction;
                 this.atkCD = 1.0;
             }
-            else if (!tank.active) { for (let p of players) { if (!p.isDowned && Math.hypot(this.x - p.x, this.y - p.y) < this.radius + p.radius + 5) { p.takeDamage(this.type === 1 ? 25 : this.type === 4 ? 40 : 15); this.atkCD = 0.6; } } }
+            else if (!tank.active) { for (let p of players) { if (!p.isDowned && Math.hypot(this.x - p.x, this.y - p.y) < this.radius + p.radius + 5) { p.takeDamage((this.type === 1 ? 25 : this.type === 4 ? 40 : 15) * (this.mutant ? 1.4 : 1)); this.atkCD = 0.6; } } }
 
             if (typeof rescueNPCs !== 'undefined') {
                 for (let n of rescueNPCs) {
@@ -2577,7 +2559,7 @@ function updateSpecialZombie(z, target, dist, ang, dt, speed) {
         if (!z.phase2Done && z.hp < z.maxHp * 0.5) {
             z.phase2Done = true; z.color = '#e17055'; z.spCD = 1.4; z.isCharging = false; z.warnBeamTimer = 0;
             spawnAtEdge(0, 8);
-            hazards.push({ type: 'quake', x: z.x, y: z.y, radius: 270, timer: 0.9, life: 1.1, dmg: 60, stun: 0.6 });
+            hazards.push({ type: 'quake', x: z.x, y: z.y, radius: 270, timer: 0.9, life: 1.1, dmg: 60, stun: 0.6, bz: 400 });
             z.rootTimer = 0.9;
             bossSay(z, 'CUỒNG NỘ!', '#ff4757'); Sound.play('roar'); addScreenShake(14);
         }
@@ -2589,7 +2571,7 @@ function updateSpecialZombie(z, target, dist, ang, dt, speed) {
             let skill = pickBossSkill(z, opts);
             if (skill === 'summon' && zombies.length > 90) skill = dist < 300 ? 'slam' : 'throw';
             if (skill === 'slam') {
-                hazards.push({ type: 'quake', x: z.x, y: z.y, radius: 250, timer: 0.9, life: 1.1, dmg: 85, stun: 0.8 });
+                hazards.push({ type: 'quake', x: z.x, y: z.y, radius: 250, timer: 0.9, life: 1.1, dmg: 85, stun: 0.8, bz: 400 });
                 z.rootTimer = 0.9; bossSay(z, 'DẬM ĐẤT!');
             } else if (skill === 'throw') {
                 let n = z.phase2Done ? 5 : 3;

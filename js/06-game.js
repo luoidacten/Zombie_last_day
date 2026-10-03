@@ -49,6 +49,7 @@ function beginRun(mode) {
     document.getElementById('netWait').style.display = 'none';
     resetRunState();
     runMode = mode;
+    tutStart();   // hướng dẫn người mới (18-colony.js)
 
     isSinglePlayer = (mode === 'pc' || mode === 'mobile');
     showTouchUI = (mode === 'mobile' || mode === 'local2');
@@ -228,6 +229,7 @@ function gameLoop(time) {
     frameDt = dt;
     if (storyFrame(dt)) return;     // hội thoại / giới thiệu boss / cắt cảnh / mini-game tàu hoả
     if (objState === 'HUB') { updateHub(dt); return; }   // Khu Sống Sót: không quái, không đói
+    dt *= bossTimeScale(dt);        // chậm hình khi hạ boss (17-bosses.js)
     survivalTime += dt; score += dt * 10;
 
     let allDead = players.every(p => p.isDowned);
@@ -352,7 +354,7 @@ function gameLoop(time) {
             completeMission();
         }
     } else if (objState === 'WAITING') {
-        evacTimer -= dt;
+        evacTimer -= dt * heliWeatherMult();   // thời tiết xấu: trực thăng tới nhanh x1.5, khắc nghiệt x2
 
         let isSupportHeli = hasTeamPerk('p_yemTro') ? 20.0 : 15.0; // Yểm trợ tới sớm 5s
         // Thêm heliTag >= 3 để gọi trực thăng yểm trợ
@@ -404,7 +406,7 @@ function gameLoop(time) {
 
         if (allIn && !tank.active && anyoneAlive) {
             let evacSpeed = heliTag >= 5 ? 3.0 : (heliTag >= 3 ? 2.0 : 1.0); // Link 3/5 Evac x2/x3
-            evacZone.progress += dt * evacSpeed;
+            evacZone.progress += dt * evacSpeed * heliWeatherMult();
             if (evacZone.progress >= 3.0) {
                 // Xử lý Lên Cấp thưởng
                 for (let p of players) {

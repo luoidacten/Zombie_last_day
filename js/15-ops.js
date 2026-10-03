@@ -28,18 +28,23 @@ const LANES = [
     { x: 1900, y: 290, w: 200, h: 1160, sx: 2000, sy: 360, px: 1900, py: 1520 }
 ];
 const MAX_GUARDS = 6;
-function newBase() { return { house: 0, spikes: 0, turrets: [], def: null, defCount: 0, guards: 0 }; }
+function newBase() { return { house: 0, spikes: 0, turrets: [], def: null, defCount: 0, guards: 0, pop: 2, mat: 0, wlv: {}, rm: [], arr: 0 }; }   // pop/mat/wlv/rm: 18-colony.js
 let base = newBase();
 function baseGates() { return Math.min(4, 1 + (base.defCount || 0)); }                 // số cổng của lần thủ thành kế tiếp
 function baseGatesNow() { return NET.mode === 'guest' ? (story.bg || 1) : (base.def ? base.def.gates : baseGates()); }
 function baseSlotCount() { return 8 + 2 * (baseGates() - 1); }
 function guardCost() { return 30 + base.guards * 5; }
-function baseSave() { return { house: base.house, spikes: base.spikes, dc: base.defCount, g: base.guards, turrets: base.turrets.map(t => t ? { t: t.t, l: t.l } : null) }; }
+function baseSave() { return { house: base.house, spikes: base.spikes, dc: base.defCount, g: base.guards, turrets: base.turrets.map(t => t ? { t: t.t, l: t.l } : null), pop: base.pop, mat: base.mat, wlv: base.wlv, rm: base.rm, arr: base.arr }; }
 function baseLoad(s) {
     base = newBase(); if (!s) return;
     base.house = Math.max(0, Math.min(5, s.house | 0)); base.spikes = Math.max(0, Math.min(3, s.spikes | 0));
     base.defCount = Math.max(0, s.dc | 0); base.guards = Math.max(0, Math.min(MAX_GUARDS, s.g | 0));
-    if (Array.isArray(s.turrets)) s.turrets.slice(0, BASE_SLOTS.length).forEach((t, i) => { if (t && TURRETS[t.t]) base.turrets[i] = { t: t.t, l: Math.max(1, Math.min(3, t.l | 0)), cd: 0, ang: 0 }; });
+    if (Array.isArray(s.turrets)) s.turrets.slice(0, BASE_SLOTS.length).forEach((t, i) => { if (t && TURRETS[t.t]) base.turrets[i] = { t: t.t, l: Math.max(1, Math.min(5, t.l | 0)), cd: 0, ang: 0 }; });
+    // Bản lưu cũ chưa có cư dân: đủ người cho các ụ súng đã đặt
+    base.pop = s.pop === undefined ? Math.max(2, base.turrets.filter(t => t).length) : Math.max(0, s.pop | 0);
+    base.mat = Math.max(0, s.mat | 0); base.arr = s.arr | 0;
+    base.rm = Array.isArray(s.rm) ? s.rm.filter(n => typeof n === 'number').slice(-6) : [];
+    base.wlv = {}; if (s.wlv && typeof s.wlv === 'object') for (let k in s.wlv) base.wlv[k] = Math.max(0, Math.min(FORGE_MAX, s.wlv[k] | 0));
 }
 function baseHouseHp() { return 1500 + base.house * 800 + currentLevel * 100; }
 function baseDefenseNext() { return (currentLevel + 1) % 5 === 0 && !powerPlantRun.active && !storyForcedRoute(); }
@@ -77,7 +82,7 @@ function renderBasePanel() {
     let hc = 30 + base.house * 25, sc = 25 + base.spikes * 20;
     let html = `<p class="text-xs text-gray-400 mb-2">Phế liệu: <span class="highlight">⚙ ${shopScrap}</span> · Cứ 5 map căn cứ bị tấn công một lần (map ${Math.ceil((currentLevel + 1) / 5) * 5}). Ụ súng và Nhà Chính được giữ suốt lượt chơi.<br>Lần tới địch tràn vào từ <b class="text-orange-300">${baseGates()} cổng: ${GATE_NAMES.slice(0, baseGates()).join(', ')}</b> — mỗi lần thủ thành xong sẽ mở thêm một cổng (tối đa 4).</p>`;
     html += `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-        <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-600 flex items-center justify-between gap-2"><div class="text-xs text-white"><b>🏠 Nhà Chính</b> cấp ${base.house}/5<br><span class="text-gray-400">Máu ${baseHouseHp()}</span></div>${base.house < 5 ? btn('Nâng cấp ⚙' + hc, 'baseBuy(\'house\')', shopScrap >= hc) : '<span class="text-emerald-400 text-xs font-bold">TỐI ĐA</span>'}</div>
+        <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-600 flex items-center justify-between gap-2"><div class="text-xs text-white"><b>🏠 Nhà Chính</b> cấp ${base.house}/5<br><span class="text-gray-400">Máu ${baseHouseHp()}${base.house < 5 ? ` · cần <b class="${basePop() >= HOUSE_POP[base.house + 1] ? 'text-emerald-300' : 'text-red-400'}">${HOUSE_POP[base.house + 1]} cư dân</b>` : ''}</span></div>${base.house < 5 ? btn('Nâng cấp ⚙' + hc + ' 🧱' + houseMat(), 'baseBuy(\'house\')', shopScrap >= hc && basePop() >= HOUSE_POP[base.house + 1] && (base.mat | 0) >= houseMat()) : '<span class="text-emerald-400 text-xs font-bold">TỐI ĐA</span>'}</div>
         <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-600 flex items-center justify-between gap-2"><div class="text-xs text-white"><b>🪤 Bẫy gai trên đường</b> cấp ${base.spikes}/3<br><span class="text-gray-400">Địch đi qua bị thương &amp; chậm</span></div>${base.spikes < 3 ? btn('Nâng cấp ⚙' + sc, 'baseBuy(\'spikes\')', shopScrap >= sc) : '<span class="text-emerald-400 text-xs font-bold">TỐI ĐA</span>'}</div></div>`;
     let gc = guardCost();
     html += `<div class="p-2 mb-3 rounded-lg bg-slate-900/80 border border-slate-600 flex items-center justify-between gap-2"><div class="text-xs text-white"><b>💂 Lính gác thuê</b> ${base.guards}/${MAX_GUARDS}<br><span class="text-gray-400">Chia đều ra giữ các cổng khi căn cứ bị tấn công. Lính chết trong trận là mất.</span></div>${base.guards < MAX_GUARDS ? btn('Thuê lính ⚙' + gc, 'baseBuy(\'guard\')', shopScrap >= gc) : '<span class="text-emerald-400 text-xs font-bold">ĐỦ QUÂN</span>'}</div>`;
@@ -88,7 +93,7 @@ function renderBasePanel() {
         html += `<div class="p-2 rounded-lg bg-slate-900/80 border border-slate-600"><div class="text-xs text-gray-300 mb-1"><b class="text-white">Ô ${i + 1}</b> <span class="text-gray-500">(${where})</span> — `;
         if (t) {
             let d = TURRETS[t.t], uc = turretCost(t.t, t.l);
-            html += `<b style="color:${d.col}">${d.icon} ${d.name}</b> cấp ${t.l}/3</div><div class="flex gap-2 flex-wrap">${t.l < 3 ? btn('Nâng cấp ⚙' + uc, `baseBuy('up',${i})`, shopScrap >= uc) : '<span class="text-emerald-400 text-xs font-bold self-center">CẤP TỐI ĐA</span>'}${btn('Bán (+⚙' + Math.floor(d.cost * 0.5) + ')', `baseBuy('sell',${i})`, true, 'bg-gray-700 border-gray-500 text-gray-200')}</div>`;
+            html += `<b style="color:${d.col}">${d.icon} ${d.name}</b> cấp ${t.l}/5 ${turretManned(i) ? '<span class="text-emerald-300">· có người vận hành</span>' : '<span class="text-red-400">· ⚠ THIẾU NGƯỜI — không bắn</span>'}</div><div class="flex gap-2 flex-wrap">${t.l < 5 ? btn('Nâng cấp ⚙' + uc + (turretMat(t.l) ? ' 🧱' + turretMat(t.l) : ''), `baseBuy('up',${i})`, shopScrap >= uc && (base.mat | 0) >= turretMat(t.l)) : '<span class="text-emerald-400 text-xs font-bold self-center">CẤP TỐI ĐA</span>'}${btn('Bán (+⚙' + Math.floor(d.cost * 0.5) + ')', `baseBuy('sell',${i})`, true, 'bg-gray-700 border-gray-500 text-gray-200')}</div>`;
         } else {
             html += 'trống</div><div class="flex gap-1 flex-wrap">';
             for (let k of TURRET_KEYS) html += btn(`${TURRETS[k].icon} ${TURRETS[k].name.replace('Ụ ', '')} ⚙${TURRETS[k].cost}`, `baseBuy('${k}',${i})`, shopScrap >= TURRETS[k].cost);
@@ -101,10 +106,16 @@ function renderBasePanel() {
 }
 function baseBuy(what, slot) {
     const pay = (c) => { if (shopScrap < c) { Sound.play('hit'); netToast('Không đủ phế liệu!', 1500); return false; } shopScrap -= c; Sound.play('upgrade'); return true; };
-    if (what === 'house') { if (base.house < 5 && pay(30 + base.house * 25)) base.house++; }
+    if (what === 'house') {
+        if (base.house >= 5) return;
+        let m = houseMat();
+        if (basePop() < HOUSE_POP[base.house + 1]) { Sound.play('hit'); netToast(`Cần ${HOUSE_POP[base.house + 1]} cư dân để nâng Nhà Chính — hãy giải cứu thêm người!`, 2500); }
+        else if ((base.mat | 0) < m) { Sound.play('hit'); netToast(`Cần ${m} 🧱 vật liệu (thợ trong căn cứ chế tạo sau mỗi chiến dịch).`, 2500); }
+        else if (pay(30 + base.house * 25)) { base.mat -= m; base.house++; }
+    }
     else if (what === 'spikes') { if (base.spikes < 3 && pay(25 + base.spikes * 20)) base.spikes++; }
     else if (what === 'guard') { if (base.guards < MAX_GUARDS && pay(guardCost())) base.guards++; }
-    else if (what === 'up') { let t = base.turrets[slot]; if (t && t.l < 3 && pay(turretCost(t.t, t.l))) t.l++; }
+    else if (what === 'up') { let t = base.turrets[slot], m = t ? turretMat(t.l) : 0; if (t && t.l < 5 && (base.mat | 0) >= m && pay(turretCost(t.t, t.l))) { base.mat -= m; t.l++; } else if (t && (base.mat | 0) < m) netToast(`Cần ${m} 🧱 vật liệu.`, 1800); }
     else if (what === 'sell') { let t = base.turrets[slot]; if (t) { shopScrap += Math.floor(TURRETS[t.t].cost * 0.5); base.turrets[slot] = null; Sound.play('select'); } }
     else if (TURRETS[what] && !base.turrets[slot] && slot >= 0 && slot < baseSlotCount()) { if (pay(TURRETS[what].cost)) base.turrets[slot] = { t: what, l: 1, cd: 0, ang: 0 }; }
     renderBasePanel(); netSendSync();
@@ -205,13 +216,14 @@ function updateBase(dt) {
             for (let z of zombies) if (z.hp > 0 && !z.flying && LANES.some((L, g) => g < d.gates && z.x > L.x + 50 && z.x < L.x + L.w - 50 && z.y > L.y + 50 - (L.w > L.h ? 50 : 0) && z.y < L.y + L.h - 50 + (L.w > L.h ? 50 : 0))) { z.hp -= (14 + currentLevel * 3) * base.spikes; z.dzT = 0.6; z.lastHitBy = players[0]; }
         }
     }
+    colonyDefTick(dt, h);   // thợ sửa Nhà Chính (18-colony.js)
     updateTurrets(dt);
 }
 
 function updateTurrets(dt) {
     let src = players[0];
     base.turrets.forEach((t, i) => {
-        if (!t) return;
+        if (!t || !turretManned(i)) return;   // ụ súng cần cư dân vận hành
         let def = TURRETS[t.t], x = BASE_SLOTS[i][0], y = BASE_SLOTS[i][1], pow = 1 + (t.l - 1) * 0.5 + currentLevel * 0.06;
         t.cd -= dt;
         let tz = null, bd = def.range;
@@ -274,7 +286,9 @@ function drawBase(T) {
         ctx.restore();
         if (t.t === 'tesla') { ctx.strokeStyle = `rgba(160, 240, 255, ${0.5 + 0.5 * Math.sin(T * 16 + i)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.stroke(); }
         ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 9px Arial'; ctx.fillText('★'.repeat(t.l || 1), x, y + 30);
+        if (!turretManned(i)) outlinedText('⚠ THIẾU NGƯỜI', x, y - 34, '#ff7675', 'bold 10px Arial');
     });
+    drawResidents(T);   // cư dân trong căn cứ (18-colony.js)
 }
 
 // ---------------------------------------------------------------------------

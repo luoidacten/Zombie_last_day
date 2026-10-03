@@ -388,7 +388,7 @@ function updateCaveWorld(dt) {
     caveRun.rockCD -= dt;
     updateCaveProps(dt);
     updateCaveHazards(dt);
-    if (caveRun.endT > 0) { caveRun.endT -= dt; if (caveRun.endT <= 0) { caveFinish(); return true; } return false; }
+    if (caveRun.endT > 0) { if (objState === 'QUEEN_DEAD') queenDeathQuake(dt); caveRun.endT -= dt; if (caveRun.endT <= 0) { caveFinish(); return true; } return false; }
     if (caveRun.pendingStage) {
         caveRun.stageT -= dt;
         if (Math.random() < dt * 14) addScreenShake(6);
@@ -736,7 +736,8 @@ function updateCaveHazards(dt) {
             h.done = true; h.life = 0;
             hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 26);
             for (let p of players) if (!p.isDowned && Math.hypot(p.x - h.x, p.y - h.y) < h.radius) applyPlayerStatus(p, STATUS.CORROSION, { duration: 3, stacks: 1, dpsPercent: 0.003, maxStacks: 6 });
-            fireZones.push({ kind: 'acid', x: h.x, y: h.y, life: 2.5, dmg: 12, source: null, radius: h.radius * 0.9 });
+            fireZones.push({ kind: 'acid', x: h.x, y: h.y, life: h.pool || 2.5, dmg: 12, source: null, radius: h.radius * 0.9 });
+            bossHitZombies(h.x, h.y, h.radius, 90, 0);   // axit của boss ăn mòn cả bầy quái
             createParticles(h.x, h.y, '#2ecc71', 26, 260); spawnRing(h.x, h.y, '#2ecc71', h.radius, 0.3);
             Sound.play('hit');
         } else if (h.type === 'quad' && h.timer <= 0) {
@@ -913,6 +914,7 @@ function updateQueen(z, target, dist, ang, dt) {
     const A = caveRun.arena;
     if (z.phase === 3) return updateQueenChase(z, target, dist, ang, dt);
     if (z.phase >= 4 || !A) return true;
+    queenAcidRain(z, A, dt);   // mưa axit rơi liên tục, càng mất máu càng dày (17-bosses.js)
 
     if (z.phase === 1) {
         // ---- PHASE 1: THỐNG LĨNH BẦU TRỜI ----

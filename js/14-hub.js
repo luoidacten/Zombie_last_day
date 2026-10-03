@@ -9,6 +9,7 @@ const HUB = { x: 2000, y: 2000, r: 100, shop: { x: 1660, y: 1880 }, board: { x: 
 let hub = { armed: true, panel: null };
 
 function enterHub() {
+    colonyArrive();   // người được giải cứu về căn cứ, thợ nộp vật liệu (18-colony.js) — trước khi dọn rescueNPCs
     for (let id of ['menu', 'routeShop', 'upgradeScreen', 'netWait']) document.getElementById(id).style.display = 'none';
     gameState = 'PLAYING'; initControls(); clearPcInputs();
     storyLevelReset();
@@ -38,7 +39,7 @@ function enterHub() {
     hub = { armed: false, panel: null };   // phải bước ra khỏi vòng rồi bước vào lại mới mở bảng
     navRebuild(); navFlood([{ x: HUB.x, y: HUB.y }], NAV.field); NAV.reach.length = 0;
     for (let i = 0; i < NAV.field.length; i++) if (NAV.field[i] >= 2) NAV.reach.push(i);
-    mapIntro = { timer: 4.0, map: 'Khu Sống Sót', mission: 'Nghỉ ngơi · mua tiếp tế · chọn chiến dịch', weather: `⚙ ${shopScrap} phế liệu` };
+    mapIntro = { timer: 4.0, map: 'Khu Sống Sót', mission: 'Nghỉ ngơi · mua tiếp tế · chọn chiến dịch', weather: `⚙ ${shopScrap} phế liệu · 🏘 ${base.pop | 0} cư dân · 🧱 ${base.mat | 0} vật liệu` };
     saveCheckpoint(true);
     updateCamera(0, true);
     Sound.play('heal');
@@ -123,7 +124,7 @@ function drawHub(T) {
     };
     station(HUB.shop, '52, 152, 219', '🛒', 'QUẦY TIẾP TẾ', 'bước vào để mua đồ');
     station(HUB.board, '231, 76, 60', '🗺', 'BÀN CHIẾN DỊCH', 'bước vào để chọn map & xuất phát');
-    if (objState === 'HUB') station(BASE.shopBase, '243, 156, 18', '🏗', 'XƯỞNG CĂN CỨ', 'nâng Nhà Chính, đặt ụ súng');
+    if (objState === 'HUB') station(BASE.shopBase, '243, 156, 18', '🏗', 'XƯỞNG CĂN CỨ', 'nâng Nhà Chính, ụ súng, rèn vũ khí, cư dân');
     drawBase(T);
     // Lửa trại (đứng gần hồi máu nhanh)
     let f = HUB.fire;

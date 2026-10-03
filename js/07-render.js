@@ -88,7 +88,9 @@ function updateCamera(dt, snap = false) {
         tz = Math.min(1.3, Math.max(0.5, (Math.min(W, H) * 0.7) / (pDist + 300)));
     }
     if (solo && Math.min(W, H) < 480) tz = 0.78; // màn hình điện thoại nhỏ: lùi camera một chút
-    let k = snap ? 1 : Math.min(1, dt * 14);
+    // Kết thúc trận trên tàu: lia về đuôi tàu để thấy vụ nổ C4 thổi bay The Hucker
+    let rl = story.rail; if (rl && rl.fin > 0.3 && rl.fin < 2.5) { tx = (ROOF.x0 + ROOF.x1) / 2; ty = ROOF.y1 + 80; tz = Math.min(tz, 0.62); }
+    let k = snap ? 1 : Math.min(1, dt * (rl && rl.fin > 0 ? 4 : 14));
     cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
     cam.zoom += (tz - cam.zoom) * (snap ? 1 : Math.min(1, dt * 5));
 }
@@ -218,7 +220,7 @@ function getObjectiveText() {
         case 'POWER_KILL': return [`THANH LỌC: ${mission.progress}/${mission.required}`, '#00d2d3'];
         case 'RESCUE': return [`GIẢI CỨU: ${mission.progress}/${mission.required}`, '#2ecc71'];
         case 'ROOFTOP': return ['CHẠY LÊN SÂN THƯỢNG!', '#00d2d3'];
-        case 'WAITING': return [`TRỰC THĂNG ĐẾN SAU ${Math.ceil(evacTimer)}s`, '#f1c40f'];
+        case 'WAITING': return [`TRỰC THĂNG ĐẾN SAU ${Math.ceil(evacTimer / heliWeatherMult())}s${heliWeatherMult() > 1 ? ` (thời tiết ${weatherTag().toLowerCase()}: nhanh x${heliWeatherMult()})` : ''}`, '#f1c40f'];
         case 'EVAC': return ['LÊN TRỰC THĂNG!', '#2ecc71'];
     }
     return null;
@@ -1005,6 +1007,7 @@ function draw() {
                 ctx.beginPath(); ctx.arc(h.x, h.y, radius * (1 - pct), 0, Math.PI * 2);
                 ctx.fillStyle = `rgba(${col}, ${0.10 + 0.14 * (1 - pct)})`; ctx.fill();
             }
+            if (FALL_HZ[h.type]) drawFallingHazard(h, T);   // đá / axit / mưa đá rơi từ trên trời
         }
     }
 
@@ -1078,6 +1081,7 @@ function draw() {
         }
         let tg = aimTargets[0];
         if (aimTargets.length > 1 && Math.hypot(aimTargets[1].x - z.x, aimTargets[1].y - z.y) < Math.hypot(tg.x - z.x, tg.y - z.y)) tg = aimTargets[1];
+        if (z.mutant) drawMutantAura(z, T);
         drawZombieBody(z, T, Math.atan2(tg.y - z.y, tg.x - z.x), rage, boss, inBush);
         if (z.hp < z.maxHp) drawMiniBar(z.x, z.y - z.radius - 12, boss ? 80 : 30, boss ? 7 : 4, z.hp, z.maxHp, '#e74c3c');
         if (boss) { ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; outlinedText(BOSS_NAMES[z.type], z.x, z.y - z.radius - 26, z.color, 'bold 14px Arial'); }
@@ -1214,6 +1218,7 @@ function draw() {
     // --- VFX ---
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (let v of vfxList) {
+        if (v.type === 'zghost') { drawZapGhost(v); continue; }   // vệt dịch chuyển của ZAP-1624 (18-colony.js)
         if (v.type === 'muzzle') {
             let a = Math.min(1, v.life * 10), col = v.color || '255,230,120';
             let msc = v.k === 'SNIPER' ? 1.5 : (v.k === 'SHOTGUN' || v.k === 'GLAUNCHER') ? 1.35 : (v.k === 'SMG' || v.k === 'PISTOL' || v.k === 'FLAMETHROWER' || v.k === 'ACID_SPRAYER') ? 0.75 : 1;
@@ -1490,14 +1495,7 @@ function drawHud(T) {
 
     // Thanh máu Boss
     let boss = zombies.find(z => z.type === 50) || zombies.find(z => isBossType(z.type) && z.type !== 46 && !z.gone);
-    if (boss) {
-        let bw = Math.min(420, BW * (side ? 1 : 0.6));
-        ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(W / 2 - bw / 2, bannerY, bw, 12);
-        ctx.fillStyle = boss.color; ctx.fillRect(W / 2 - bw / 2, bannerY, bw * Math.max(0, Math.min(1, boss.hp / boss.maxHp)), 12);
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(W / 2 - bw / 2 + 0.5, bannerY + 0.5, bw, 12);
-        ctx.textAlign = 'center'; outlinedText(BOSS_NAMES[boss.type] || 'BOSS', W / 2, bannerY + 24, boss.color, 'bold 12px Arial');
-        bannerY += 38;
-    }
+    if (boss) bannerY += drawBossHud(boss, bannerY, Math.min(460, BW * (side ? 1 : 0.7)));   // 17-bosses.js
 
     // Bộ đàm
     if (radioDialogs.length > 0) {
@@ -1520,12 +1518,13 @@ function drawHud(T) {
         ctx.save();
         ctx.globalAlpha = Math.min(1, mapIntro.timer);
         let cw = Math.min(460, W - 24), cy = H * 0.26;
-        ctx.fillStyle = 'rgba(8, 12, 16, 0.78)'; ctx.fillRect(W / 2 - cw / 2, cy, cw, 96);
+        ctx.fillStyle = 'rgba(8, 12, 16, 0.78)'; ctx.fillRect(W / 2 - cw / 2, cy, cw, mapIntro.roster ? 116 : 96);
         ctx.fillStyle = '#e74c3c'; ctx.fillRect(W / 2 - cw / 2, cy, cw, 3);
         ctx.textAlign = 'center';
         ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 13px Arial'; ctx.fillText(`MAP ${currentLevel}`, W / 2, cy + 20);
         ctx.fillStyle = '#ffffff'; ctx.font = 'bold 26px Arial'; ctx.fillText(mapIntro.map, W / 2, cy + 46, cw - 20);
         ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 14px Arial'; ctx.fillText(mapIntro.mission + '  |  ' + mapIntro.weather, W / 2, cy + 76, cw - 20);
+        if (mapIntro.roster) { ctx.fillStyle = '#ff9f9f'; ctx.font = 'bold 12px Arial'; ctx.fillText('☠ Quái map này: ' + mapIntro.roster, W / 2, cy + 100, cw - 20); }
         ctx.restore();
     }
 

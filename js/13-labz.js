@@ -3,7 +3,7 @@
 //  Pha 1  LAB_C4        : hộ tống Binh sĩ gài C4 phá cửa hợp kim (18 giây)
 //  Pha 2  LAB_DECON     : khí độc rút máu — bật 3 Máy Khử Độc, tìm 2 Bản Thiết Kế, cứu nhóm Nhà Khoa Học
 //         LAB_ESCORT    : dẫn Nhà Khoa Học ra bến Nhà Ga X
-//  Pha 3  STATION_HOLD  : tử thủ 30 giây chờ nổ máy, cản Boss THE HUCKER (37) -> STATION_BOARD: lên tàu
+//  Pha 3  STATION_HOLD  : tử thủ 40 giây chờ nổ máy, cản Boss THE HUCKER (37) -> STATION_BOARD: lên tàu
 //         "MISSION COMPLETED!" giả -> The Hucker móc xích vào toa đuôi
 //  Pha 4  TRAIN         : mini-game tẩu thoát trên tàu hoả (pháo 6 nòng + pháo cối)
 // ============================================================================
@@ -177,10 +177,10 @@ function updateLab(dt) {
         let sAlive = sci.filter(n => n.hp > 0);
         if (!sAlive.length) { labFail('Không còn Nhà Khoa Học nào sống sót để khởi động đầu máy.'); return; }
         if (alive.some(p => Math.hypot(p.x - LAB.train.x, p.y - LAB.train.y) < 250) && sAlive.every(n => Math.hypot(n.x - LAB.train.x, n.y - LAB.train.y) < 470)) {
-            L.sciSaved = sAlive.length; L.stage = 'hold'; L.hold = 30; L.waveT = 1.5;
+            L.sciSaved = sAlive.length; L.stage = 'hold'; L.hold = 40; L.waveT = 1.5;
             rescueNPCs = rescueNPCs.filter(n => n.kind !== 'scientist');
             objState = 'STATION_HOLD'; mission.type = 'STATION_HOLD';
-            for (let p of players) vfxList.push({ type: 'text', text: 'NHÀ KHOA HỌC ĐÃ LÊN TÀU — GIỮ BẾN 30 GIÂY!', x: p.x, y: p.y - 90, life: 2.6, color: '#f1c40f' });
+            for (let p of players) vfxList.push({ type: 'text', text: 'NHÀ KHOA HỌC ĐÃ LÊN TÀU — GIỮ BẾN 40 GIÂY!', x: p.x, y: p.y - 90, life: 2.6, color: '#f1c40f' });
             let h = new Zombie(LAB.train.x, 1180, 37);
             zombies.push(h);
             makeBossArena(h, LAB.train.x, 830, 640, true);
@@ -228,6 +228,7 @@ function updateHucker(z, target, dist, ang, dt, speed) {
         return true;
     }
     if (!z.phase2Done && z.hp < z.maxHp * 0.65) { z.phase2Done = true; z.spCD = 1.0; bossSay(z, 'GRRRAAAH!', '#e17055'); Sound.play('roar'); addScreenShake(12); }
+    if (huckerSkillTick(z, target, dist, ang, dt)) return true;   // chiêu mới đang diễn ra (17-bosses.js)
     if (z.rootTimer > 0) { z.rootTimer -= dt; return true; }
     if (z.warnBeamTimer > 0) {
         z.warnBeamTimer -= dt;
@@ -235,6 +236,7 @@ function updateHucker(z, target, dist, ang, dt, speed) {
             // Phóng xích: ai đứng trên đường xích bị móc và kéo về phía nó
             vfxList.push({ type: 'laser_beam', x: z.x, y: z.y, tx: z.targetX, ty: z.targetY, life: 0.35 });
             Sound.play('throw'); addScreenShake(6);
+            bossHitZombiesSeg(z.x, z.y, z.targetX, z.targetY, 34, 260);
             if (!tank.active) for (let p of players) {
                 if (p.isDowned || distancePointToSegment(p.x, p.y, z.x, z.y, z.targetX, z.targetY) > p.radius + 34) continue;
                 p.takeDamage(28); stunPlayer(p, 0.5);
@@ -247,15 +249,17 @@ function updateHucker(z, target, dist, ang, dt, speed) {
         return true;
     }
     if (z.spCD <= 0) {
-        let opts = dist < 270 ? ['slam', 'slam', 'whirl', 'hook'] : ['hook', 'hook', 'summon', 'whirl'];
+        // Chiêu mới (17-bosses.js): ĐẬP ĐẤT & MƯA ĐÁ, BÓP MÓC LAO TỚI, KÉO TẢNG ĐÁ, MÓC XOAY
+        let opts = dist < 270 ? ['slam', 'rocks', 'hookdash', 'hook'] : ['hook', 'boulder', 'rocks', 'hookdash', 'summon'];
+        if (!(z.spinCD > 0)) opts.push('spin', 'spin');
         let skill = pickBossSkill(z, opts);
-        if (skill === 'slam') { hazards.push({ type: 'quake', x: z.x, y: z.y, radius: 240, timer: 0.9, life: 1.1, dmg: 70, stun: 0.7 }); z.rootTimer = 0.9; bossSay(z, 'NỆN XÍCH!', '#e17055'); }
-        else if (skill === 'whirl') { hazards.push({ type: 'quake', x: z.x, y: z.y, radius: 330, timer: 1.25, life: 1.45, dmg: 55, stun: 0.4 }); z.rootTimer = 1.25; bossSay(z, 'QUẬT XÍCH VÒNG TRÒN!', '#e17055'); }
+        if (skill === 'slam') { hazards.push({ type: 'quake', x: z.x, y: z.y, radius: 240, timer: 0.9, life: 1.1, dmg: 70, stun: 0.7, bz: 420 }); z.rootTimer = 0.9; bossSay(z, 'NỆN XÍCH!', '#e17055'); }
         else if (skill === 'hook') {
             let len = Math.min(640, dist + 140);
             z.targetX = z.x + Math.cos(ang) * len; z.targetY = z.y + Math.sin(ang) * len; z.warnBeamTimer = z.phase2Done ? 0.6 : 0.8;
             bossSay(z, 'MÓC XÍCH!', '#e17055');
-        } else { labWave(4 + Math.floor(currentLevel / 3)); Sound.play('roar'); spawnRing(z.x, z.y, z.color, 260, 0.6, 6); bossSay(z, 'GỌI BẦY!', '#e17055'); }
+        } else if (skill === 'summon') { labWave(4 + Math.floor(currentLevel / 3)); Sound.play('roar'); spawnRing(z.x, z.y, z.color, 260, 0.6, 6); bossSay(z, 'GỌI BẦY!', '#e17055'); }
+        else huckerStart(z, skill, target, dist, ang);
         z.spCD = z.phase2Done ? 2.3 : 3.1;
     }
     z.x += Math.cos(ang) * speed * dt; z.y += Math.sin(ang) * speed * dt; resolveCollision(z); storyArenaClamp(z);
@@ -302,7 +306,7 @@ function startTrainGame() {
     obstacles = []; story.props = []; rescueNPCs = []; bushes = []; slowZones = []; decals = [];
     heliSupport.active = false; tank.active = false;
     bgMapColor = '#14181b'; currentWeather = 1;
-    story.rail = { hp: 100, speed: 60, dist: 0, chainT: 3.5, cannon: 4, boost: 0, boostCD: 0, sw: 0, swT: 11, stun: 0, end: 0, win: false, msg: 'TRÊN NÓC TÀU! B: LỆNH PHÁO · C: TĂNG TỐC · D: CHUYỂN RAY — phá các MÓC XÍCH!', msgT: 6, shift: 0 };
+    story.rail = { hp: 100, speed: 70, dist: 0, chainT: 2.0, cannon: 4, boost: 0, boostCD: 0, sw: 0, swT: 8, stun: 0, end: 0, win: false, fin: -1, msg: 'TRÊN NÓC TÀU! B: LỆNH PHÁO · C: TĂNG TỐC · D: CHUYỂN RAY — phá MÓC XÍCH, né ĐÁ RƠI và XÍCH QUÉT!', msgT: 6, shift: 0 };
     story.noSpawn = true; radioDialogs.length = 0;
     players.forEach((p, i) => {
         p.x = (ROOF.x0 + ROOF.x1) / 2 + (players.length > 1 ? (i ? 50 : -50) : 0); p.y = 2000; p.stunTimer = 0; p.netTimer = 0;
@@ -337,7 +341,7 @@ function railInput(p) {
         else { r.boost = 4; r.boostCD = 12; Sound.play('level'); railMsg('XẢ HƠI — TĂNG TỐC!', 1.6); }
     }
     if (getButtonState(p.id, 'D', 'justPressed')) {
-        if (r.sw > 0) { r.sw = 0; r.swT = 11 + Math.random() * 6; r.shift = 0.5; Sound.play('upgrade'); addScreenShake(6); railMsg('ĐÃ CHUYỂN RAY — NÉ ĐƯỢC ĐÁ!', 1.8); }
+        if (r.sw > 0) { r.sw = 0; r.swT = 8 + Math.random() * 5; r.shift = 0.5; Sound.play('upgrade'); addScreenShake(6); railMsg('ĐÃ CHUYỂN RAY — NÉ ĐƯỢC ĐÁ!', 1.8); }
         else vfxList.push({ type: 'text', text: 'CHƯA CÓ GÌ CHẮN ĐƯỜNG', x: p.x, y: p.y - 50, life: 0.7, color: '#95a5a6' });
     }
 }
@@ -377,15 +381,13 @@ function updateRail(dt) {
     if (r.boost > 0) r.boost -= dt;
     if (r.boostCD > 0) r.boostCD -= dt;
     if (r.cannon > 0) r.cannon -= dt;
-    let target = Math.max(18, 100 - chains.length * 15) + (r.boost > 0 ? 35 : 0);
-    r.speed += Math.max(-50 * dt, Math.min(16 * dt, target - r.speed));
-    r.dist += r.speed / 100 * 14.5 * dt;
+    // Kết thúc: C4 nổ tung toa đuôi cuốn theo The Hucker, đoàn tàu lao vào hầm (17-bosses.js)
+    if (r.fin >= 0) { railFinale(r, dt); return; }
+    let target = Math.max(22, 108 - chains.length * 14) + (r.boost > 0 ? 35 : 0);
+    r.speed += Math.max(-50 * dt, Math.min(18 * dt, target - r.speed));
+    r.dist += r.speed / 100 * 19 * dt;
     r.hp -= chains.length * 0.8 * dt;
-    if (r.dist >= ROOF.tunnel) {
-        r.win = true; r.end = 2.8; railMsg('ĐOÀN TÀU ĐÃ LAO VÀO HẦM AN TOÀN!', 3); Sound.play('level');
-        for (let z of zombies) { z.hp = 0; z._credited = true; z.noLoot = true; }
-        return;
-    }
+    if (r.dist >= ROOF.tunnel - 70) { railStartFinale(r); return; }
     // Mọi người đều gục: thất bại (không game over)
     if (players.every(p => p.isDowned)) { r.win = false; r.failText = 'Cả đội gục ngã trên nóc tàu.'; r.end = 2.5; railMsg('CẢ ĐỘI ĐÃ GỤC!', 3); return; }
 
@@ -393,13 +395,14 @@ function updateRail(dt) {
     if (r.stun > 0) r.stun -= dt;
     else {
         r.chainT -= dt;
-        if (r.chainT <= 0 && chains.length < 6) { r.chainT = Math.max(2.6, 5.5 - r.dist / 400) + Math.random() * 1.5; railAddChain(); }
+        if (r.chainT <= 0 && chains.length < 6) { r.chainT = Math.max(1.7, 4.4 - r.dist / 330) + Math.random() * 1.2; railAddChain(); }
     }
+    railHuckerAttacks(r, dt);   // ném đá lên nóc tàu, xích quét ngang (17-bosses.js)
     // Zombie trèo lên theo từng sợi xích
     for (let c of chains) {
         c.cd -= dt;
-        if (c.cd <= 0 && zombies.length < 34) {
-            c.cd = 1.7 + Math.random() * 0.8;
+        if (c.cd <= 0 && zombies.length < 42) {
+            c.cd = 1.15 + Math.random() * 0.7;
             let t = Math.random() < 0.25 ? 3 : (Math.random() < 0.12 && currentLevel >= 6 ? 1 : 0);
             let ix = c.x + (c.x < cx ? 20 : (c.x > cx + 100 ? -20 : 0)), iy = c.y - (c.y > ROOF.y1 - 40 ? 22 : 0);
             zombies.push(new Zombie(ix, iy, t)); createParticles(c.x, c.y, '#7f8c8d', 5, 120);
@@ -408,7 +411,7 @@ function updateRail(dt) {
     // Đá chắn đường ray
     if (r.sw > 0) {
         r.sw -= dt;
-        if (r.sw <= 0) { r.sw = 0; r.swT = 11 + Math.random() * 6; r.hp -= 18; r.speed = Math.min(r.speed, 30); addScreenShake(22); Sound.play('explode'); railMsg('TÀU ĐÂM VÀO ĐÁ! -18 MÁU TÀU, MẤT TỐC ĐỘ', 2.4); for (let p of players) if (!p.isDowned) stunPlayer(p, 0.6); }
+        if (r.sw <= 0) { r.sw = 0; r.swT = 8 + Math.random() * 5; r.hp -= 18; r.speed = Math.min(r.speed, 30); addScreenShake(22); Sound.play('explode'); railMsg('TÀU ĐÂM VÀO ĐÁ! -18 MÁU TÀU, MẤT TỐC ĐỘ', 2.4); for (let p of players) if (!p.isDowned) stunPlayer(p, 0.6); }
     } else {
         r.swT -= dt;
         if (r.swT <= 0 && r.dist < ROOF.tunnel - 120) { r.sw = 4.5; Sound.play('hit'); railMsg('⚠ ĐÁ CHẮN ĐƯỜNG RAY — BẤM D ĐỂ CHUYỂN RAY!', 4.5); }
@@ -443,10 +446,16 @@ function drawRail(T, x0, x1, y0, y1) {
     ctx.strokeStyle = '#b2bec3'; ctx.lineWidth = 6; ctx.setLineDash([14, 9]);
     for (let c of story.props) if (c.kind === 'chain') { ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(c.x, c.y); ctx.stroke(); }
     ctx.setLineDash([]);
-    drawShadow(hx, hy + 20, 62);
-    drawHucker({ x: hx, y: hy, radius: 62, phase2Done: true }, T, -Math.PI / 2, r.stun > 0 && Math.floor(T * 12) % 2 === 0);
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    outlinedText(r.stun > 0 ? 'THE HUCKER — CHOÁNG!' : 'THE HUCKER', hx, hy + 92, r.stun > 0 ? '#f1c40f' : '#e17055', 'bold 15px Arial');
+    let blown = r.fin >= 0.9, bk = blown ? r.fin - 0.9 : 0;
+    if (bk < 1.6) {
+        let by = hy + bk * bk * 420;
+        ctx.save(); ctx.globalAlpha = blown ? Math.max(0, 1 - bk / 1.6) : 1;
+        drawShadow(hx, by + 20, 62);
+        drawHucker({ x: hx, y: by, radius: 62, phase2Done: true }, T, -Math.PI / 2 + bk * 7, (r.stun > 0 || blown) && Math.floor(T * 12) % 2 === 0);
+        ctx.restore();
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        outlinedText(blown ? 'THE HUCKER — BỊ THỔI BAY!' : (r.stun > 0 ? 'THE HUCKER — CHOÁNG!' : 'THE HUCKER'), hx, by + 92, r.stun > 0 || blown ? '#f1c40f' : '#e17055', 'bold 15px Arial');
+    }
     // Ba toa tàu (nóc)
     let jit = Math.sin(T * 38) * 1.2, carH = (ROOF.y1 - ROOF.y0 - 40) / 3;
     for (let k = 0; k < 3; k++) {
@@ -466,6 +475,7 @@ function drawRail(T, x0, x1, y0, y1) {
     ctx.fillStyle = '#2f3542'; ctx.fillRect(0, -9, 62, 18); ctx.fillStyle = '#636e72'; ctx.fillRect(56, -12, 10, 24); ctx.restore();
     ctx.beginPath(); ctx.arc(cx, ROOF.y1 - 60, 24, 0, Math.PI * 2); ctx.fillStyle = rdy ? '#f39c12' : '#57606f'; ctx.fill(); ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.stroke();
     outlinedText(rdy ? 'PHÁO: SẴN SÀNG (B)' : `PHÁO: ${r.cannon.toFixed(1)}s`, cx, ROOF.y1 - 22, rdy ? '#f1c40f' : '#95a5a6', 'bold 12px Arial');
+    drawRailFinale(r, T, x0, x1, y0, y1);
 }
 function drawRailChain(c, T) {
     ctx.beginPath(); ctx.arc(c.x, c.y, c.r + 4 + Math.sin(T * 8) * 2, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255, 71, 87, 0.8)'; ctx.lineWidth = 3; ctx.stroke();
@@ -500,6 +510,8 @@ function drawRailHud(T) {
         lines.forEach((l, i) => outlinedText(l, W / 2, H * 0.34 + i * (small ? 16 : 22), '#f1c40f', `bold ${small ? 12 : 16}px Arial`, 4));
         ctx.globalAlpha = 1;
     }
+    if (r.hp < 35 && !r.end) { ctx.fillStyle = `rgba(200, 0, 0, ${0.1 + 0.08 * Math.sin(T * 9)})`; ctx.fillRect(0, 0, W, H); }   // tàu sắp vỡ: viền đỏ nhịp tim
+    if (r.fin >= 2.2) { ctx.fillStyle = `rgba(0,0,0,${Math.min(0.8, (r.fin - 2.2) * 0.4)})`; ctx.fillRect(0, 0, W, H); }      // tàu chui vào hầm tối
     if (r.end) { ctx.fillStyle = `rgba(0,0,0,${Math.min(0.75, (2.8 - r.end) * 0.4)})`; ctx.fillRect(0, 0, W, H); outlinedText(r.win ? 'TẨU THOÁT THÀNH CÔNG!' : 'THẤT BẠI', W / 2, H / 2, r.win ? '#2ecc71' : '#ff4757', `900 ${Math.round(Math.min(48, W / 12))}px Arial`, 6); }
 }
 
@@ -614,7 +626,7 @@ function labNetState(x) {
     }
     if (story.cut) x.cu = [story.cut.kind, R(story.cut.t * 100)];
     let r = story.rail;
-    if (r) x.rl = [R(r.hp), R(r.speed), R(r.dist), R(Math.max(0, r.cannon) * 10), R(Math.max(0, r.boostCD) * 10), R(r.sw * 10), R((r.end || 0) * 100), r.win ? 1 : 0, r.msg, R(Math.max(0, r.msgT) * 10), R(Math.max(0, r.stun) * 10)];
+    if (r) x.rl = [R(r.hp), R(r.speed), R(r.dist), R(Math.max(0, r.cannon) * 10), R(Math.max(0, r.boostCD) * 10), R(r.sw * 10), R((r.end || 0) * 100), r.win ? 1 : 0, r.msg, R(Math.max(0, r.msgT) * 10), R(Math.max(0, r.stun) * 10), r.fin >= 0 ? R(r.fin * 100) : -1];
 }
 function labNetApply(x) {
     let b = x.lb;
@@ -625,5 +637,5 @@ function labNetApply(x) {
     } else story.lab = null;
     story.cut = Array.isArray(x.cu) ? { kind: String(x.cu[0]), t: (x.cu[1] | 0) / 100 } : null;
     let t = x.rl;
-    story.rail = Array.isArray(t) ? { hp: +t[0] || 0, speed: +t[1] || 0, dist: +t[2] || 0, cannon: (t[3] | 0) / 10, boostCD: (t[4] | 0) / 10, sw: (t[5] | 0) / 10, end: (t[6] | 0) / 100, win: !!t[7], msg: String(t[8] || ''), msgT: (t[9] | 0) / 10, stun: (t[10] | 0) / 10, shift: 0, boost: 0 } : null;
+    story.rail = Array.isArray(t) ? { hp: +t[0] || 0, speed: +t[1] || 0, dist: +t[2] || 0, cannon: (t[3] | 0) / 10, boostCD: (t[4] | 0) / 10, sw: (t[5] | 0) / 10, end: (t[6] | 0) / 100, win: !!t[7], msg: String(t[8] || ''), msgT: (t[9] | 0) / 10, stun: (t[10] | 0) / 10, fin: (t[11] | 0) >= 0 ? (t[11] | 0) / 100 : -1, shift: 0, boost: 0 } : null;
 }
