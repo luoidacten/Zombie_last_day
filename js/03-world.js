@@ -80,7 +80,9 @@ function updateStatusEffects(target, dt, isPlayer = false) {
             if (!isPlayer && !ELECTRIC_IMMUNE_ZOMBIES.has(target.type)) target.stunTimer = Math.max(target.stunTimer || 0, 0.08);
         } else if (id === STATUS.CORROSION) {
             let resist = isPlayer && target.perks && target.perks.a_chongAnMon ? 0.65 : 1;
-            dot(target.maxHp * (s.dpsPercent || 0.006) * Math.max(1, s.stacks || 1) * resist * dt * (!isPlayer && isBossType(target.type) ? 0.25 : 1) * (isPlayer ? 1 : arsenalDotMult(s)));
+            let cAmt = target.maxHp * (s.dpsPercent || 0.006) * Math.max(1, s.stacks || 1) * resist * dt;
+            if (isPlayer) acidHurt(target, cAmt * 0.5);   // acid của quái đốt chậm, không giết được người chơi (20-queen.js)
+            else dot(cAmt * (isBossType(target.type) ? 0.25 : 1) * arsenalDotMult(s));
             if (Math.random() < 0.15) createParticles(target.x, target.y, '#2ecc71', 1, 60);
         } else if (id === STATUS.OVERLOAD) {
             if (!isPlayer) target.stunTimer = 0;
@@ -1165,7 +1167,7 @@ function updateHazards(dt) {
         }
 
         if (currentWeather === 7) pl.hunger -= 1.5 * dt;   // Nắng nóng: đói nhanh gấp 2.5
-        if (currentWeather === 10) pl.takeDot(0.25 * dt);  // Mưa acid: rút máu ngầm
+        if (currentWeather === 10) acidHurt(pl, 0.25 * dt);  // Mưa acid: rút máu ngầm (không quá 50% máu)
     }
 
     // 3. Mốc 4 ĐIỆN: Tháp đã kích hoạt tự phóng sét phòng thủ

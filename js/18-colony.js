@@ -50,7 +50,9 @@ function buildMapRoster() {
 function rosterPick() {
     let r = mapRoster || buildMapRoster();
     if (r.length === 1 || Math.random() < 0.4) return r[0];
-    return r[1 + Math.floor(Math.random() * (r.length - 1))];
+    let t = r[1 + Math.floor(Math.random() * (r.length - 1))];
+    if (t === 18 && zombies.filter(z => z.type === 18 && z.hp > 0).length >= 5) t = r[0];   // tối đa 5 Acidier trên map
+    return t;
 }
 function rosterText() {
     if (!mapRoster || currentMapType === 14 || currentMapType === 16) return '';
@@ -104,8 +106,10 @@ function colonyArrive() {
     let L = story.lab;
     if (L && L.result && L.result.ok && L.sciSaved) n += L.sciSaved;
     let w = baseWorkers(), mat = w * 2;
-    base.pop = (base.pop | 0) + n; base.mat = (base.mat | 0) + mat;
-    if (n || mat) netToast(`🏘 ${n ? `+${n} người được giải cứu đã về căn cứ. ` : ''}${mat ? `${w} thợ chế tạo được +${mat} 🧱 Vật Liệu.` : ''}`, 5000);
+    base.mat = (base.mat | 0) + mat;
+    base.wait = (base.wait | 0) + n;
+    let moved = colonySettle();   // chỉ ở lại được khi đủ NHÀ Ở và LƯƠNG THỰC
+    if (n || mat) netToast(`🏘 ${n ? `${n} người được giải cứu đã về căn cứ${moved < n ? ` — ${base.wait} người đang chờ vì thiếu nhà ở / nông trại` : ''}. ` : ''}${mat ? `${w} thợ chế tạo được +${mat} 🧱 Vật Liệu.` : ''}`, 5500);
 }
 // Thủ thành: thợ sửa Nhà Chính
 function colonyDefTick(dt, h) {
@@ -131,7 +135,7 @@ function forgeBuy(pi) {
 function colonyPanelTop() {
     let ops = turretOperators(), w = baseWorkers(), need = base.house < 5 ? HOUSE_POP[base.house + 1] : 0;
     return `<div class="p-2 mb-3 rounded-lg bg-amber-950/60 border border-amber-600 text-xs text-white">
-        <b>🏘 Cư dân: ${basePop()}</b> — ${ops} vận hành ụ súng · ${w} thợ &nbsp; | &nbsp; <b>🧱 Vật Liệu: ${base.mat | 0}</b><br>
+        <b>🏘 Cư dân: ${basePop()}/${colonyCap()}</b> — ${ops} vận hành ụ súng · ${w} thợ${base.wait ? ` · <b class="text-red-300">${base.wait} người đang chờ chỗ ở</b>` : ''} &nbsp; | &nbsp; <b>🧱 Vật Liệu: ${base.mat | 0}</b><br>
         <span class="text-gray-300">Người bạn giải cứu (nhiệm vụ Giải Cứu, Nhà Khoa Học) sẽ về đây. Mỗi ụ súng cần 1 người vận hành, thiếu người thì ụ không bắn.
         Thợ chế tạo 2 🧱 mỗi chiến dịch và sửa Nhà Chính khi bị tấn công.${need ? ` Nhà Chính cấp ${base.house + 1} cần <b class="text-amber-300">${need} cư dân</b>.` : ''}</span></div>`;
 }
@@ -154,6 +158,7 @@ renderBasePanel = function () {
 };
 // Cư dân đi lại trong trại: thợ quanh Xưởng, người vận hành đứng cạnh ụ súng (chỉ là hình ảnh, khách tự vẽ theo số dân)
 function drawResidents(T) {
+    drawColonyBuildings(T);   // nhà ở, nông trại, tháp canh
     let n = Math.min(16, basePop()), list = baseTurretList(), ops = [];
     list.forEach((t, i) => { if (t && turretManned(i)) ops.push(i); });
     for (let k = 0; k < n; k++) {
@@ -430,3 +435,122 @@ storyPointers = function (ptr) {
     _storyPointers0(ptr);
     for (let n of rescueNPCs) if (n.survivor && !n.rescued && n.hp > 0 && players.some(p => Math.hypot(p.x - n.x, p.y - n.y) < 900)) ptr(n.x, n.y, '#2ecc71');
 };
+
+// ---------------------------------------------------------------------------
+// NHÀ Ở & NÔNG TRẠI: muốn thêm dân phải đủ chỗ ở VÀ đủ lương thực. Người dư phải chờ ở trại tạm.
+// TÍNH NĂNG THEO CẤP NHÀ CHÍNH: cấp 2 hồi 25% máu khi về, cấp 3 hồi 50% + Phòng Tập, cấp 4 thêm 4 Tháp Canh tự động
+// ---------------------------------------------------------------------------
+const HOME_CAP = 3, FARM_CAP = 4, COLONY_MAX = 6, TRAIN_MAX = 5;
+const HOME_SPOTS = [[1600, 1530], [1690, 1530], [1780, 1530], [2220, 1530], [2310, 1530], [2400, 1530]];
+const FARM_SPOTS = [[1560, 2250], [1650, 2250], [1740, 2250], [2260, 2250], [2350, 2250], [2440, 2250]];
+const TOWER_SPOTS = [[1390, 1530], [2610, 1530], [1390, 2460], [2610, 2460]];
+function colonyCap() { return Math.min((base.homes || 1) * HOME_CAP, (base.farms || 1) * FARM_CAP); }
+function homeCost() { let n = base.homes || 1; return { scrap: 25 + n * 15, mat: 2 + n * 2 }; }
+function farmCost() { let n = base.farms || 1; return { scrap: 20 + n * 15, mat: 2 + n * 2 }; }
+function trainCost(l) { return { scrap: 40 * (l + 1), mat: 2 * (l + 1) }; }
+// Người đang chờ dọn vào khi còn chỗ; trả về số người vừa dọn vào
+function colonySettle() {
+    let room = Math.max(0, colonyCap() - (base.pop | 0)), k = Math.min(room, base.wait | 0);
+    base.pop = (base.pop | 0) + k; base.wait = (base.wait | 0) - k;
+    return k;
+}
+function colonyBuy(what) {
+    let c = what === 'home' ? homeCost() : what === 'farm' ? farmCost() : trainCost(what === 'thp' ? (base.trainHp | 0) : (base.trainSpd | 0));
+    if (what === 'home' && (base.homes || 1) >= COLONY_MAX) return;
+    if (what === 'farm' && (base.farms || 1) >= COLONY_MAX) return;
+    if ((what === 'thp' || what === 'tspd') && (base.house < 3 || ((what === 'thp' ? base.trainHp : base.trainSpd) | 0) >= TRAIN_MAX)) return;
+    if (shopScrap < c.scrap || (base.mat | 0) < c.mat) { Sound.play('hit'); netToast('Không đủ phế liệu hoặc vật liệu!', 1500); return; }
+    shopScrap -= c.scrap; base.mat -= c.mat;
+    if (what === 'home') base.homes = (base.homes || 1) + 1;
+    else if (what === 'farm') base.farms = (base.farms || 1) + 1;
+    else if (what === 'thp') { base.trainHp = (base.trainHp | 0) + 1; for (let p of players) { p.maxHp += 30; p.hp += 30; } }
+    else { base.trainSpd = (base.trainSpd | 0) + 1; for (let p of players) p.baseSpeed += 12; }
+    let k = colonySettle();
+    if (k) netToast(`🏘 ${k} người đang chờ đã dọn vào căn cứ!`, 2500);
+    Sound.play('upgrade');
+    renderBasePanel(); netSendSync();
+}
+function colonyPanelBuild() {
+    const btn = (label, fn, ok) => `<button class="px-2 py-2 rounded-lg text-xs font-bold border ${ok ? 'bg-emerald-700 border-emerald-400 text-white' : 'bg-gray-800 border-gray-600 text-gray-500'}" onclick="${fn}">${label}</button>`;
+    const row = (title, sub, inner) => `<div class="p-2 rounded-lg bg-slate-900/80 border border-slate-600 flex items-center justify-between gap-2"><div class="text-xs text-white"><b>${title}</b><br><span class="text-gray-400">${sub}</span></div>${inner}</div>`;
+    const can = (c) => shopScrap >= c.scrap && (base.mat | 0) >= c.mat;
+    const maxed = '<span class="text-emerald-400 text-xs font-bold">TỐI ĐA</span>';
+    let hc = homeCost(), fc = farmCost(), h = base.homes || 1, f = base.farms || 1;
+    let html = `<div class="mb-1 text-sm font-bold text-emerald-300">🏡 NHÀ Ở & 🌾 NÔNG TRẠI — sức chứa ${colonyCap()} dân</div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2">`;
+    html += row(`🏡 Nhà ở ${h}/${COLONY_MAX}`, `Mỗi nhà ở được ${HOME_CAP} người (đủ chỗ cho ${h * HOME_CAP})`, h < COLONY_MAX ? btn(`Xây ⚙${hc.scrap} 🧱${hc.mat}`, "colonyBuy('home')", can(hc)) : maxed);
+    html += row(`🌾 Nông trại ${f}/${COLONY_MAX}`, `Mỗi nông trại nuôi ${FARM_CAP} người (đủ ăn cho ${f * FARM_CAP})`, f < COLONY_MAX ? btn(`Xây ⚙${fc.scrap} 🧱${fc.mat}`, "colonyBuy('farm')", can(fc)) : maxed);
+    html += '</div>';
+    // Tính năng theo cấp Nhà Chính
+    const lv = (n, t) => `<span class="${base.house >= n ? 'text-emerald-300' : 'text-gray-500'}">${base.house >= n ? '✔' : '🔒'} Cấp ${n}: ${t}</span>`;
+    html += `<div class="mt-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700 text-[11px] leading-5"><b class="text-white">Tính năng Nhà Chính</b><br>${lv(2, 'hồi 25% máu khi về căn cứ')}<br>${lv(3, 'hồi 50% máu khi về · mở PHÒNG TẬP (máu, tốc độ)')}<br>${lv(4, '4 THÁP CANH tự động bảo vệ trại · Radar mở rộng (tìm map mới — sắp có)')}<br>${lv(5, 'sắp có')}</div>`;
+    if (base.house >= 3) {
+        let th = base.trainHp | 0, ts = base.trainSpd | 0, ch = trainCost(th), cs = trainCost(ts);
+        html += `<div class="mt-2 mb-1 text-sm font-bold text-sky-300">🏋 PHÒNG TẬP — nâng chỉ số cả đội (giữ cả lượt chơi)</div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2">`;
+        html += row(`❤ Thể lực ${th}/${TRAIN_MAX}`, '+30 máu tối đa mỗi cấp', th < TRAIN_MAX ? btn(`Tập ⚙${ch.scrap} 🧱${ch.mat}`, "colonyBuy('thp')", can(ch)) : maxed);
+        html += row(`👟 Tốc độ ${ts}/${TRAIN_MAX}`, '+12 tốc chạy mỗi cấp', ts < TRAIN_MAX ? btn(`Tập ⚙${cs.scrap} 🧱${cs.mat}`, "colonyBuy('tspd')", can(cs)) : maxed);
+        html += '</div>';
+    }
+    return html + '<div class="mb-3"></div>';
+}
+const _renderBasePanel1 = renderBasePanel;
+renderBasePanel = function () {
+    _renderBasePanel1();
+    let box = document.getElementById('baseItems'); if (!box) return;
+    let top = box.firstElementChild;   // khối Cư dân
+    if (top) top.insertAdjacentHTML('afterend', colonyPanelBuild()); else box.insertAdjacentHTML('afterbegin', colonyPanelBuild());
+};
+// Về căn cứ: Nhà Chính cấp 2/3 hồi máu; phần thưởng boss đặt cạnh lửa trại
+const _enterHub0 = enterHub;
+enterHub = function () {
+    let fresh = NET.mode !== 'guest' && base.arr !== currentLevel;
+    _enterHub0();
+    if (!fresh) return;
+    let pct = base.house >= 3 ? 0.5 : (base.house >= 2 ? 0.25 : 0);
+    if (pct) { for (let p of players) if (!p.isDowned) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * pct); netToast(`🏠 Nhà Chính cấp ${base.house}: cả đội hồi ${pct * 100}% máu.`, 2500); }
+    if (base.gift && WEAPON_TYPES[base.gift]) {
+        drops.push({ type: 'SUPERBOX', forceWeapon: base.gift, x: HUB.fire.x + 90, y: HUB.fire.y + 30, radius: 16, lifeTime: 99999 });
+        netToast(`🎁 Phần thưởng boss: ${WEAPON_TYPES[base.gift].name} cải tiến — Hòm Thính đặt cạnh lửa trại!`, 4500);
+        base.gift = null;
+    }
+};
+// Tháp canh tự động (Nhà Chính cấp 4): bắn khi căn cứ bị tấn công, không cần người vận hành
+let towerCD = [0, 0, 0, 0];
+function colonyTowers(dt) {
+    if (base.house < 4 || objState !== 'BASE_DEF') return;
+    TOWER_SPOTS.forEach((s, i) => {
+        towerCD[i] -= dt; if (towerCD[i] > 0) return;
+        let tz = null, bd = 700;
+        for (let z of zombies) { if (z.hp <= 0 || z.hidden || z.flying) continue; let d = Math.hypot(z.x - s[0], z.y - s[1]); if (d < bd) { bd = d; tz = z; } }
+        if (!tz) return;
+        towerCD[i] = 0.3;
+        bullets.push(new Bullet(s[0], s[1] - 20, Math.atan2(tz.y - s[1], tz.x - s[0]), { range: 720, dmg: 45 * (1 + currentLevel * 0.08), wallPiercing: true, fromAlly: true }, players[0]));
+    });
+}
+const _colonyDefTick0 = colonyDefTick;
+colonyDefTick = function (dt, h) { _colonyDefTick0(dt, h); colonyTowers(dt); };
+function drawColonyBuildings(T) {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let i = 0; i < (base.homes || 1) && i < HOME_SPOTS.length; i++) {
+        let [x, y] = HOME_SPOTS[i];
+        ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x - 25, y - 17, 60, 44);
+        ctx.fillStyle = '#a1887f'; ctx.fillRect(x - 30, y - 22, 60, 44); ctx.strokeStyle = '#4e342e'; ctx.lineWidth = 3; ctx.strokeRect(x - 30, y - 22, 60, 44);
+        ctx.fillStyle = '#6d4c41'; ctx.beginPath(); ctx.moveTo(x - 34, y - 22); ctx.lineTo(x, y - 42); ctx.lineTo(x + 34, y - 22); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = `rgba(255, 234, 167, ${0.6 + 0.2 * Math.sin(T * 2 + i)})`; ctx.fillRect(x - 8, y - 6, 16, 12);
+    }
+    for (let i = 0; i < (base.farms || 1) && i < FARM_SPOTS.length; i++) {
+        let [x, y] = FARM_SPOTS[i];
+        ctx.fillStyle = '#5d4037'; ctx.fillRect(x - 36, y - 26, 72, 52);
+        for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) { let sw = Math.sin(T * 2 + c + r) * 1.5; ctx.fillStyle = '#7bed9f'; ctx.fillRect(x - 32 + c * 11 + sw, y - 22 + r * 12, 5, 8); }
+        ctx.strokeStyle = '#3e2723'; ctx.lineWidth = 2; ctx.strokeRect(x - 36, y - 26, 72, 52);
+    }
+    if (objState === 'HUB') {
+        outlinedText(`🏡 NHÀ Ở (${(base.homes || 1) * HOME_CAP} chỗ)`, HOME_SPOTS[1][0], HOME_SPOTS[0][1] + 36, '#ffeaa7', 'bold 10px Arial');
+        outlinedText(`🌾 NÔNG TRẠI (nuôi ${(base.farms || 1) * FARM_CAP})`, FARM_SPOTS[1][0], FARM_SPOTS[0][1] + 40, '#7bed9f', 'bold 10px Arial');
+    }
+    if (base.house >= 4) for (let [x, y] of TOWER_SPOTS) {
+        ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(x - 13, y - 13, 36, 36);
+        ctx.fillStyle = '#6d4c41'; ctx.fillRect(x - 18, y - 18, 36, 36); ctx.strokeStyle = '#3e2723'; ctx.lineWidth = 3; ctx.strokeRect(x - 18, y - 18, 36, 36);
+        ctx.fillStyle = '#2f3542'; ctx.beginPath(); ctx.arc(x, y - 4, 10, 0, Math.PI * 2); ctx.fill();
+        outlinedText('THÁP CANH', x, y + 28, '#f1c40f', 'bold 9px Arial');
+    }
+}

@@ -28,13 +28,13 @@ const LANES = [
     { x: 1900, y: 290, w: 200, h: 1160, sx: 2000, sy: 360, px: 1900, py: 1520 }
 ];
 const MAX_GUARDS = 6;
-function newBase() { return { house: 0, spikes: 0, turrets: [], def: null, defCount: 0, guards: 0, pop: 2, mat: 0, wlv: {}, rm: [], arr: 0 }; }   // pop/mat/wlv/rm: 18-colony.js
+function newBase() { return { house: 0, spikes: 0, turrets: [], def: null, defCount: 0, guards: 0, pop: 2, mat: 0, wlv: {}, rm: [], arr: 0, homes: 1, farms: 1, wait: 0, trainHp: 0, trainSpd: 0, gift: null }; }   // pop/mat/wlv/rm: 18-colony.js
 let base = newBase();
 function baseGates() { return Math.min(4, 1 + (base.defCount || 0)); }                 // số cổng của lần thủ thành kế tiếp
 function baseGatesNow() { return NET.mode === 'guest' ? (story.bg || 1) : (base.def ? base.def.gates : baseGates()); }
 function baseSlotCount() { return 8 + 2 * (baseGates() - 1); }
 function guardCost() { return 30 + base.guards * 5; }
-function baseSave() { return { house: base.house, spikes: base.spikes, dc: base.defCount, g: base.guards, turrets: base.turrets.map(t => t ? { t: t.t, l: t.l } : null), pop: base.pop, mat: base.mat, wlv: base.wlv, rm: base.rm, arr: base.arr }; }
+function baseSave() { return { house: base.house, spikes: base.spikes, dc: base.defCount, g: base.guards, turrets: base.turrets.map(t => t ? { t: t.t, l: t.l } : null), pop: base.pop, mat: base.mat, wlv: base.wlv, rm: base.rm, arr: base.arr, homes: base.homes, farms: base.farms, wait: base.wait, th: base.trainHp, ts: base.trainSpd, gift: base.gift }; }
 function baseLoad(s) {
     base = newBase(); if (!s) return;
     base.house = Math.max(0, Math.min(5, s.house | 0)); base.spikes = Math.max(0, Math.min(3, s.spikes | 0));
@@ -43,6 +43,11 @@ function baseLoad(s) {
     // Bản lưu cũ chưa có cư dân: đủ người cho các ụ súng đã đặt
     base.pop = s.pop === undefined ? Math.max(2, base.turrets.filter(t => t).length) : Math.max(0, s.pop | 0);
     base.mat = Math.max(0, s.mat | 0); base.arr = s.arr | 0;
+    // Bản lưu cũ chưa có nhà ở / nông trại: xây đủ cho số dân đang có
+    base.homes = Math.max(1, Math.min(6, s.homes === undefined ? Math.ceil(base.pop / 3) : s.homes | 0));
+    base.farms = Math.max(1, Math.min(6, s.farms === undefined ? Math.ceil(base.pop / 4) : s.farms | 0));
+    base.wait = Math.max(0, s.wait | 0); base.trainHp = Math.max(0, Math.min(5, s.th | 0)); base.trainSpd = Math.max(0, Math.min(5, s.ts | 0));
+    base.gift = typeof s.gift === 'string' ? s.gift : null;
     base.rm = Array.isArray(s.rm) ? s.rm.filter(n => typeof n === 'number').slice(-6) : [];
     base.wlv = {}; if (s.wlv && typeof s.wlv === 'object') for (let k in s.wlv) base.wlv[k] = Math.max(0, Math.min(FORGE_MAX, s.wlv[k] | 0));
 }

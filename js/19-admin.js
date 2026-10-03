@@ -77,7 +77,7 @@ function admOpenPanel() {
     let st = admInGame() ? `Map ${currentLevel} · ${getMapName()} · ${objState} · ⚙ ${shopScrap} · 🏘 ${base.pop | 0} · 🧱 ${base.mat | 0}` : 'Chưa vào trận — các nút trong trận sẽ tự mở lượt chơi mới (1 người PC).';
     admModal('admPanel', `<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:bold;color:#f59e0b;font-size:16px">🛠 ADMIN / TEST MOD</div>${b('✕ Đóng (F8)', 'admClose()', '#7f1d1d')}</div>
         <div style="color:#94a3b8;margin-top:4px">${st}${NET.mode === 'guest' ? '<br><b style="color:#f87171">Đang là khách online: chỉ chủ phòng mới đổi được trận.</b>' : ''}</div>
-        ${sec('💰 TÀI NGUYÊN', b('+500 ⚙', "admDo('scrap')") + b('+5 ◆ Mảnh Bức Phá', "admDo('shard')") + b('+10 🏘 cư dân', "admDo('pop')") + b('+50 🧱 vật liệu', "admDo('mat')") + b('Mở mọi bản đồ & hầm mỏ', "admDo('unlock')"))}
+        ${sec('💰 TÀI NGUYÊN', b('+500 ⚙', "admDo('scrap')") + b('+5 ◆ Mảnh Bức Phá', "admDo('shard')") + b('+10 🏘 cư dân', "admDo('pop')") + b('+50 🧱 vật liệu', "admDo('mat')") + b('Mở mọi bản đồ, Hầm Mỏ & thưởng Kiến Chúa', "admDo('unlock')"))}
         ${sec('🧍 NHÂN VẬT', b(adm.god ? '🛡 Bất tử: BẬT' : '🛡 Bất tử: TẮT', "admDo('god')", adm.god ? '#15803d' : '#334155') + b('Hồi đầy máu & no', "admDo('heal')") + b('+1 cấp (+1 lượt chọn thẻ)', "admDo('lvl')") + b('Thẻ ngẫu nhiên', "admDo('rcard')")
             + '<span style="width:100%"></span>' + sel('admCard', cards) + b('Nhận thẻ', "admDo('card')") + '<span style="width:100%"></span>' + sel('admWep', weps) + b('Nhận vũ khí', "admDo('wep')") + b('Rèn +1', "admDo('forge')"))}
         ${sec('⚔ TRẬN ĐẤU', b('Hạ toàn bộ quái thường', "admDo('kill')") + b('Boss còn 10% máu', "admDo('boss10')") + b('Hoàn thành nhiệm vụ', "admDo('win')") + b('Trực thăng tới ngay', "admDo('heli')") + b('Về Khu Sống Sót', "admDo('hub')")
@@ -108,6 +108,7 @@ function admDo(k, arg) {
         case 'unlock':
             for (let r in ROUTE_MAPS) ownedMaps[r] = true; hasPowerPlantMap = true; mineUnlocked = true;
             try { localStorage.setItem('zs_mine_unlocked', '1'); } catch (e) { }
+            if (typeof queenUnlock === 'function' && !queenSlain) queenUnlock();
             break;
         case 'god': adm.god = !adm.god; break;
         case 'heal': admEnsureRun(); for (let p of P()) { p.isDowned = false; p.hp = p.maxHp; p.hunger = 100; } break;

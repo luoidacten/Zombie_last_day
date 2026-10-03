@@ -1658,8 +1658,9 @@ class EnemyBullet {
                 else if (this.type === 'rock') { p.takeDamage(45); stunPlayer(p, 0.5); addScreenShake(6); }
                 else if (this.type === 'rocket') { explode(this.x, this.y, 150, 120); }
                 else {
-                    p.takeDamage(this.type === 'acid' ? 20 : (this.type === 'shotgun' ? 10 : 15));
-                    if (this.type === 'acid') applyPlayerStatus(p, STATUS.CORROSION, { duration: 3.2, stacks: 1, dpsPercent: 0.003, maxStacks: 6 });
+                    // Acid của quái: không giết được người chơi, chỉ đốt tới 50% máu (20-queen.js)
+                    if (this.type === 'acid') { acidHurt(p, 20); applyPlayerStatus(p, STATUS.CORROSION, { duration: 3.2, stacks: 1, dpsPercent: 0.0015, maxStacks: 3 }); }
+                    else p.takeDamage(this.type === 'shotgun' ? 10 : 15);
                 }
                 this.active = false; break;
             }

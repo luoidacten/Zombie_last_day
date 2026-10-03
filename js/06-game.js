@@ -592,8 +592,8 @@ function gameLoop(time) {
         if (!fz.source && !tank.active) {
             for (let pl of players) {
                 if (pl.isDowned || Math.hypot(pl.x - fz.x, pl.y - fz.y) > fz.radius) continue;
-                pl.takeDot((fz.dmg || 10) * 0.5 * dt);
-                if (fz.kind === 'acid') { fz.tick = (fz.tick || 0) - dt; if (fz.tick <= 0) { fz.tick = 0.6; applyPlayerStatus(pl, STATUS.CORROSION, { duration: 2.5, stacks: 1, dpsPercent: 0.003, maxStacks: 6 }); } }
+                if (fz.kind === 'acid') acidHurt(pl, (fz.dmg || 10) * 0.5 * dt); else pl.takeDot((fz.dmg || 10) * 0.5 * dt);
+                if (fz.kind === 'acid') { fz.tick = (fz.tick || 0) - dt; if (fz.tick <= 0) { fz.tick = 0.8; applyPlayerStatus(pl, STATUS.CORROSION, { duration: 2.5, stacks: 1, dpsPercent: 0.0015, maxStacks: 3 }); } }
             }
         }
         if (fz.life <= 0) fireZones.splice(i, 1);

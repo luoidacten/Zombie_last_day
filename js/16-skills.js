@@ -38,7 +38,7 @@ const WSKILL = {
     IRON_BAT: { name: 'ĐẬP ĐẤT', cd: 6, d: 'Đập gậy sắt xuống đất: vùng rộng hơn, hất văng và làm choáng lâu hơn.' },
     LIGHTSABER: { name: 'KHIÊN NĂNG LƯỢNG', cd: 12 },
     ELECTRO_WHIP: { name: 'VÒNG SÉT', cd: 6 },
-    PISTOL: { name: 'XẢ BĂNG', cd: 6, gun: 1, d: 'Bắn liền 6 phát vào 6 mục tiêu gần nhất, không tốn đạn.' },
+    PISTOL: { name: 'XẢ BĂNG', cd: 6, gun: 1, d: 'Bắn liền 6 phát vào 6 mục tiêu gần nhất.' },
     SMG: { name: 'SONG SÚNG', cd: 12, gun: 1, d: 'Móc thêm một khẩu nữa: 5 giây mỗi phát bắn ra 2 viên.' },
     AR: { name: 'LỰU ĐẠN KẸP NÒNG', cd: 8, gun: 1, d: 'Bắn một quả lựu đạn nổ diện rộng.' },
     SHOTGUN: { name: 'ĐẠN RỒNG', cd: 7, gun: 1, d: 'Một phát 20 viên đạn lửa hình quạt rộng.' },
@@ -55,6 +55,12 @@ const WSKILL = {
     ELECTRON_FLUX: { name: 'TIA HỘI TỤ', cd: 8, gun: 1, cost: 15 },
     TESLA_CARBINE: { name: 'TRỤ TESLA', cd: 12, gun: 1, cost: 5 }
 };
+// Giá của kỹ năng: số ghi trong bảng, không ghi thì ~5% độ bền (cận chiến) / ~6% băng đạn (súng)
+function skillCostOf(w, d) {
+    if (d.cost !== undefined) return d.cost;
+    if (!(w.maxAmmo > 0)) return 0;
+    return Math.max(2, Math.round(w.maxAmmo * (w.type === 'melee' ? 0.05 : 0.06)));
+}
 // Nộ [D] của mọi vũ khí cần thẻ Thịnh Nộ (w_gunSkill: tên thẻ ở bản lưu cũ)
 function skillRageOK(p, w) { return !!w && !!(p.perks.w_rage || p.perks.w_gunSkill); }
 // Thông tin kỹ năng C của vũ khí đang cầm (dùng cho vẽ nhãn và nút ảo)
@@ -88,6 +94,12 @@ function skillTryC(p) {
     if (!d || p.skillC_CD > 0 || p.flurryT > 0 || p.leapT > 0 || p.ventT > 0) return false;
     if (p.perks.nhatKiem && isKatanaW(w)) return false;
     if (!melee0(w) && empStorm.active) return false;
+    // Kỹ năng tốn ĐỘ BỀN (cận chiến) hoặc ĐẠN (súng) tuỳ kỹ năng
+    let cost = skillCostOf(w, d);
+    if (cost && (w.ammo | 0) <= cost) {
+        if (!(p.costTextCD > Date.now())) { p.costTextCD = Date.now() + 1000; arsText(p, w.type === 'melee' ? `CẦN ${cost} ĐỘ BỀN ĐỂ DÙNG KỸ NĂNG` : `CẦN ${cost} ĐẠN ĐỂ DÙNG KỸ NĂNG`, '#ff7675', 0.9); }
+        return false;
+    }
     let k = w.key, melee = w.type === 'melee', ang = skillAim(p, melee ? 300 : 520), ca = Math.cos(ang), sa = Math.sin(ang), mult = p.getTotalDamageMult();
     const mw = (o) => { let c = { ...w }; if (p.perks.meleeTech) { c.dmg *= 1.3; c.range *= 1.3; } if (isKatanaW(c) && (p.perks.m_thieu || c.isLegendary)) c.isFire = true; return Object.assign(c, o(c)); };
 
@@ -191,7 +203,7 @@ function skillTryC(p) {
         friendlyZap(tx, ty, 240, 200 * mult, p); Sound.play('eshock');
     } else return false;
 
-    if (d.cost) w.ammo = Math.max(1, w.ammo - d.cost);
+    if (cost) w.ammo = Math.max(1, w.ammo - cost);
     p.skillC_CD = d.cd * ((p.tags['THOI_KHONG'] || 0) >= 2 ? 0.8 : 1);
     arsText(p, d.name + '!', melee ? '#ffeaa7' : '#74b9ff', 0.9);
     return true;
@@ -529,7 +541,7 @@ function renderWiki() {
     let sk = '', seen = {};
     for (let k in WSKILL) {
         let w = WEAPON_TYPES[k], d = WSKILL[k]; if (!w || seen[w.name]) continue; seen[w.name] = 1;
-        sk += `<div class="mb-1"><b class="text-white">${w.name}</b> — <span style="color:#ffeaa7">${d.name}</span> <span class="text-gray-500">(hồi ${d.cd}s)</span>: ${d.d || WIKI_SKILL[k] || ''}</div>`;
+        sk += `<div class="mb-1"><b class="text-white">${w.name}</b> — <span style="color:#ffeaa7">${d.name}</span> <span class="text-gray-500">(hồi ${d.cd}s${skillCostOf(w, d) ? ` · tốn ${skillCostOf(w, d)} ${w.type === 'melee' ? 'độ bền' : 'đạn'}` : ''})</span>: ${d.d || WIKI_SKILL[k] || ''}</div>`;
     }
     let rage = Object.keys(RAGE_WEAPONS).map(k => `<b class="text-white">${WEAPON_TYPES[k].name}</b>: ${RAGE_WEAPONS[k]}`).join(' · ');
     let maps = Object.keys(ROUTE_MAPS).map(k => `<b class="text-white">${ROUTE_NAMES[k]}</b> ⚙ ${ROUTE_MAPS[k]}`).join(' · ');
@@ -539,6 +551,8 @@ function renderWiki() {
         + sec('🎯 VŨ KHÍ NÉM', '#fab1a0', '<b class="text-white">Phi Tiêu</b>: bắn 1 phi tiêu; Ném [B] tung vòng quanh người theo số còn lại. <b class="text-white">Bom Lửa</b>: giữ bắn để châm, [B] để ném, vỡ thành biển lửa. <b class="text-white">Lựu Đạn</b>: giữ bắn rút chốt, [B] ném.')
         + sec('🗺 BẢN ĐỒ CHIẾN DỊCH (mua ở Bàn Chiến Dịch, một lần cho cả lượt chơi)', '#48dbfb', maps)
         + sec('🌩 THỜI TIẾT', '#74b9ff', '<b class="text-white">Xấu</b> (Mưa, Gió mạnh, Sương mù, Nắng nóng, Bóng tối): trực thăng tới & đón <b>nhanh x1.5</b>. <b class="text-white">Khắc nghiệt</b> (Bão sét, Bão tuyết, Mưa acid, Bão điện từ, Mưa đá): <b>nhanh x2</b>. Mưa đá: hạt đá rơi trúng cả người lẫn quái, đi chậm 15%.<br>Map 1-4: 45% thời tiết xấu · map 5-9: 65% → 81% và hay mưa hơn · map 10: 85% · map 20: 100%.')
+        + sec('🏡 NHÀ Ở · NÔNG TRẠI · NHÀ CHÍNH', '#7bed9f', 'Muốn thêm dân phải đủ <b class="text-white">nhà ở</b> (3 người/nhà) và <b class="text-white">nông trại</b> (nuôi 4 người/trại); người dư phải chờ tới khi xây thêm. Tính năng Nhà Chính: cấp 2 hồi 25% máu khi về căn cứ · cấp 3 hồi 50% và mở <b class="text-white">Phòng Tập</b> (+30 máu / +12 tốc độ mỗi cấp, tối đa 5) · cấp 4 thêm 4 <b class="text-white">Tháp Canh</b> tự bắn khi căn cứ bị tấn công · cấp 5 sắp có.<br>Kỹ năng vũ khí [C] tốn độ bền (cận chiến) hoặc đạn (súng). Acid của quái đốt chậm, tối đa 5 Acidier mỗi map, và không thể kéo máu bạn xuống dưới 50%.')
+        + sec('🐜 PHẦN THƯỞNG KIẾN CHÚA', '#2ecc71', (typeof queenSlain !== 'undefined' && queenSlain ? '<b class="text-emerald-300">ĐÃ MỞ KHOÁ.</b> ' : '<b class="text-gray-400">Chưa mở — hạ Kiến Chúa ở Hầm Mỏ.</b> ') + '<b class="text-white">Súng Phun Acid cải tiến</b>: sau kỹ năng NỔ ACID mọc cánh bay 5 giây — bay qua tường, miễn sát thương tầm gần, vẫn bắn thường; hồi chiêu và Nộ chỉ chạy lại khi đáp đất. Cầm súng Acid giảm 80% sát thương acid. Thẻ mới: <b class="text-white">Kiến Chúa</b> (kiến nhỏ hỗ trợ), <b class="text-white">Acid+++</b>, <b class="text-white">Ăn Mòn Vật Thể</b>, <b class="text-white">Dị Chất</b> (2% quái chết nổ acid), <b class="text-white">Nộ Acid: Ăn Mòn Khu Vực</b> (nổ acid rồi bay 8 giây thả acid).')
         + sec('🏘 CƯ DÂN & CĂN CỨ', '#f39c12', 'Người được giải cứu (nhiệm vụ Giải Cứu, Nhà Khoa Học ở Lab Z) sẽ về căn cứ. Mỗi <b class="text-white">ụ súng cần 1 cư dân vận hành</b> — thiếu người thì ụ không bắn. Người còn lại làm <b class="text-white">thợ</b>: mỗi chiến dịch chế tạo 2 🧱 Vật Liệu và sửa Nhà Chính khi bị tấn công. Nâng Nhà Chính cần đủ dân (2/4/6/9/12) và vật liệu; ụ súng lên cấp 4-5 cần vật liệu. <b class="text-white">Lò Rèn</b> ở Xưởng: +12% sát thương mỗi cấp cho loại vũ khí đang cầm (tối đa 5).<br>Mỗi map chỉ có 1-4 loại quái (xem ở thẻ giới thiệu map). Map ngẫu nhiên không lặp lại liên tục; Thị Trấn Cướp, Vườn Thực Vật, Thành Phố N chỉ xuất hiện ngẫu nhiên khi đã mua bản đồ.')
         + sec('☣ BIẾN DỊ', '#e056fd', 'Cứ 3 map tăng 1 cấp biến dị: quái thường +12% máu, +3% tốc độ mỗi cấp. Có tỉ lệ (3.5% mỗi cấp, tối đa 30%) xuất hiện <b class="text-white">quái BIẾN DỊ</b> viền tím: to hơn, x1.8 máu, nhanh hơn 15%, đánh đau x1.4, khó bị đẩy lùi; hạ được +1 ⚙.');
 }
