@@ -394,3 +394,39 @@ function queenDeathQuake(dt) {
     if (Math.random() < dt * 30) createParticles(players[0].x + (Math.random() - 0.5) * 900, players[0].y - 300 - Math.random() * 100, '#a1887f', 1, 60);
 }
 refreshTutUI();
+
+// ---------------------------------------------------------------------------
+// NGƯỜI SỐNG SÓT ẨN NẤP trên map thường: tìm & đứng cạnh 3 giây để cứu -> đi theo, rút cùng đội rồi về căn cứ làm cư dân
+// ---------------------------------------------------------------------------
+class Survivor extends RescueNPC {
+    constructor(x, y) { super(x, y); this.survivor = true; }
+    update(dt) {
+        if (this.hp <= 0) return;
+        if (!this.rescued) {
+            this.selfDefend(dt, 300, 0.9);
+            if (players.some(p => !p.isDowned && Math.hypot(p.x - this.x, p.y - this.y) < 95)) this.rescueProgress += dt * (5 / 3);
+            else this.rescueProgress = Math.max(0, this.rescueProgress - dt * 0.5);
+            if (this.rescueProgress >= 5) {
+                this.rescued = true;
+                createParticles(this.x, this.y, '#2ecc71', 25, 160); spawnRing(this.x, this.y, '#2ecc71', 95, 0.4); Sound.play('heal');
+                vfxList.push({ type: 'text', text: 'NGƯỜI SỐNG SÓT ĐI THEO BẠN — sẽ về căn cứ!', x: this.x, y: this.y - 40, life: 1.8, color: '#2ecc71' });
+            }
+            return;
+        }
+        super.update(dt);
+    }
+}
+const _storyAfterGenerate0 = storyAfterGenerate;
+storyAfterGenerate = function (level) {
+    _storyAfterGenerate0(level);
+    if (isCaveMap() || [6, 14, 15, 16].includes(currentMapType) || mission.type === 'RESCUE' || story.zx) return;
+    let n = (Math.random() < 0.65 ? 1 : 0) + (level >= 6 && Math.random() < 0.4 ? 1 : 0);
+    for (let p of storyFarPoints(n, 700, 600)) rescueNPCs.push(new Survivor(p.x, p.y));
+    if (n) queueRadio(`Bộ đàm: Có ${n} tín hiệu người sống sót đang ẩn nấp trên map này — tìm và đưa họ về căn cứ!`, null, 6);
+};
+// Chỉ báo hướng khi đã tới gần (phải đi TÌM)
+const _storyPointers0 = storyPointers;
+storyPointers = function (ptr) {
+    _storyPointers0(ptr);
+    for (let n of rescueNPCs) if (n.survivor && !n.rescued && n.hp > 0 && players.some(p => Math.hypot(p.x - n.x, p.y - n.y) < 900)) ptr(n.x, n.y, '#2ecc71');
+};
