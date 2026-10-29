@@ -2389,6 +2389,10 @@ class Zombie {
             case 46: this.radius = 32; this.color = '#6ab04c'; this.maxHp = (2300 + currentLevel * 200) * subMult; this.baseSpeed = 0; this.beamT = 16; break;            // Xúc Tu
             case 50: this.radius = 40; this.color = '#c0392b'; this.maxHp = (21000 + currentLevel * 2200) * bMult; this.baseSpeed = 34; this.spCD = 3.0; break; // THE DEAD (boss ẩn)
             case 51: this.radius = 16; this.color = '#8e1b1b'; this.maxHp = 140 * antMult * subMult; this.baseSpeed = 62; break;                              // Tế Phẩm
+            case 52: case 53: case 54: // Lab Z: constructors also run on network guests.
+                this.radius = 16; this.color = ['#a6d9c8', '#a3cb38', '#b8a4d9'][this.type - 52];
+                this.maxHp = (50 + survivalTime * 0.8) * diffMult * (this.type === 54 ? 1.8 : 1.1);
+                this.baseSpeed = this.type === 54 ? 80 : 105; this.labFire = 1; break;
             case 34: // Boomer bien the
                 this.radius = 17;
                 this.color = '#badc58';

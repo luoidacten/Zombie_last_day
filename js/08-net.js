@@ -870,7 +870,7 @@ function guestLoop(time) {
         if (i === NET.localIdx && !meInTank && !p.isDowned) {
             // Dự đoán chuyển động của chính mình để điều khiển không bị trễ
             let joy = UI.p1Stick;
-            if (joy.active && p.spd > 0) { p.x += joy.dx * p.spd * dt; p.y += joy.dy * p.spd * dt; resolveCollision(p); }
+            if (joy.active && p.spd > 0 && !(typeof expeditionMovementLocked === 'function' && expeditionMovementLocked(p))) { p.x += joy.dx * p.spd * dt; p.y += joy.dy * p.spd * dt; resolveCollision(p); }
             let ex = p.sx - p.x, ey = p.sy - p.y, err = Math.hypot(ex, ey);
             if (err > 170) { p.x = p.sx; p.y = p.sy; }
             else { let c = Math.min(1, dt * (joy.active ? 3 : 9)); p.x += ex * c; p.y += ey * c; }

@@ -114,8 +114,8 @@ Các chuỗi nội dung lớn:
 
 - **Chớp và Sét:** Lõi Quá Tải → Tiến sĩ Aegis → Rừng Sét và Tàn Vết Chớp → trở lại Nhà Máy Điện → ZAP-1624 “Kình Lôi”.
 - **Hang Z:** nhiều tầng, hộ tống Tiến Sĩ đặt C4 và chạy thoát; có mở khóa Hầm Mỏ.
-- **Hầm Mỏ:** tổ kiến, vật thể phá hủy/TNT/xe mỏ, lõi tổ, Kiến Chúa và cuộc chạy thoát khi hang sập.
-- **Phòng Thí Nghiệm Z:** bảo vệ binh sĩ phá cửa bằng C4, khử độc, tìm bản thiết kế, cứu nhà khoa học, hộ tống tới Nhà Ga X.
+- **Hầm Mỏ:** tổ kiến, TNT, lõi tổ và Kiến Chúa. Khi boss còn 22% máu, chuyển sang xe goòng 3 làn: 1–2 người dùng một xe, 3–4 người chia hai xe. Người lái né bẫy bằng A/D; người dẫn đường dùng radar, Q/W/E báo làn, Space bắn kiến và B kích TNT. Chơi một người có cả hai vai. Đường chạy dài 52 giây khi không bị chậm; xe có máu, choáng, giảm tốc và khoảng cách với boss. Thoát thành công kích nổ chôn boss, nhận phần thưởng/mở khóa.
+- **Phòng Thí Nghiệm Z:** bảo vệ C4 25 giây, tập trung người còn sống tại cửa rồi xuống khu nghiên cứu. Mỗi lượt sinh mạng 9 phòng kết nối với hành lang và cửa hỏng/cửa thường/cửa bảo mật. Hack có ba dạng: nối mạch, căn nhịp và mã Hex; người hack bất động, bị quái đánh hoặc giải sai phải dọn phục kích rồi tiếp tục từ bước cũ. Có thẻ từ mở cửa, phòng phục kích thưởng đồ, 2 tài liệu, 2 nhà khoa học trong boongke và 3 máy khử độc. Sau 180 giây khí độc rút 1,2% máu tối đa mỗi giây, giảm tốc/sát thương 15%; bật đủ máy sẽ khử khí. Scientist gây độc, Acider để lại axit 6 giây, Chemist bắn axit và nổ lớn khi chết. Hoàn thành mục tiêu gây báo động; về sảnh giữ cạnh bảng điều khiển 3 giây để đến nhà ga, cầm cự The Hucker 50 giây rồi lên tàu theo cơ chế cũ.
 - **Nhà Ga X / tàu hỏa:** tử thủ trước The Hucker rồi chiến đấu trên nóc tàu; phá móc xích, ra lệnh pháo, tăng tốc và chuyển ray.
 - **The Dead:** boss ẩn có điều kiện xuất hiện, kỹ năng hiến tế/hút Tế Phẩm và phần thưởng mở Liềm.
 
@@ -192,6 +192,8 @@ Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `packag
 | `js/18-colony.js` | Cư dân, nhà ở/nông trại, vật liệu, Lò Rèn, hướng dẫn người mới và mở rộng căn cứ |
 | `js/19-admin.js` | Công cụ quản trị/thử nghiệm: nhảy màn, cấp đồ, triệu hồi, bất tử và debug |
 | `js/20-queen.js` | Mở khóa Kiến Chúa, nâng cấp Acid, cánh bay và kiến hỗ trợ |
+| `js/21-lab-rework.js` | Sinh Lab, cửa/hack, khí độc, phòng/NPC, quái riêng và đồng bộ Lab |
+| `js/22-minecart.js` | Xe goòng, chia vai 1–4 người, radar/ping/bẫy/TNT và đồng bộ xe |
 | `Audio-SoundEffect/` | Nhạc và hiệu ứng âm thanh chia theo nhóm |
 | `tests/defense-lifesteal.test.cjs` | Kiểm thử hồi quy cơ chế phòng thủ và hút máu |
 | `tests/browser-smoke.cjs` | Kiểm tra tích hợp trên Edge qua Playwright: trận phòng thủ, mua cửa, hướng dẫn |
@@ -218,17 +220,17 @@ Mở `index.html` bằng trình duyệt; để phát triển có thể phục v�
 Kiểm thử tự động hiện có, yêu cầu Node.js:
 
 ```sh
-node --test tests/defense-lifesteal.test.cjs
+node --test tests/expeditions.test.cjs tests/upgrade-recovery.test.cjs
 ```
 
-Bộ kiểm thử tải cả 20 script theo thứ tự HTML, giả lập phần DOM/âm thanh và kiểm tra các cơ chế cụ thể. Tại thời điểm ghi tài liệu, **12/12 nhóm kiểm thử đã qua**: số cổng, mua/lưu cửa, chờ hồi nhà, giới hạn hồi phục, sửa cửa, chặn đạn nhanh, va chạm zombie, hút máu/Máu Ảo/Tế Phẩm, giảm sát thương và dữ liệu máy khách. Đây chưa phải xác nhận chơi online trên nhiều máy hoặc kiểm tra toàn bộ giao diện.
+Bộ kiểm thử tải cả 22 script theo thứ tự HTML, giả lập DOM/âm thanh. Bao gồm 12 nhóm phòng thủ/hút máu, 3 nhóm phục hồi nâng cấp và 11 nhóm Lab/xe goòng. Hai file kiểm thử trên cùng nạp 12 nhóm nền nên Node báo tổng 38 lượt. Kiểm thử mạng mô phỏng lệnh và trạng thái chủ phòng/máy khách; chưa xác nhận kết nối WebRTC thực tế trên nhiều thiết bị.
 
 ## 13. Trạng thái công việc gần nhất
 
-Đợt đang làm: tiếp tục phần **Hút Máu / Liềm / Máu Ảo / Tế Phẩm** và **Phòng Thủ / Cửa Chắn 5 cấp / hồi nhà sau 5 giây** từ mã đã triển khai một phần.
+Đợt mới nhất: triển khai **Lab Z và Xe Goòng** theo `THIẾT KẾ.md` cập nhật 29/10/2026. Hai module mới nạp sau module 20 và bọc hàm cũ; giữ màn tàu hỏa trước đó. Logic và lệnh tương tác do chủ phòng xử lý, máy khách nhận trạng thái.
 
-Đã bổ sung `THIẾT KẾ.md`, hoàn thiện chặn đạn nhanh qua cửa, tính hút máu theo máu thực mất, bổ sung hút máu cho đòn kỹ năng trực tiếp/vật ném, chỉnh ranh giới hồi phục và đối chiếu một số mô tả thẻ. Đã thêm kiểm thử hồi quy nói trên.
+Đã sửa lỗi khách P3/P4 giữ trạng thái chọn thẻ của vòng trước bằng mã vòng nâng cấp. Nút **Fix Nhanh** ở màn nâng cấp/chờ cho phép bỏ các lựa chọn còn thiếu, đánh dấu cả đội sẵn sàng và chuyển tiếp một lần; lệnh thuộc vòng cũ bị từ chối. Bản sửa đã đẩy lên `origin/main`, commit `d3b1091`.
 
 Sau khi hoàn thành tài liệu, đã tiếp tục kiểm tra trực tiếp trên Edge: khởi động game, vào màn phòng thủ 2 cổng, mô phỏng 15 giây chiến đấu, vẽ cửa/nhà/HUD, mua đủ 5 cấp cửa và mở hướng dẫn đều qua kiểm tra, không ghi nhận lỗi JavaScript vòng lặp. Hướng dẫn đã bổ sung danh sách thẻ Liềm, Hút Máu và Phòng Thủ lấy trực tiếp từ dữ liệu game. Kiểm thử logic 12/12 nhóm vẫn đạt.
 
-Kiểm thử trình duyệt tùy chọn: cài/định vị module `playwright`, có Microsoft Edge, rồi chạy `node tests/browser-smoke.cjs`. Chưa kiểm tra kết nối online thực tế trên nhiều máy; kiểm thử hiện tại mới xác minh dữ liệu đồng bộ của các cơ chế mới.
+Kiểm thử trình duyệt tùy chọn: cài/định vị module `playwright`, có Microsoft Edge, rồi chạy `node tests/browser-smoke.cjs` và `node tests/expeditions-browser.cjs`. Bộ thứ hai kiểm tra chuyển từ C4 sang Lab, hack, nhà ga, chuyển hầm sang xe goòng 4 người và vẽ ở kích thước desktop/điện thoại. Chưa kiểm tra kết nối online thực tế trên nhiều máy; kiểm thử hiện tại mới xác minh dữ liệu/lệnh đồng bộ của các cơ chế mới. Mic trong thiết kế là giao tiếp thoại bên ngoài; game có Quick Ping, chưa tích hợp voice chat.

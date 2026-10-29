@@ -8,7 +8,7 @@
 //  Pha 4  TRAIN         : mini-game tẩu thoát trên tàu hoả (pháo 6 nòng + pháo cối)
 // ============================================================================
 const LAB = { x0: 1150, y0: 1350, x1: 2850, y1: 2450, start: { x: 2000, y: 2820 }, doorS: { x: 2000, y: 2425 }, plant: { x: 2000, y: 2492 }, doorN: { x: 2000, y: 1375 }, train: { x: 2000, y: 650 } };
-const LAB_STAGES = ['c4', 'decon', 'escort', 'hold', 'board', 'done'];
+const LAB_STAGES = ['c4', 'decon', 'escort', 'hold', 'board', 'done', 'breach', 'explore', 'alarm', 'train'];
 function inLab(x, y) { return x > LAB.x0 + 50 && x < LAB.x1 - 50 && y > LAB.y0 + 50 && y < LAB.y1 - 50; }
 
 function genLabZ(level) {
@@ -151,13 +151,13 @@ function updateLab(dt) {
             return;
         }
         if (s.state === 'plant') {
-            L.plant = Math.min(1, L.plant + dt / 18);
+            L.plant = Math.min(1, L.plant + dt / 25);
             L.waveT -= dt;
             if (L.waveT <= 0) { L.waveT = 2.4; labWave(2 + Math.floor(currentLevel / 3) + Math.max(0, bossTeamCount() - 1)); }
             if (L.plant >= 1) {
-                labOpenDoor('s'); L.stage = 'decon'; objState = 'LAB_DECON'; mission.type = 'LAB_DECON'; mission.required = 5; mission.progress = 0;
+                labOpenDoor('s'); L.stage = 'breach'; objState = 'LAB_BREACH'; mission.type = 'LAB_BREACH'; mission.required = 1; mission.progress = 0;
                 for (let p of players) if (!p.netLeft) vfxList.push({ type: 'text', text: 'C4 NỔ — CỬA ĐÃ BỊ XÉ TOẠC!', x: p.x, y: p.y - 90, life: 2.4, color: '#f1c40f' });
-                queueRadio('Chỉ huy: Khí độc đang tràn trong Lab! Bật 3 Máy Khử Độc, tìm 2 Bản Thiết Kế Thuốc Giải và cứu nhóm Nhà Khoa Học!', null, 7);
+                queueRadio('Chỉ huy: Cửa đã mở! Tất cả người còn sống tập trung tại cửa để xuống khu nghiên cứu ngầm.', null, 7);
             }
         }
     } else if (L.stage === 'decon') {
@@ -737,7 +737,7 @@ function drawLabProp(p, T) {
 function labObjectiveText() {
     let L = story.lab; if (!L) return null;
     switch (objState) {
-        case 'LAB_C4': return [`BẢO VỆ BINH SĨ GÀI C4: ${Math.ceil(18 * (1 - L.plant))}s${L.backup > 0 ? '' : ' (hết quân dự bị!)'}`, '#f1c40f'];
+        case 'LAB_C4': return [`BẢO VỆ BINH SĨ GÀI C4: ${Math.ceil(25 * (1 - L.plant))}s${L.backup > 0 ? '' : ' (hết quân dự bị!)'}`, '#f1c40f'];
         case 'LAB_DECON': return [`KHỬ ĐỘC ${L.mOn}/3 · BẢN THIẾT KẾ ${L.pGot}/2 · NHÀ KHOA HỌC ${L.sRes}/${L.sAlive}`, L.gas > 0 ? '#badc58' : '#2ecc71'];
         case 'LAB_ESCORT': return ['DẪN NHÀ KHOA HỌC RA BẾN NHÀ GA X (phía bắc)', '#f1c40f'];
         case 'STATION_HOLD': return [`TỬ THỦ BẾN TÀU: ${Math.ceil(Math.max(0, L.hold))}s — CẢN THE HUCKER!`, '#ff9f43'];
