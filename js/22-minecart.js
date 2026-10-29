@@ -126,7 +126,7 @@ const cartGameLoop=gameLoop;
 gameLoop=function(time){
     if(!cartRun||gameState!=='PLAYING'||NET.mode==='guest')return cartGameLoop(time);
     let dt=Math.max(0,Math.min(.1,(time-lastTime)/1000));lastTime=time;syncPcControls();
-    tickMinecart(dt);survivalTime+=dt;updateFx(dt);draw();netHostTick(dt);
+    runElapsed+=dt;tickMinecart(dt);survivalTime+=dt;updateFx(dt);draw();netHostTick(dt);
 };
 const cartReset=resetCaveState;
 resetCaveState=function(){cartRun=null;cartReset();};

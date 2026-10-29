@@ -6,6 +6,7 @@ function toggleGuideModal(show) {
 // Đặt lại toàn bộ trạng thái của MỘT lượt chơi (tránh rò rỉ dữ liệu từ ván trước)
 function resetRunState() {
     currentLevel = 1;
+    runElapsed = 0; regularBossCycle = 0;
     shopScrap = 0;
     hasPowerPlantMap = false; ownedMaps = {};
     nextRoute = 'balanced';
@@ -235,6 +236,7 @@ function gameLoop(time) {
     if (gameState !== 'PLAYING') return;
     let dt = Math.min((time - lastTime) / 1000, 0.1); lastTime = time;
     frameDt = dt;
+    if (objState !== 'HUB' && !storyBusy()) runElapsed += Math.max(0, dt);
     if (storyFrame(dt)) return;     // hội thoại / giới thiệu boss / cắt cảnh / mini-game tàu hoả
     if (objState === 'HUB') { updateHub(dt); return; }   // Khu Sống Sót: không quái, không đói
     dt *= bossTimeScale(dt);        // chậm hình khi hạ boss (17-bosses.js)

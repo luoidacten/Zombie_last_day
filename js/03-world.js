@@ -366,7 +366,7 @@ function pickMissionType(level) {
         return 'POWER_CHARGE';
     }
     if (currentMapType === 4) return 'DEFEND';
-    if (level % 8 === 0) return 'BOSS';
+    if (regularBossDue(level)) return currentMapType === 8 ? 'CITY_BOSS' : 'BOSS';
     if (nextMissionPreference) return nextMissionPreference;
     if (level === 1) return 'TOWERS';
     const pool = level >= 2 ? ['TOWERS', 'COLLECT', 'KILL', 'LAST_STAND'] : ['TOWERS', 'COLLECT', 'KILL'];
@@ -383,7 +383,7 @@ function setupMission(type, level) {
         mission.required = Math.min(12, 5 + Math.floor(level * 0.75));
     } else if (type === 'KILL') {
         mission.required = 28 + level * 7;
-    } else if (type === 'BOSS') {
+    } else if (type === 'BOSS' || type === 'CITY_BOSS') {
         mission.required = 1;
     } else if (type === 'DEFEND') {
         mission.required = Math.ceil(fortressTimer);
@@ -447,6 +447,7 @@ function recordMissionKill(zombieType) {
 
 function completeMission() {
     if (mission.complete) return;
+    if (mission.type === 'BOSS' || mission.type === 'CITY_BOSS') regularBossCycle = Math.max(regularBossCycle, Math.floor(currentLevel / 8));
     mission.complete = true;
     let bossMission = ['BOSS', 'POWER_BOSS', 'CITY_BOSS', 'HANGZ_ESCAPE', 'STORM_BOSS', 'ZAP_BOSS'].includes(mission.type);
     let reward = missionReward(mission.type);   // thưởng nhiều hơn + thưởng thêm theo loại nhiệm vụ (15-ops.js)
@@ -705,7 +706,7 @@ function generateMap(level) {
         bgMapColor = '#3b3b3b';
         for (let i = 0; i < 50 + level * 4; i++) obstacles.push({ type: 'ruin', x: Math.random() * (MAP_SIZE.w - 220) + 100, y: Math.random() * (MAP_SIZE.h - 220) + 100, w: 90 + Math.random() * 180, h: 80 + Math.random() * 160 });
         outposts.push(new Outpost(MAP_SIZE.w / 2 - 75, MAP_SIZE.h / 2 - 75));
-        if (level % 8 === 0) {
+        if (mission.type === 'CITY_BOSS') {
             mission.type = 'CITY_BOSS';
             mission.required = 1;
             mission.progress = 0;

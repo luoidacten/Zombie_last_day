@@ -2409,6 +2409,11 @@ class Zombie {
         }
         zombieMutate(this);   // BIẾN DỊ: mạnh dần theo cấp đột biến, đôi khi ra quái biến dị (17-bosses.js)
         this.maxHp *= enemyLateHpMult(isBossType(this.type)) * diff().hp;
+        // Snapshot run scaling at spawn: no healing or moving phase thresholds mid-fight.
+        if (isBossType(this.type)) {
+            this.maxHp *= bossRunHpMult();
+            if (this.maxArmor) { this.maxArmor *= bossRunHpMult(); this.armor = this.maxArmor; }
+        }
         if (this.type < 30 || (this.type >= 40 && this.type <= 43)) this.baseSpeed *= enemyLateSpeedMult();
         this.hp = this.maxHp;
     }

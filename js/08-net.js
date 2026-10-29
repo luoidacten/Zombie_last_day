@@ -511,6 +511,7 @@ function netBuildSnapshot(slow) {
         R(darknessBattery), R(flashAlpha * 100), R(cameraShake), shopScrap, breakthroughShards, killCount, powerCellsHeld, empStorm.active ? 1 : 0,
         R(darknessFlash * 100), thietXaUnlocked ? 1 : 0, R(tankExitTimer * 100)];
     s.m = [mission.type, mission.progress, mission.required];
+    s.run = [Math.round(runElapsed * 10), regularBossCycle];
     if (isCaveMap()) {
         // Hang Z / Hầm Mỏ: tầng, đồng hồ, tiến độ gài bom, lối ra, vật thể và đá chặn đường
         let st = hangZRun.stairs;
@@ -749,6 +750,7 @@ function netDecodePlayer(p, e, isLocal) {
 function netApplySnapshot(s) {
     if (!s || typeof s.n !== 'number' || s.n <= NET.lastSeq || !Array.isArray(s.g) || !Array.isArray(s.p)) return;
     NET.lastSeq = s.n;
+    if (Array.isArray(s.run)) { runElapsed = Math.max(0, s.run[0] / 10 || 0); regularBossCycle = Math.max(0, s.run[1] | 0); }
     if (s.pt) NET.ping = NET.ping * 0.8 + Math.max(0, performance.now() - s.pt - (s.pd || 0)) * 0.2;
 
     let g = s.g;

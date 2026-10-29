@@ -125,6 +125,10 @@ Các chuỗi nội dung lớn:
 
 Boss tiêu biểu: **Khổng Lồ, Lõi Quá Tải, The Leader, Tàn Vết Chớp, ZAP-1624, The Hucker, Kiến Chúa, The Dead**. Boss có các pha/kỹ năng riêng, cảnh giới thiệu, thanh máu và hiệu ứng chiến thắng. Một số chiêu boss còn gây hại cho zombie.
 
+Boss thường đến hạn ở map **8, 16, 24…**. Nếu đang ở map đặc biệt/nhiệm vụ cốt truyện, lượt boss được hoãn đến map thường tiếp theo: ví dụ map 8–9 đặc biệt, map 10 thường sẽ gặp boss. Thành phố tàn phá dùng The Leader; các map thường khác dùng Khổng Lồ. Hạ boss nhiệm vụ đặc biệt không tiêu thụ lượt boss thường. Nếu ở chuỗi đặc biệt qua nhiều mốc, một trận boss thường xử lý các mốc đang chờ, không dồn nhiều boss liên tiếp.
+
+Máu boss nhân theo quân số còn kết nối (người gục vẫn tính): boss thường/cốt truyện/The Dead **×1 / 1,42 / 1,84 / 2,26** cho 1–4 người; Kiến Chúa **×1 / 1,52 / 2,04 / 2,56**. Chiêu thức/triệu hồi của từng boss cũng có điều chỉnh theo đội. Toàn bộ boss và Xúc Tu được thêm hệ số thời lượng run **×(1 + số giây / 1800)**: 10 phút ×1,33, 30 phút ×2; giáp ZAP cũng tăng tương ứng. Hệ số được chốt lúc sinh boss, không tự hồi máu giữa trận. `runElapsed` cộng thời gian chơi qua các map, có tính xe goòng/tàu, không tính trại/menu/chọn thẻ/hội thoại; được lưu và đồng bộ online. `survivalTime` vẫn là thời gian riêng của map. Bản lưu cũ thiếu thời lượng bắt đầu bộ đếm mới từ 0.
+
 Môi trường có chướng ngại và tìm đường, vùng độc/cháy/điện, bóng tối, sụp đổ và thời tiết. Các kiểu thời tiết được đặt tên gồm trời đẹp, mưa, gió, nhiều mây, sương mù, nắng nóng, bão sét, bão tuyết, mưa acid, bóng tối, bão điện từ và mưa đá.
 
 ## 8. Căn cứ, cư dân và phòng thủ
@@ -221,6 +225,7 @@ Kiểm thử tự động hiện có, yêu cầu Node.js:
 
 ```sh
 node --test tests/expeditions.test.cjs tests/upgrade-recovery.test.cjs
+node --test tests/boss-progression.test.cjs
 ```
 
 Bộ kiểm thử tải cả 22 script theo thứ tự HTML, giả lập DOM/âm thanh. Bao gồm 12 nhóm phòng thủ/hút máu, 3 nhóm phục hồi nâng cấp và 11 nhóm Lab/xe goòng. Hai file kiểm thử trên cùng nạp 12 nhóm nền nên Node báo tổng 38 lượt. Kiểm thử mạng mô phỏng lệnh và trạng thái chủ phòng/máy khách; chưa xác nhận kết nối WebRTC thực tế trên nhiều thiết bị.

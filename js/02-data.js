@@ -5,6 +5,10 @@ let gameState = 'MENU';
 // Các biến trạng thái trước đây chưa từng được khai báo (dùng như biến toàn cục ngầm)
 let currentLevel = 1, currentMapType = 1, isSinglePlayer = true;
 let score = 0, survivalTime = 0, cameraShake = 0, airdropTimer = 30, zombieTimer = 0, itemTimer = 0, lastTime = 0;
+// Separate from survivalTime, which resets at every map.
+let runElapsed = 0, regularBossCycle = 0;
+function regularBossDue(level) { return Math.floor(level / 8) > regularBossCycle; }
+function bossRunHpMult() { return 1 + Math.max(0, runElapsed) / 1800; } // +33.3% per 10 active minutes
 let fireZones = [], decals = [], allyDropTimer = 38;
 let showTouchUI = false, lastTouchTime = -99999;
 let loopToken = 0, frameDt = 1 / 60, killCount = 0, zombieIdSeq = 0, frameElectricals = [];

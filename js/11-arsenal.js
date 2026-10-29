@@ -615,6 +615,7 @@ function saveCheckpoint(atHub = false) {
             hz: { active: hangZRun.active, floor: hangZRun.floor, total: hangZRun.total, timer: hangZRun.timer }, mine: mineRun,
             dead: theDeadSpawnChance, shards: breakthroughShards, ex: activeExclusiveTag, cpf: currentPowerFloorCleared, tk: globalTankKills,
             sgl: shardGrantedLevel, bat: pendingBattery, kills: killCount, lsm: lastSpecialMapLevel, flags: shopFlags,
+            runElapsed, regularBossCycle,
             nmap: nextMapPreference, nmis: nextMissionPreference, route: nextRoute, drop: pendingShopDrop, sol: shopOpenedForLevel,
             story: storySaveState(), base: baseSave(), maps: ownedMaps, pl: players.map(savePlayer)
         }));
@@ -651,6 +652,9 @@ function loadGame() {
     const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
 
     currentLevel = Math.max(1, num(s.lvl, 1) | 0); shopScrap = num(s.scrap, 0) | 0; hasPowerPlantMap = !!s.power;
+    runElapsed = Math.max(0, num(s.runElapsed, 0));
+    // Legacy saves have no history: preserve the current eight-map interval.
+    regularBossCycle = Math.max(0, Math.floor(num(s.regularBossCycle, Math.floor((currentLevel - 1) / 8))));
     if (s.ppr) powerPlantRun = { active: !!s.ppr.active, floor: num(s.ppr.floor, 0), total: num(s.ppr.total, 3) };
     if (s.hz) hangZRun = { active: !!s.hz.active, floor: num(s.hz.floor, 0), total: num(s.hz.total, 3), timer: num(s.hz.timer, 180), stairs: null };
     if (s.mine) mineRun = { active: !!s.mine.active, floor: num(s.mine.floor, 4), stage: String(s.mine.stage || 'maze'), queenPct: num(s.mine.queenPct, 0.3) };
