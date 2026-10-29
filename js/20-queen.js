@@ -13,7 +13,7 @@ function acidGunUpgraded(p) { return queenSlain && !!p && !!p.weapon && p.weapon
 
 // Sát thương acid của quái lên người chơi: không bao giờ kéo máu xuống dưới 50%
 function acidHurt(p, amt) {
-    if (!p || p.isDowned || !(amt > 0)) return;
+    if (!p || p.netLeft || p.isDowned || (typeof inTank === 'function' && inTank(p)) || !(amt > 0)) return;
     let floor = p.maxHp * 0.5;
     if (p.hp <= floor) return;
     if (acidGunUpgraded(p)) amt *= 0.2;
@@ -159,7 +159,7 @@ arsenalDotMult = function (s) {
     return m;
 };
 function mutagenCheck(z) {
-    let src = players.find(p => p.perks && p.perks.q_mutagen && !p.isDowned);
+    let src = players.find(p => !p.netLeft && p.perks && p.perks.q_mutagen && !p.isDowned);
     if (!src || Math.random() >= 0.02) return;
     let mult = src.getTotalDamageMult();
     fireZones.push({ kind: 'acid', x: z.x, y: z.y, life: 4, dmg: 45 * mult, source: src, radius: 120 });
@@ -181,9 +181,9 @@ function queenTick(dt) {
     if (extra.length) fireZones.push(...extra);
     // Kiến Chúa: sinh kiến nhỏ
     for (let p of players) {
-        if (!p.perks.q_brood || p.isDowned) continue;
+        if (!p.perks.q_brood || p.netLeft || p.isDowned) continue;
         p.broodT = (p.broodT === undefined ? 2 : p.broodT) - dt;
-        if (p.broodT <= 0 && antPets.length < 12) {
+        if (p.broodT <= 0 && antPets.length < 12 + Math.max(0, bossTeamCount() - 1) * 3) {
             p.broodT = 7;
             for (let k = 0; k < 3; k++) antPets.push({ x: p.x + (Math.random() - 0.5) * 60, y: p.y + (Math.random() - 0.5) * 60, life: 15, cd: 0, a: 0, owner: p });
             createParticles(p.x, p.y, '#6ab04c', 18, 180); Sound.play('insect');
@@ -192,6 +192,7 @@ function queenTick(dt) {
     for (let a of antPets) {
         a.life -= dt; a.cd -= dt;
         let o = a.owner, tz = getNearestZombie(a.x, a.y, 460);
+        if (!o || o.netLeft) { a.life = 0; continue; }
         let tx = tz ? tz.x : o.x + Math.cos(a.life * 2) * 50, ty = tz ? tz.y : o.y + Math.sin(a.life * 2) * 50;
         let d = Math.hypot(tx - a.x, ty - a.y), stop = tz ? tz.radius + 8 : 30;
         a.a = Math.atan2(ty - a.y, tx - a.x);

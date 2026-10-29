@@ -8,8 +8,18 @@ const CAVE_PROP_T = ['nest', 'tnt', 'cart', 'tntcart', 'c4', 'core', 'det'];
 // Hầm Mỏ được mở khoá VĨNH VIỄN (lưu trên máy) sau khi hộ tống Tiến Sĩ thành công
 let mineUnlocked = false;
 try { mineUnlocked = localStorage.getItem('zs_mine_unlocked') === '1'; } catch (e) { }
-let mineRun = { active: false, floor: 4, stage: 'maze', queenPct: 0.3 };
+let mineRun = { active: false, floor: 4, stage: 'maze', queenPct: 0.22 };
 let caveProps = [];
+function compassDirName(dx, dy) {
+    let idx = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
+    const names = ['ĐÔNG', 'ĐÔNG-NAM', 'NAM', 'TÂY-NAM', 'TÂY', 'TÂY-BẮC', 'BẮC', 'ĐÔNG-BẮC'];
+    return names[((idx % 8) + 8) % 8];
+}
+function queenIsShielded(z) {
+    if (!z || z.type !== ANT.QUEEN) return false;
+    if (z.qShield !== undefined) return !!z.qShield;
+    return !!(z.phase2Done && zombies.some(e => e.type === ANT.TENTACLE && e.hp > 0));
+}
 function newCaveRun() {
     return { kind: '', stage: '', timer: 0, plant: 0, sites: [], siteIdx: 0, doctor: null, exit: null, arena: null, waveT: 0, crateT: 8, rockT: 3, spawnT: 6, rockCD: 0,
         endT: 0, result: null, pendingStage: null, stageT: 0, pinned: false, toxicT: 0 };
@@ -85,9 +95,10 @@ function navUpdate(dt) {
     if (NAV.t > 0) return;
     NAV.t = 0.35;
     let src = [];
-    if (tank.active) src.push(tank); else for (let p of players) if (!p.isDowned) src.push(p);
+    if (tank.active) src.push(tank);
+    for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p)) src.push(p);
     if (caveRun.doctor && caveRun.doctor.hp > 0) src.push(caveRun.doctor);
-    if (!src.length) src.push(players[0]);
+    if (!src.length && players[0]) src.push(players[0]);
     navFlood(src, NAV.field);
     NAV.spawnCells.length = 0; NAV.reach.length = 0;
     for (let i = 0; i < NAV.field.length; i++) { let d = NAV.field[i]; if (d < 0) continue; if (d >= 4) NAV.reach.push(i); if (d >= 7 && d <= 15) NAV.spawnCells.push(i); }
@@ -97,7 +108,7 @@ function caveSpawnPoint() {
     if (!NAV.spawnCells.length) return null;
     for (let t = 0; t < 6; t++) {
         let p = navCellPoint(NAV.spawnCells[Math.floor(Math.random() * NAV.spawnCells.length)], 20);
-        if (!players.some(pl => !pl.isDowned && hasLineOfSight(pl.x, pl.y, p.x, p.y) && Math.hypot(pl.x - p.x, pl.y - p.y) < 520)) return p;
+        if (!players.some(pl => !pl.netLeft && !pl.isDowned && hasLineOfSight(pl.x, pl.y, p.x, p.y) && Math.hypot(pl.x - p.x, pl.y - p.y) < 520)) return p;
     }
     return navCellPoint(NAV.spawnCells[Math.floor(Math.random() * NAV.spawnCells.length)], 20);
 }
@@ -330,7 +341,12 @@ function caveRegenerate() {
     nextMapPreference = currentMapType;
     generateMap(currentLevel);
     let sp = caveStartPos();
-    players.forEach((p, i) => { p.x = sp.x + (players.length > 1 ? (i ? 30 : -30) : 0); p.y = sp.y; p.slipX = 0; p.slipY = 0; p.stunTimer = 0; p.netTimer = 0; });
+    const offs = [[-32, 0], [32, 0], [0, -34], [0, 34]];
+    players.forEach((p, i) => {
+        if (p.netLeft) return;
+        let o = players.length > 1 ? (offs[i] || [0, 0]) : [0, 0];
+        p.x = sp.x + o[0]; p.y = sp.y + o[1]; p.slipX = 0; p.slipY = 0; p.stunTimer = 0; p.netTimer = 0;
+    });
     if (tank.active) { tank.x = sp.x; tank.y = sp.y; }
     allies.forEach((a, i) => { a.x = sp.x + (i % 2 ? 40 : -40); a.y = sp.y + 44; });
     showMapIntro();
@@ -364,7 +380,7 @@ class Doctor {
         if (!site) return;
         if (Math.hypot(site.x - this.x, site.y - this.y) < 34) { this.state = 'plant'; return; }
         // Chỉ tiến lên khi có người hộ tống ở gần
-        if (players.some(p => !p.isDowned && Math.hypot(p.x - this.x, p.y - this.y) < 460) || tank.active) { navMoveTo(this, site.x, site.y, 135, dt); this.state = 'move'; }
+        if (players.some(p => !p.netLeft && !p.isDowned && Math.hypot(p.x - this.x, p.y - this.y) < 460) || tank.active) { navMoveTo(this, site.x, site.y, 135, dt); this.state = 'move'; }
     }
     draw(ctx) {
         if (this.hp <= 0) return;
@@ -395,7 +411,8 @@ function updateCaveWorld(dt) {
         if (caveRun.stageT <= 0) { mineRun.stage = caveRun.pendingStage; caveRegenerate(); }
         return false;
     }
-    const allAt = (pt, r) => !tank.active && players.some(p => !p.isDowned) && players.every(p => p.isDowned || Math.hypot(p.x - pt.x, p.y - pt.y) < r);
+    const act = activePlayers();
+    const allAt = (pt, r) => !tank.active && act.some(p => !p.isDowned) && act.every(p => p.isDowned || Math.hypot(p.x - pt.x, p.y - pt.y) < r);
 
     if (objState === 'HANGZ_ESCAPE') {
         hangZRun.timer -= dt; mission.progress = hangZRun.floor;
@@ -446,7 +463,7 @@ function updateCaveWorld(dt) {
             caveRun.endT = 2.2; objState = 'CAVE_DONE';
         } else if (caveRun.timer <= 0) {
             caveBigBlast();
-            for (let p of players) if (!p.isDowned) p.takeDamage(p.maxHp * 0.7);
+            for (let p of act) if (!p.isDowned) p.takeDamage(p.maxHp * 0.7);
             if (docOk) d.takeDamage(9999);
             caveRun.result = { reward: 10, text: 'Không kịp thoát trước vụ nổ! Chưa mở được Hầm Mỏ.' };
             caveRun.endT = 2.5; objState = 'CAVE_FAIL';
@@ -457,35 +474,50 @@ function updateCaveWorld(dt) {
         if (left === 0) {
             objState = 'MINE_EXIT'; mission.type = 'MINE_EXIT'; hangZRun.stairs = caveRun.exit;
             Sound.play('level');
-            for (let p of players) vfxList.push({ type: 'text', text: 'ĐÃ PHÁ HẾT TỔ KIẾN — XUỐNG TẦNG 5!', x: p.x, y: p.y - 80, life: 2.5, color: '#f1c40f' });
+            for (let p of act) vfxList.push({ type: 'text', text: 'ĐÃ PHÁ HẾT TỔ KIẾN — XUỐNG TẦNG 5!', x: p.x, y: p.y - 80, life: 2.5, color: '#f1c40f' });
         }
     } else if (objState === 'MINE_EXIT') {
         if (allAt(caveRun.exit, caveRun.exit.radius + 35)) { mineRun.floor = 5; caveRegenerate(); }
     } else if (objState === 'MINE_BOMB') {
         let core = caveProps.find(p => p.kind === 'core');
         if (core) {
-            let near = !tank.active && players.some(p => !p.isDowned && Math.hypot(p.x - core.x, p.y - core.y) < 130);
+            let near = act.some(p => !p.isDowned && !inTank(p) && Math.hypot(p.x - core.x, p.y - core.y) < 130);
             caveRun.plant = near ? Math.min(1, caveRun.plant + dt / 8) : Math.max(0, caveRun.plant - dt * 0.08);
             if (caveRun.plant >= 1) {
                 caveBigBlast(core.x, core.y);
                 caveProps = caveProps.filter(p => p !== core);
-                for (let p of players) vfxList.push({ type: 'text', text: 'TRẦN TỔ KIẾN SẬP! CÓ THỨ GÌ ĐÓ ĐANG TRỒI LÊN...', x: p.x, y: p.y - 90, life: 2.6, color: '#e056fd' });
+                for (let p of act) vfxList.push({ type: 'text', text: 'TRẦN TỔ KIẾN SẬP! CÓ THỨ GÌ ĐÓ ĐANG TRỒI LÊN...', x: p.x, y: p.y - 90, life: 2.6, color: '#e056fd' });
                 caveRun.pendingStage = 'arena'; caveRun.stageT = 2.4; objState = 'MINE_COLLAPSE';
             }
         }
     } else if (objState === 'QUEEN') {
         let q = zombies.find(z => z.type === ANT.QUEEN && z.hp > 0);
         if (q) mission.progress = q.phase;
-        // Hòm Tiếp Tế Hạng Nặng rơi từ trần hang
+        // Hòm Tiếp Tế Hạng Nặng & Y Tế rơi nhiều hơn theo số người chơi + báo vị trí la bàn
+        let tc = bossTeamCount(), extraP = tc - 1;
         caveRun.crateT -= dt;
         if (caveRun.crateT <= 0) {
-            caveRun.crateT = (q && q.phase >= 2) ? 9 : 14;
-            if (drops.filter(d => d.type === 'HEAVYBOX').length < 4) {
-                let a = Math.random() * Math.PI * 2, r = 120 + Math.random() * 440, A = caveRun.arena;
-                let x = A.x + Math.cos(a) * r, y = A.y + Math.sin(a) * r;
-                drops.push({ type: 'HEAVYBOX', x, y, radius: 17, lifeTime: 900 });
-                createParticles(x, y, '#ecf0f1', 26, 280); spawnRing(x, y, '#e67e22', 90, 0.4); addScreenShake(5);
-                vfxList.push({ type: 'text', text: 'HÒM TIẾP TẾ HẠNG NẶNG!', x, y: y - 34, life: 1.6, color: '#e67e22' });
+            caveRun.crateT = ((q && q.phase >= 2) ? 8.2 : 12.6) / (1 + extraP * 0.26);
+            let maxCrates = 4 + extraP * 2;
+            if (drops.filter(d => d.type === 'HEAVYBOX').length < maxCrates && caveRun.arena) {
+                let dropN = 1 + (tc >= 3 ? 1 : 0), A = caveRun.arena, dirs = [];
+                for (let k = 0; k < dropN; k++) {
+                    if (drops.filter(d => d.type === 'HEAVYBOX').length >= maxCrates) break;
+                    let a = Math.random() * Math.PI * 2, r = 130 + Math.random() * 430;
+                    let x = A.x + Math.cos(a) * r, y = A.y + Math.sin(a) * r;
+                    drops.push({ type: 'HEAVYBOX', x, y, radius: 17, lifeTime: 900 });
+                    if (k === 0 && (act.some(p => !p.isDowned && p.hp < p.maxHp * 0.65) || Math.random() < 0.35 + extraP * 0.12)) {
+                        drops.push({ type: 'MEDKIT', x: x + 36, y: y + 18, radius: 15, lifeTime: 900 });
+                    }
+                    let dir = compassDirName(x - A.x, y - A.y);
+                    if (!dirs.includes(dir)) dirs.push(dir);
+                    createParticles(x, y, '#ecf0f1', 26, 280); spawnRing(x, y, '#e67e22', 90, 0.4);
+                    vfxList.push({ type: 'text', text: `📦 HÒM NỔ [${dir}]!`, x, y: y - 34, life: 1.8, color: '#e67e22' });
+                }
+                addScreenShake(5);
+                if (dirs.length) {
+                    for (let p of act) vfxList.push({ type: 'text', text: `📦 TIẾP TẾ HẠNG NẶNG RƠI PHÍA [${dirs.join(', ')}]!`, x: p.x, y: p.y - 82, life: 1.9, color: '#e67e22' });
+                }
             }
         }
     } else if (objState === 'QUEEN_RUN') {
@@ -494,8 +526,8 @@ function updateCaveWorld(dt) {
     return false;
 }
 function caveToxic(dt) {
-    for (let p of players) if (!p.isDowned) p.takeDot(55 * dt * (1 - (p.caveToxinResist || 0)));
-    if (Math.random() < dt * 6) createParticles(players[0].x + (Math.random() - 0.5) * 240, players[0].y + (Math.random() - 0.5) * 180, '#7f8c8d', 1, 30);
+    for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p)) p.takeDot(55 * dt * (1 - (p.caveToxinResist || 0)));
+    if (Math.random() < dt * 6 && players[0]) createParticles(players[0].x + (Math.random() - 0.5) * 240, players[0].y + (Math.random() - 0.5) * 180, '#7f8c8d', 1, 30);
 }
 function caveBigBlast(x, y) {
     let c = x === undefined ? pickAlivePlayer() : { x, y };
@@ -506,7 +538,7 @@ function caveFinish() {
     let r = caveRun.result || {};
     shopScrap = Math.max(0, shopScrap + (r.reward || 0) - (r.penalty || 0));
     if (r.unlock) { mineUnlocked = true; try { localStorage.setItem('zs_mine_unlocked', '1'); } catch (e) { } }
-    if (r.bonusUpg) for (let p of players) { p.level++; p.pendingUpgrades++; }
+    if (r.bonusUpg) for (let p of players) if (!p.netLeft) { p.level++; p.pendingUpgrades++; }
     hangZRun.active = false; hangZRun.stairs = null;
     mineRun.active = false; mineRun.stage = 'maze'; mineRun.floor = 4;
     mission.complete = true;
@@ -534,17 +566,17 @@ function updateQueenRunStage(dt, allAt) {
             caveRun.pinned = true; mission.progress = 9;
             if (q) { q.pinned = true; q.downed = true; createParticles(q.x, q.y, '#7f8c8d', 60, 420); spawnRing(q.x, q.y, '#bdc3c7', 200, 0.5, 8); }
             addScreenShake(20); Sound.play('tank'); Sound.play('roar');
-            for (let p of players) vfxList.push({ type: 'text', text: 'VÁCH ĐÁ KẸP CHẶT KIẾN CHÚA! TỚI KÍP NỔ VÀ BẤM BẮN!', x: p.x, y: p.y - 90, life: 3.0, color: '#f1c40f' });
+            for (let p of activePlayers()) vfxList.push({ type: 'text', text: 'VÁCH ĐÁ KẸP CHẶT KIẾN CHÚA! TỚI KÍP NỔ VÀ BẤM BẮN!', x: p.x, y: p.y - 90, life: 3.0, color: '#f1c40f' });
         }
     } else {
         let det = caveProps.find(p => p.kind === 'det');
-        let hero = det && players.find(p => !p.isDowned && Math.hypot(p.x - det.x, p.y - det.y) < 95 && getButtonState(p.id, 'A', 'pressed'));
+        let hero = det && players.find(p => !p.netLeft && !p.isDowned && !inTank(p) && Math.hypot(p.x - det.x, p.y - det.y) < 95 && getButtonState(p.id, 'A', 'pressed'));
         if (hero) {
             caveProps = caveProps.filter(p => p !== det);
             if (q) {
                 caveBigBlast(q.x, q.y);
                 explode(q.x, q.y, 320, 3000, hero, true);
-                q.phase = 4; q.invuln = false; q._hpPrev = q.hp; q.hp = 0; zombieDown(q, hero);
+                q.phase = 4; q.invuln = false; q.qShield = false; q._hpPrev = q.hp; q.hp = 0; zombieDown(q, hero);
             }
             caveRun.result = { reward: 70 + currentLevel * 3, bonusUpg: true, text: 'ĐÃ THỔI BAY KIẾN CHÚA! Cả đội được +1 cấp.' };
             caveRun.endT = 3.2; objState = 'QUEEN_DEAD';
@@ -592,9 +624,9 @@ function updateCaveProps(dt) {
             if (p.kind === 'tntcart' && p.hp <= 0) { caveProps.splice(i, 1); explode(p.x, p.y, 235, 420); continue; }
             p.cd = (p.cd || 0) - dt;
             if (!p.moving) {
-                if (p.cd > 0 || tank.active) continue;
+                if (p.cd > 0) continue;
                 for (let pl of players) {
-                    if (pl.isDowned || Math.hypot(pl.x - p.x, pl.y - p.y) > p.r + pl.radius + 6) continue;
+                    if (pl.netLeft || pl.isDowned || inTank(pl) || Math.hypot(pl.x - p.x, pl.y - p.y) > p.r + pl.radius + 6) continue;
                     let sp = Math.hypot(pl.vx || 0, pl.vy || 0);
                     if (sp < 40 || (p.x - pl.x) * pl.vx + (p.y - pl.y) * pl.vy <= 0) continue;
                     // Đẩy: xe lao thẳng theo trục gần nhất với hướng đẩy
@@ -735,7 +767,7 @@ function updateCaveHazards(dt) {
         } else if (h.type === 'acidbomb' && h.timer <= 0) {
             h.done = true; h.life = 0;
             hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 26);
-            for (let p of players) if (!p.isDowned && Math.hypot(p.x - h.x, p.y - h.y) < h.radius) applyPlayerStatus(p, STATUS.CORROSION, { duration: 3, stacks: 1, dpsPercent: 0.003, maxStacks: 6 });
+            for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p) && Math.hypot(p.x - h.x, p.y - h.y) < h.radius) applyPlayerStatus(p, STATUS.CORROSION, { duration: 3, stacks: 1, dpsPercent: 0.003, maxStacks: 6 });
             fireZones.push({ kind: 'acid', x: h.x, y: h.y, life: h.pool || 2.5, dmg: 12, source: null, radius: h.radius * 0.9 });
             bossHitZombies(h.x, h.y, h.radius, 90, 0);   // axit của boss ăn mòn cả bầy quái
             createParticles(h.x, h.y, '#2ecc71', 26, 260); spawnRing(h.x, h.y, '#2ecc71', h.radius, 0.3);
@@ -743,10 +775,31 @@ function updateCaveHazards(dt) {
         } else if (h.type === 'quad' && h.timer <= 0) {
             if (!h.fired) { h.fired = true; addScreenShake(12); Sound.play('plasma'); }
             for (let p of players) {
-                if (p.isDowned) continue;
+                if (p.netLeft || p.isDowned || inTank(p)) continue;
                 let d = Math.hypot(p.x - h.x, p.y - h.y), a = Math.atan2(p.y - h.y, p.x - h.x);
                 if (d < h.radius && d > 90 && Math.abs(Math.atan2(Math.sin(a - h.angle), Math.cos(a - h.angle))) < Math.PI / 4) p.takeDot((h.dmg || 110) * dt);
             }
+            if (tank.active && tank.p2InvulnTimer <= 0) {
+                let d = Math.hypot(tank.x - h.x, tank.y - h.y), a = Math.atan2(tank.y - h.y, tank.x - h.x);
+                if (d < h.radius && d > 90 && Math.abs(Math.atan2(Math.sin(a - h.angle), Math.cos(a - h.angle))) < Math.PI / 4) tank.hp -= (h.dmg || 110) * 0.45 * dt;
+            }
+        } else if (h.type === 'venomring') {
+            h.radius = Math.min(h.maxR || 640, (h.radius || 80) + (h.spd || 330) * dt);
+            let band = 42;
+            for (let p of players) {
+                if (p.netLeft || p.isDowned || inTank(p) || (p._vringHit || 0) > survivalTime) continue;
+                let d = Math.hypot(p.x - h.x, p.y - h.y);
+                if (Math.abs(d - h.radius) <= band + p.radius) {
+                    p._vringHit = survivalTime + 0.65;
+                    p.takeDamage(h.dmg || 30);
+                    applyPlayerStatus(p, STATUS.CORROSION, { duration: 3.5, stacks: 2, dpsPercent: 0.0035, maxStacks: 6 });
+                }
+            }
+            if (tank.active && tank.p2InvulnTimer <= 0 && !((h.tankHit || 0) > survivalTime)) {
+                let d = Math.hypot(tank.x - h.x, tank.y - h.y);
+                if (Math.abs(d - h.radius) <= band + tank.radius) { h.tankHit = survivalTime + 0.7; tank.hp -= (h.dmg || 30) * 0.6; }
+            }
+            if (h.radius >= (h.maxR || 640)) { h.done = true; h.life = 0; }
         }
     }
 }
@@ -772,8 +825,8 @@ function caveTakeHeavyBox(p) {
 // ---------------------------------------------------------------------------
 function antBite(z, dmg, cd) {
     if (z.atkCD > 0) return;
-    if (tank.active) { if (tank.p2InvulnTimer <= 0 && Math.hypot(z.x - tank.x, z.y - tank.y) < z.radius + tank.radius + 5) { tank.hp -= dmg * 0.5; z.atkCD = cd; } return; }
-    for (let p of players) if (!p.isDowned && Math.hypot(z.x - p.x, z.y - p.y) < z.radius + p.radius + 6) { p.takeDamage(dmg); z.atkCD = cd; }
+    if (tank.active && tank.p2InvulnTimer <= 0 && Math.hypot(z.x - tank.x, z.y - tank.y) < z.radius + tank.radius + 5) { tank.hp -= dmg * 0.5; z.atkCD = cd; }
+    for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p) && Math.hypot(z.x - p.x, z.y - p.y) < z.radius + p.radius + 6) { p.takeDamage(dmg); z.atkCD = cd; }
     for (let n of rescueNPCs) if (n.hp > 0 && Math.hypot(z.x - n.x, z.y - n.y) < z.radius + n.radius + 6) { n.takeDamage(dmg); z.atkCD = cd; }
     for (let a of allies) if (a.hp > 0 && Math.hypot(z.x - a.x, z.y - a.y) < z.radius + a.radius + 6) { a.takeDamage(dmg); z.atkCD = cd; }
 }
@@ -844,19 +897,21 @@ function updateAnt(z, target, dist, ang, dt, speed) {
         }
         return true;
     }
-    if (z.type === ANT.TENTACLE) {                 // XÚC TU: đứng yên ở góc, hết giờ thì quét sạch 1/4 sàn đấu
+    if (z.type === ANT.TENTACLE) {                 // XÚC TU: đứng yên ở vị trí la bàn, hết giờ thì quét sạch 1/4 sàn đấu
         z.kbX = z.kbY = 0; if (z.homeX !== undefined) { z.x = z.homeX; z.y = z.homeY; }
         z.beamT -= dt;
         let A = caveRun.arena;
         if (z.beamT <= 0 && A) {
-            z.beamT = 20;
+            z.beamT = z.beamCycle || 18;
+            let pos = z.posName || compassDirName(z.x - A.x, z.y - A.y);
             hazards.push({ type: 'quad', x: A.x, y: A.y, angle: z.quadAng, radius: A.r, timer: 1.8, life: 2.7, dmg: 110 });
-            vfxList.push({ type: 'text', text: 'XÚC TU QUÉT SÀN! RỜI KHỎI GÓC NÀY!', x: z.x, y: z.y - 60, life: 1.8, color: '#ff4757' });
+            vfxList.push({ type: 'text', text: `⚡ XÚC TU [${pos}] QUÉT SÀN!`, x: z.x, y: z.y - 60, life: 1.9, color: '#ff4757' });
+            for (let p of activePlayers()) vfxList.push({ type: 'text', text: `⚠ XÚC TU PHÍA [${pos}] ĐANG QUÉT SÀN — TRÁNH NGAY!`, x: p.x, y: p.y - 84, life: 1.8, color: '#ff4757' });
             Sound.play('roar');
         }
-        if (z.atkCD <= 0 && players.some(p => !p.isDowned && Math.hypot(p.x - z.x, p.y - z.y) < 130)) {
-            hazards.push({ type: 'quake', x: z.x, y: z.y, radius: 135, timer: 0.7, life: 0.9, dmg: 28, stun: 0.3 });
-            z.atkCD = 3.2;
+        if (z.atkCD <= 0 && players.some(p => !p.netLeft && !p.isDowned && !inTank(p) && Math.hypot(p.x - z.x, p.y - z.y) < 135)) {
+            hazards.push({ type: 'quake', x: z.x, y: z.y, radius: 145, timer: 0.7, life: 0.9, dmg: 30, stun: 0.35 });
+            z.atkCD = 2.9;
         }
         return true;
     }
@@ -889,18 +944,23 @@ function antDamageFilter(z) {
     let delta = z._hpPrev - z.hp;
     if (delta > 0) {
         let s = 1;
-        if (z.type === ANT.TENTACLE) s = z._expHit ? 3 : 0.3;                      // chỉ vũ khí nổ mới gây sát thương lớn
+        if (z.type === ANT.TENTACLE) s = z._expHit ? 3 : 0.28;                     // chỉ vũ khí nổ mới gây sát thương lớn
         else if (z.phase === 1) s = z.exhaust > 0 ? 2 : (z.airborne ? 0.5 : 1);    // đang bay: đạn giảm nửa; kiệt sức: x2
-        else if (z.phase === 2) s = 0;                                             // phòng thủ tuyệt đối
-        else if (z.phase === 3) { s = 0; if (!z.pinned) z.staggerT = 0.45; }       // đào tẩu: trúng đạn chỉ làm nó khựng lại
+        else if (z.phase === 2) {
+            if (z.qShield || z.breaking > 0) s = 0;                                // khiên Xúc Tu còn sống -> bất tử
+            else s = z.exhaust > 0 ? 1.85 : (z.airborne ? 0.65 : 1.0);             // khiên vỡ -> đánh trực diện Kiến Chúa cuồng nộ
+        } else if (z.phase === 3) { s = 0; if (!z.pinned) z.staggerT = 0.45; }     // đào tẩu: trúng đạn chỉ làm nó khựng lại
         z.hp = z._hpPrev - delta * s;
-        if (z.type === ANT.QUEEN && z.phase === 1) z.hp = Math.max(z.hp, z.maxHp * 0.5);
+        if (z.type === ANT.QUEEN) {
+            if (z.phase === 1) z.hp = Math.max(z.hp, z.maxHp * 0.68);
+            else if (z.phase === 2 && !z.qShield) z.hp = Math.max(z.hp, z.maxHp * ((z.qWave || 1) < 2 ? 0.38 : 0.22));
+        }
     }
     z._hpPrev = z.hp; z._expHit = false;
 }
 
 // ---------------------------------------------------------------------------
-// BOSS: KIẾN CHÚA
+// BOSS: KIẾN CHÚA (thêm 3 kỹ năng mới + Giai đoạn 2 dài & khốc liệt 2 đợt Xúc Tu)
 // ---------------------------------------------------------------------------
 function queenClamp(z) {
     let A = caveRun.arena; if (!A) return;
@@ -909,104 +969,312 @@ function queenClamp(z) {
 }
 function queenAcid(x, y, timer, radius = 85) { hazards.push({ type: 'acidbomb', x, y, radius, timer, life: timer + 0.2, dmg: 26 }); }
 
+// Kỹ năng mới 1: Kim Độc Hoàng Hậu — bắn quạt kim độc tốc độ cao + rải vũng axit
+function queenVenomVolley(z, baseAng, count, spread = 0.22) {
+    for (let k = 0; k < count; k++) {
+        let aa = baseAng + (k - (count - 1) / 2) * spread;
+        enemyBullets.push(new EnemyBullet(z.x, z.y, z.x + Math.cos(aa) * 200, z.y + Math.sin(aa) * 200, 'acid'));
+    }
+    createParticles(z.x, z.y, '#2ecc71', 16, 240);
+    Sound.play('hit');
+}
+
+// Kỹ năng mới 2: Cuồng Phong Axit — vỗ cánh đẩy lùi toàn sàn + sóng độc lan rộng + đá lở
+function queenCycloneGust(z, A, extraP = 0) {
+    for (let p of players) {
+        if (p.netLeft || p.isDowned || inTank(p)) continue;
+        let d = Math.hypot(p.x - z.x, p.y - z.y);
+        if (d < 560) deadPush(p, Math.atan2(p.y - z.y, p.x - z.x), Math.max(70, 210 - d * 0.22));
+    }
+    hazards.push({ type: 'venomring', x: z.x, y: z.y, radius: z.radius + 24, maxR: Math.min(A.r - 30, 650), spd: 320 + extraP * 20, life: 2.2, timer: 0, t0: 2.2, dmg: 30, angle: z.phase >= 2 ? 2 : 1 });
+    let ringN = 8 + extraP * 2;
+    for (let k = 0; k < ringN; k++) {
+        let a = k / ringN * Math.PI * 2 + Math.random() * 0.25, r = 210 + (k % 2) * 185;
+        let x = z.x + Math.cos(a) * r, y = z.y + Math.sin(a) * r;
+        let da = Math.hypot(x - A.x, y - A.y); if (da > A.r - 80) { x = A.x + (x - A.x) / da * (A.r - 80); y = A.y + (y - A.y) / da * (A.r - 80); }
+        queenAcid(x, y, 0.85 + (k % 3) * 0.22, 82);
+    }
+    spawnRing(z.x, z.y, '#7bed9f', 280, 0.45, 7); addScreenShake(12); Sound.play('roar');
+}
+
+// Kỹ năng mới 3: Triệu Tập Cận Vệ — gọi bầy Kiến Nổ + Kiến Lính từ các hướng sàn đấu
+function queenRoyalBrood(z, A, extraP = 0) {
+    let nExp = 2 + extraP, nSol = 1 + Math.floor((extraP + 1) / 2), dirs = [];
+    if (zombies.filter(e => e.type >= 40 && e.type <= 43 && e.hp > 0).length > 26 + extraP * 6) return false;
+    for (let k = 0; k < nExp + nSol; k++) {
+        let a = Math.random() * Math.PI * 2;
+        let edge = { x: A.x + Math.cos(a) * (A.r - 75), y: A.y + Math.sin(a) * (A.r - 75), r: 22 };
+        antSpawn(edge, k < nExp ? ANT.EXPLODER : ANT.SOLDIER, 1);
+        let dir = compassDirName(edge.x - A.x, edge.y - A.y);
+        if (!dirs.includes(dir)) dirs.push(dir);
+    }
+    bossSay(z, `TRIỆU TẬP CẬN VỆ [${dirs.slice(0, 3).join(', ')}]!`, '#e056fd');
+    Sound.play('roar'); addScreenShake(7);
+    return true;
+}
+
+function queenCastCombatSkill(z, A, target, ang, enraged) {
+    let tc = bossTeamCount(), extraP = tc - 1;
+    let al = activePlayers().filter(p => !p.isDowned && !inTank(p));
+    if (!al.length && tank.active) al = [tank];
+    let pool = enraged
+        ? ['spit', 'swoop', 'venom_needles', 'venom_needles', 'cyclone_gust', 'royal_brood']
+        : ['spit', 'swoop', 'venom_needles', 'cyclone_gust', 'royal_brood'];
+    let skill = pickBossSkill(z, pool);
+    if (skill === 'royal_brood' && !queenRoyalBrood(z, A, extraP)) skill = 'venom_needles';
+    if (skill === 'spit') {
+        let total = (enraged ? 8 : 6) + extraP * 3;
+        for (let k = 0; k < total; k++) {
+            let tgt = al.length ? al[k % al.length] : target;
+            let sp = k < al.length ? 80 : 380;
+            let x = tgt.x + (Math.random() - 0.5) * sp, y = tgt.y + (Math.random() - 0.5) * sp;
+            let da = Math.hypot(x - A.x, y - A.y); if (da > A.r - 75) { x = A.x + (x - A.x) / da * (A.r - 75); y = A.y + (y - A.y) / da * (A.r - 75); }
+            queenAcid(x, y, 0.82 + k * 0.14, enraged ? 92 : 85);
+        }
+        bossSay(z, enraged ? 'MƯA ĐỘC TRUY SÁT!' : 'CHÙM AXIT!', '#2ecc71');
+    } else if (skill === 'swoop') {
+        startZombieCharge(z, target, enraged ? 0.68 : 0.82, enraged ? 790 : 730);
+        z.swoopLeft = enraged ? 2 : 1;
+        bossSay(z, enraged ? 'SÀ XUỐNG BÃO TÁP!' : 'SÀ XUỐNG LIÊN HOÀN!', '#ff7675');
+    } else if (skill === 'venom_needles') {
+        let cnt = (enraged ? 9 : 7) + extraP * 2;
+        queenVenomVolley(z, ang, cnt, enraged ? 0.19 : 0.22);
+        z.needleT = 0.36; z.needleCnt = cnt; z.needleAng = ang + 0.11;
+        for (let p of al) queenAcid(p.x + (Math.random() - 0.5) * 90, p.y + (Math.random() - 0.5) * 90, 1.15, 76);
+        bossSay(z, 'KIM ĐỘC HOÀNG HẬU!', '#7bed9f');
+    } else if (skill === 'cyclone_gust') {
+        queenCycloneGust(z, A, extraP);
+        bossSay(z, 'CUỒNG PHONG AXIT!', '#2ecc71');
+    }
+    z.skillN = (z.skillN || 0) + 1;
+}
+
 function updateQueen(z, target, dist, ang, dt) {
     z.kbX = z.kbY = 0;
     const A = caveRun.arena;
     if (z.phase === 3) return updateQueenChase(z, target, dist, ang, dt);
     if (z.phase >= 4 || !A) return true;
-    queenAcidRain(z, A, dt);   // mưa axit rơi liên tục, càng mất máu càng dày (17-bosses.js)
+    let tc = bossTeamCount(), extraP = tc - 1;
+    queenAcidRain(z, A, dt);   // mưa axit rơi liên tục, càng mất máu & đông người càng dày (17-bosses.js)
+
+    if (z.needleT > 0) {
+        z.needleT -= dt;
+        if (z.needleT <= 0) queenVenomVolley(z, z.needleAng || ang, z.needleCnt || 7, 0.2);
+    }
 
     if (z.phase === 1) {
-        // ---- PHASE 1: THỐNG LĨNH BẦU TRỜI ----
+        // ---- PHASE 1 (100% -> 68%): THỐNG LĨNH BẦU TRỜI ----
         if (z.exhaust > 0) {
             z.exhaust -= dt; z.airborne = false; z.downed = true;
-            if (z.exhaust <= 0) { z.downed = false; z.airborne = true; z.skillN = 0; z.spCD = 1.6; bossSay(z, 'CẤT CÁNH!'); createParticles(z.x, z.y, '#dff9fb', 30, 260); }
+            if (z.exhaust <= 0) { z.downed = false; z.airborne = true; z.skillN = 0; z.spCD = 1.4; bossSay(z, 'CẤT CÁNH!'); createParticles(z.x, z.y, '#dff9fb', 30, 260); }
             return true;
         }
-        if (z.hp <= z.maxHp * 0.55 && !z.isCharging && !(z.warnBeamTimer > 0) && !(z.barrageT > 0)) return queenStartPhase2(z, A);
+        if (z.hp <= z.maxHp * 0.68 && !z.isCharging && !(z.warnBeamTimer > 0) && !(z.barrageT > 0)) return queenSpawnTentacles(z, A, 1);
         z.airborne = true;
         if (z.barrageT > 0) {
             z.barrageT -= dt;
             if (z.barrageT <= 0) {
-                z.exhaust = 4.0; z.airborne = false; z.downed = true;
+                z.exhaust = 3.3; z.airborne = false; z.downed = true;
                 bossSay(z, 'KIỆT SỨC! SÁT THƯƠNG x2', '#f1c40f'); addScreenShake(12); spawnRing(z.x, z.y, '#f1c40f', 160, 0.5, 6); Sound.play('tank');
             }
             return true;
         }
-        if (updateZombieCharge(z, dt, { speed: 600, time: 1.2, dmg: 38, stun: 0.6, push: 160, selfStun: 1.2 })) { queenClamp(z); return true; }
-        if (z.spCD <= 0) {
-            if ((z.skillN || 0) >= 3) {
-                // Xả axit diện rộng toàn sàn đấu -> sau đó rơi xuống kiệt sức 4 giây
-                for (let k = 0; k < 18; k++) { let a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * (A.r - 80); queenAcid(A.x + Math.cos(a) * r, A.y + Math.sin(a) * r, 0.9 + k * 0.13, 92); }
-                for (let p of players) if (!p.isDowned) queenAcid(p.x, p.y, 1.4);
-                z.barrageT = 3.5; bossSay(z, 'MƯA AXIT TOÀN SÀN!', '#2ecc71'); Sound.play('roar');
-            } else {
-                let skill = pickBossSkill(z, ['spit', 'spit', 'swoop']);
-                if (skill === 'spit') {
-                    for (let k = 0; k < 6; k++) queenAcid(target.x + (k ? (Math.random() - 0.5) * 380 : 0), target.y + (k ? (Math.random() - 0.5) * 380 : 0), 0.9 + k * 0.18);
-                    bossSay(z, 'CHÙM AXIT!', '#2ecc71');
-                } else { startZombieCharge(z, target, 0.9, 700); bossSay(z, 'SÀ XUỐNG!'); }
-                z.skillN = (z.skillN || 0) + 1;
+        if (updateZombieCharge(z, dt, { speed: 680, time: 1.05, dmg: 42, stun: 0.6, push: 175, selfStun: z.swoopLeft > 0 ? 0.18 : 1.0 })) {
+            queenClamp(z);
+            if (!z.isCharging && !(z.warnBeamTimer > 0) && z.swoopLeft > 0 && !(z.chargeStun > 0.1)) {
+                z.swoopLeft--; z.chargeStun = 0;
+                let nt = pickAlivePlayer();
+                startZombieCharge(z, nt, 0.52, 760);
             }
-            z.spCD = 2.7;
+            return true;
+        }
+        if (z.spCD <= 0) {
+            if ((z.skillN || 0) >= 4) {
+                // Xả axit diện rộng toàn sàn đấu -> sau đó rơi xuống kiệt sức 3.3 giây
+                let barrN = 20 + extraP * 5;
+                for (let k = 0; k < barrN; k++) { let a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * (A.r - 80); queenAcid(A.x + Math.cos(a) * r, A.y + Math.sin(a) * r, 0.85 + k * 0.11, 94); }
+                for (let p of activePlayers()) if (!p.isDowned) queenAcid(p.x, p.y, 1.25, 90);
+                z.barrageT = 3.2; bossSay(z, 'MƯA AXIT TOÀN SÀN!', '#2ecc71'); Sound.play('roar');
+            } else {
+                queenCastCombatSkill(z, A, target, ang, false);
+            }
+            z.spCD = Math.max(1.7, 2.4 - extraP * 0.16);
         }
         // Lượn vòng quanh người chơi, giữ khoảng cách
         let want = dist > 380 ? ang : (dist < 250 ? ang + Math.PI : ang + Math.PI / 2);
-        z.x += Math.cos(want) * z.baseSpeed * dt; z.y += Math.sin(want) * z.baseSpeed * dt;
+        z.x += Math.cos(want) * z.baseSpeed * 1.08 * dt; z.y += Math.sin(want) * z.baseSpeed * 1.08 * dt;
         queenClamp(z);
         return true;
     }
 
-    // ---- PHASE 2: PHÒNG THỦ TUYỆT ĐỐI & 4 XÚC TU ----
-    z.airborne = false;
-    let dc = Math.hypot(A.x - z.x, A.y - z.y);
-    if (dc > 8) { let a = Math.atan2(A.y - z.y, A.x - z.x), st = Math.min(dc, 320 * dt); z.x += Math.cos(a) * st; z.y += Math.sin(a) * st; }
+    // ---- PHASE 2 (68% -> 22%): 2 ĐỢT KHIÊN XÚC TU + CHIẾN ĐẤU CUỒNG NỘ GIỮA PHA ----
     if (z.breaking > 0) {
+        z.airborne = false; z.qShield = true;
         z.breaking -= dt;
         if (Math.random() < dt * 12) { let a = Math.random() * Math.PI * 2, r = Math.random() * A.r; vfxList.push({ type: 'bolt', x: A.x + Math.cos(a) * r, y: A.y + Math.sin(a) * r, life: 0.25, max: 0.25, seed: Math.random() * 1000 }); addScreenShake(10); }
-        if (z.breaking <= 0 && !caveRun.pendingStage) { mineRun.queenPct = 0.3; caveRun.pendingStage = 'tunnel'; caveRun.stageT = 0.4; }
+        if (z.breaking <= 0 && !caveRun.pendingStage) { mineRun.queenPct = 0.22; caveRun.pendingStage = 'tunnel'; caveRun.stageT = 0.4; }
         return true;
     }
-    if (!zombies.some(e => e.type === ANT.TENTACLE && e.hp > 0)) {
-        z.breaking = 2.4;
+
+    // Trần hang sụp từng mảng suốt Giai đoạn 2 (dày hơn khi đông người chơi & đợt 2)
+    caveRun.rockT -= dt;
+    if (caveRun.rockT <= 0) {
+        caveRun.rockT = ((z.qWave || 1) >= 2 ? 1.65 : 2.1) / (1 + extraP * 0.16);
+        let rockN = 1 + (extraP >= 2 ? 1 : 0);
+        for (let k = 0; k < rockN; k++) {
+            let p = pickAlivePlayer(), x = p.x + (Math.random() - 0.5) * 340, y = p.y + (Math.random() - 0.5) * 340;
+            let d = Math.hypot(x - A.x, y - A.y); if (d > A.r - 90) { x = A.x + (x - A.x) / d * (A.r - 90); y = A.y + (y - A.y) / d * (A.r - 90); }
+            hazards.push({ type: 'rockfall', x, y, radius: 82, timer: 1.05, life: 1.25, dmg: 46 });
+        }
+    }
+    // Bầy kiến tràn ra liên tục theo số người chơi
+    caveRun.spawnT -= dt;
+    if (caveRun.spawnT <= 0) {
+        caveRun.spawnT = ((z.qWave || 1) >= 2 ? 6.2 : 7.5) / (1 + extraP * 0.18);
+        let a = Math.random() * Math.PI * 2, edge = { x: A.x + Math.cos(a) * (A.r - 70), y: A.y + Math.sin(a) * (A.r - 70), r: 20 };
+        if (zombies.filter(e => e.type === ANT.SOLDIER).length < 4 + extraP) antSpawn(edge, ANT.SOLDIER, 1 + (extraP >= 2 ? 1 : 0));
+        if (zombies.filter(e => e.type === ANT.EXPLODER).length < 3 + extraP) antSpawn(edge, ANT.EXPLODER, 1 + Math.floor(extraP / 2));
+        if (drops.length > 0 && zombies.filter(e => e.type === ANT.HARVESTER).length < 3 + Math.floor(extraP / 2)) antSpawn(edge, ANT.HARVESTER, 1);
+        if (zombies.filter(e => e.type === ANT.MINOR).length < 12 + extraP * 3) antSpawn(edge, ANT.MINOR, 4 + extraP);
+    }
+
+    // 2A. Khiên Xúc Tu đang bật: Kiến Chúa đứng giữa sàn vẫn chủ động tung kỹ năng ép góc!
+    if (z.qShield) {
+        z.airborne = false; z.downed = false;
+        let dc = Math.hypot(A.x - z.x, A.y - z.y);
+        if (dc > 8) { let a = Math.atan2(A.y - z.y, A.x - z.x), st = Math.min(dc, 340 * dt); z.x += Math.cos(a) * st; z.y += Math.sin(a) * st; }
+        if (!zombies.some(e => e.type === ANT.TENTACLE && e.hp > 0)) {
+            // Đã diệt sạch Xúc Tu của đợt hiện tại -> VỠ KHIÊN, choáng ngắn rồi bước vào giao tranh cuồng nộ!
+            z.qShield = false; z.exhaust = (z.qWave || 1) === 1 ? 2.4 : 2.0; z.downed = true; z.skillN = 0; z.spCD = 1.2;
+            spawnRing(z.x, z.y, '#ff4757', 340, 0.65, 9); createParticles(z.x, z.y, '#48dbfb', 55, 420);
+            addScreenShake(18); Sound.play('explode');
+            bossSay(z, (z.qWave || 1) === 1 ? 'KHIÊN RẠN NỨT — TẤN CÔNG NGAY!' : 'KHIÊN TAN VỠ — DỨT ĐIỂM KIẾN CHÚA!', '#ff4757');
+            queueRadio((z.qWave || 1) === 1
+                ? 'Bộ đàm: Khiên bảo vệ đợt 1 đã vỡ! Kiến Chúa đang lộ sơ hở — dồn hỏa lực kéo máu nó xuống!'
+                : 'Bộ đàm: Toàn bộ xúc tu đợt cuối đã gục! Hạ máu Kiến Chúa xuống đáy để đánh sập hang!', null, 6);
+            return true;
+        }
+        // Chiêu yểm trợ của Kiến Chúa ngay trong lúc có khiên
+        if (z.spCD <= 0) {
+            let sMode = (z.shieldCastN = (z.shieldCastN || 0) + 1) % 3;
+            if (sMode === 1) {
+                let n = 10 + extraP * 2;
+                queenVenomVolley(z, ang, n, (Math.PI * 2) / n);
+                bossSay(z, 'VÒNG KIM ĐỘC!', '#7bed9f');
+            } else if (sMode === 2) {
+                hazards.push({ type: 'venomring', x: z.x, y: z.y, radius: z.radius + 24, maxR: A.r - 35, spd: 290 + extraP * 20, life: 2.3, timer: 0, t0: 2.3, dmg: 26, angle: 2 });
+                bossSay(z, 'SÓNG ĐỘC LAN TỎA!', '#2ecc71'); Sound.play('plasma');
+            } else {
+                for (let p of activePlayers()) if (!p.isDowned) queenAcid(p.x + (Math.random() - 0.5) * 110, p.y + (Math.random() - 0.5) * 110, 0.95, 86);
+                hazards.push({ type: 'quake', x: z.x, y: z.y, radius: 220, timer: 0.75, life: 0.95, dmg: 38, stun: 0.45 });
+                bossSay(z, 'CHẤN ĐỘNG TỔ KIẾN!', '#e056fd');
+            }
+            z.spCD = Math.max(2.3, ((z.qWave || 1) >= 2 ? 3.0 : 3.6) - extraP * 0.22);
+        }
+        return true;
+    }
+
+    // 2B. Khiên đã vỡ: Kiến Chúa CUỒNG NỘ giao chiến trực diện!
+    if (z.exhaust > 0) {
+        z.exhaust -= dt; z.airborne = false; z.downed = true;
+        if (z.exhaust <= 0) { z.downed = false; z.airborne = true; z.skillN = 0; z.spCD = 1.0; bossSay(z, 'NỮ HOÀNG CUỒNG NỘ!', '#ff4757'); spawnRing(z.x, z.y, '#e056fd', 220, 0.45, 7); Sound.play('roar'); }
+        return true;
+    }
+    // Ngưỡng máu chuyển đợt trong Giai đoạn 2: 38% gọi Đợt 2 Xúc Tu; 22% sập sàn sang Giai đoạn 3
+    if ((z.qWave || 1) < 2 && z.hp <= z.maxHp * 0.38 && !z.isCharging && !(z.warnBeamTimer > 0) && !(z.barrageT > 0)) {
+        return queenSpawnTentacles(z, A, 2);
+    }
+    if ((z.qWave || 1) >= 2 && z.hp <= z.maxHp * 0.22 && !z.isCharging && !(z.warnBeamTimer > 0)) {
+        z.breaking = 2.4; z.qShield = true; z.airborne = false; z.downed = false;
         bossSay(z, 'SÀN ĐẤU SỤP ĐỔ!', '#48dbfb'); Sound.play('lightning'); Sound.play('explode'); addScreenFlash(0.7, 100);
         for (let e of zombies) if (e !== z && e.type < 45) e.hp = 0;
         return true;
     }
-    // Trần hang sụp từng mảng
-    caveRun.rockT -= dt;
-    if (caveRun.rockT <= 0) {
-        caveRun.rockT = 2.3;
-        let p = pickAlivePlayer(), x = p.x + (Math.random() - 0.5) * 360, y = p.y + (Math.random() - 0.5) * 360;
-        let d = Math.hypot(x - A.x, y - A.y); if (d > A.r - 90) { x = A.x + (x - A.x) / d * (A.r - 90); y = A.y + (y - A.y) / d * (A.r - 90); }
-        hazards.push({ type: 'rockfall', x, y, radius: 80, timer: 1.1, life: 1.3, dmg: 45 });
+
+    z.airborne = true;
+    if (z.barrageT > 0) {
+        z.barrageT -= dt;
+        if (z.barrageT <= 0) {
+            z.exhaust = 2.5; z.airborne = false; z.downed = true;
+            bossSay(z, 'HỤT HƠI — DỒN SÁT THƯƠNG!', '#f1c40f'); addScreenShake(12); spawnRing(z.x, z.y, '#f1c40f', 170, 0.45, 6); Sound.play('tank');
+        }
+        return true;
     }
-    // Kiến Lính & Kiến Thợ tràn ra cướp hòm tiếp tế
-    caveRun.spawnT -= dt;
-    if (caveRun.spawnT <= 0) {
-        caveRun.spawnT = 8;
-        let a = Math.random() * Math.PI * 2, edge = { x: A.x + Math.cos(a) * (A.r - 70), y: A.y + Math.sin(a) * (A.r - 70), r: 20 };
-        if (zombies.filter(e => e.type === ANT.SOLDIER).length < 4) antSpawn(edge, ANT.SOLDIER, 1);
-        if (drops.length > 0 && zombies.filter(e => e.type === ANT.HARVESTER).length < 3) antSpawn(edge, ANT.HARVESTER, 1);
-        if (zombies.filter(e => e.type === ANT.MINOR).length < 12) antSpawn(edge, ANT.MINOR, 4);
+    if (updateZombieCharge(z, dt, { speed: 750, time: 0.95, dmg: 48, stun: 0.65, push: 195, selfStun: z.swoopLeft > 0 ? 0.16 : 0.85 })) {
+        queenClamp(z);
+        if (!z.isCharging && !(z.warnBeamTimer > 0) && z.swoopLeft > 0 && !(z.chargeStun > 0.1)) {
+            z.swoopLeft--; z.chargeStun = 0;
+            let nt = pickAlivePlayer();
+            startZombieCharge(z, nt, 0.46, 800);
+        }
+        return true;
     }
+    if (z.spCD <= 0) {
+        if ((z.skillN || 0) >= 5) {
+            let barrN = 24 + extraP * 6;
+            for (let k = 0; k < barrN; k++) { let a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * (A.r - 75); queenAcid(A.x + Math.cos(a) * r, A.y + Math.sin(a) * r, 0.8 + k * 0.09, 96); }
+            for (let p of activePlayers()) if (!p.isDowned) queenAcid(p.x, p.y, 1.15, 92);
+            z.barrageT = 2.8; bossSay(z, 'ĐẠI HỒNG THỦY AXIT!', '#2ecc71'); Sound.play('roar');
+        } else {
+            queenCastCombatSkill(z, A, target, ang, true);
+        }
+        z.spCD = Math.max(1.42, ((z.qWave || 1) >= 2 ? 1.85 : 2.05) - extraP * 0.14);
+    }
+    let spdMult = (z.qWave || 1) >= 2 ? 1.38 : 1.26;
+    let want = dist > 340 ? ang : (dist < 210 ? ang + Math.PI : ang + Math.PI / 2);
+    z.x += Math.cos(want) * z.baseSpeed * spdMult * dt; z.y += Math.sin(want) * z.baseSpeed * spdMult * dt;
+    queenClamp(z);
     return true;
 }
-function queenStartPhase2(z, A) {
-    z.phase = 2; z.phase2Done = true; z.airborne = false; z.downed = false; z.exhaust = 0;
-    bossSay(z, 'PHÒNG THỦ TUYỆT ĐỐI!', '#48dbfb'); Sound.play('roar'); addScreenShake(16);
-    for (let k = 0; k < 4; k++) {
-        let a = Math.PI / 4 + k * Math.PI / 2;
+
+function queenSpawnTentacles(z, A, wave = 1) {
+    let tc = bossTeamCount(), extraP = tc - 1;
+    z.phase = 2; z.phase2Done = true; z.qWave = wave; z.qShield = true;
+    z.airborne = false; z.downed = false; z.exhaust = 0; z.barrageT = 0; z.swoopLeft = 0; z.spCD = 2.4;
+    let nTent = Math.min(8, (wave >= 2 ? 5 : 4) + extraP);
+    z.qWaveTotal = nTent;
+    // Chọn các hướng la bàn phân bố đều quanh sàn đấu (8 mốc la bàn)
+    let startSlot = wave >= 2 ? 0 : 1, step = 8 / nTent, usedSlots = new Set(), slots = [];
+    for (let k = 0; k < nTent; k++) {
+        let s = Math.round(startSlot + k * step) % 8;
+        while (usedSlots.has(s)) s = (s + 1) % 8;
+        usedSlots.add(s); slots.push(s);
+    }
+    let posNames = [];
+    slots.forEach((slot, k) => {
+        let a = slot * Math.PI / 4;
         let t = new Zombie(A.x + Math.cos(a) * 520, A.y + Math.sin(a) * 520, ANT.TENTACLE);
-        t.homeX = t.x; t.homeY = t.y; t.quadAng = a; t.beamT = 16 + k * 5;
+        if (wave >= 2) { t.maxHp = Math.round(t.maxHp * 1.18); t.hp = t.maxHp; t._hpPrev = t.hp; }
+        t.homeX = t.x; t.homeY = t.y; t.quadAng = a;
+        t.beamCycle = wave >= 2 ? 15 : 19;
+        t.beamT = (wave >= 2 ? 10.5 : 14.5) + k * (wave >= 2 ? 2.8 : 3.8);
+        t.posName = compassDirName(Math.cos(a), Math.sin(a));
+        posNames.push(t.posName);
         zombies.push(t);
-        createParticles(t.x, t.y, '#6ab04c', 30, 260);
-        caveProps.push({ kind: 'tnt', x: A.x + Math.cos(a + 0.22) * 410, y: A.y + Math.sin(a + 0.22) * 410, r: 16, hp: 30, maxHp: 30 });
+        createParticles(t.x, t.y, '#6ab04c', 32, 260); spawnRing(t.x, t.y, '#48dbfb', 110, 0.4, 4);
+        if (caveProps.filter(p => p.kind === 'tnt').length < 10) {
+            caveProps.push({ kind: 'tnt', x: A.x + Math.cos(a + 0.21) * 410, y: A.y + Math.sin(a + 0.21) * 410, r: 16, hp: 30, maxHp: 30 });
+        }
+    });
+    // Thả thêm tiếp tế hạng nặng ngay khi vào đợt Xúc Tu (nhiều hơn khi đông người chơi)
+    let boxN = 1 + Math.floor(tc / 2);
+    for (let b = 0; b < boxN; b++) {
+        let ba = Math.random() * Math.PI * 2, br = 140 + Math.random() * 250;
+        let bx = A.x + Math.cos(ba) * br, by = A.y + Math.sin(ba) * br;
+        drops.push({ type: 'HEAVYBOX', x: bx, y: by, radius: 17, lifeTime: 900 });
+        createParticles(bx, by, '#e67e22', 20, 220);
     }
-    caveRun.crateT = 2; caveRun.spawnT = 6; caveRun.rockT = 3;
-    queueRadio('Bộ đàm: Nó bất tử rồi! Phá 4 XÚC TU ở bốn góc bằng VŨ KHÍ NỔ (hòm hạng nặng, thùng TNT) trước khi chúng quét sàn!', null, 7);
+    caveRun.crateT = 2.5; caveRun.spawnT = 4.5; caveRun.rockT = 2.4;
+    let posStr = posNames.join(', ');
+    bossSay(z, wave >= 2 ? `KHIÊN TÁI TẠO ĐỢT 2 — ${nTent} XÚC TU!` : `PHÒNG THỦ TUYỆT ĐỐI — ${nTent} XÚC TU!`, '#48dbfb');
+    Sound.play('roar'); addScreenShake(18);
+    for (let p of activePlayers()) {
+        vfxList.push({ type: 'text', text: `⚠ ĐỢT ${wave}/2: ${nTent} XÚC TU TẠI [${posStr}]!`, x: p.x, y: p.y - 94, life: 3.2, color: '#48dbfb' });
+    }
+    queueRadio(`Bộ đàm: Kiến Chúa dựng khiên ĐỢT ${wave}/2! Phá ${nTent} XÚC TU tại [${posStr}] bằng VŨ KHÍ NỔ / thùng TNT trước khi chúng quét sàn!`, null, 7);
     return true;
 }
+function queenStartPhase2(z, A) { return queenSpawnTentacles(z, A, 1); }
 // PHASE 3: rách cánh, bò đuổi sát lưng trong đường hầm
 function updateQueenChase(z, target, dist, ang, dt) {
     z.trapCD = (z.trapCD || 0) - dt;
@@ -1014,7 +1282,7 @@ function updateQueenChase(z, target, dist, ang, dt) {
     if (z.trapT > 0) { z.trapT -= dt; z.downed = true; if (Math.random() < dt * 10) createParticles(z.x, z.y, '#7f8c8d', 2, 120); return true; }
     z.downed = false;
     if (z.staggerT > 0) z.staggerT -= dt;
-    let fast = 220; for (let p of players) if (!p.isDowned) fast = Math.max(fast, p.curSpeed || 0);
+    let fast = 220; for (let p of players) if (!p.netLeft && !p.isDowned) fast = Math.max(fast, p.curSpeed || 0);
     let sp = Math.max(250, fast * 1.12);
     if (dist > 900) sp *= 1.4;
     if (z.staggerT > 0) sp *= 0.3;
@@ -1039,9 +1307,17 @@ function caveObjectiveText() {
         case 'MINE_EXIT': return ['TÌM LỐI XUỐNG TẦNG 5', '#ecf0f1'];
         case 'MINE_BOMB': return [caveRun.plant > 0 ? `ĐANG GÀI BOM LÕI TỔ: ${Math.floor(caveRun.plant * 100)}%` : 'HẦM MỎ T5 - GÀI BOM VÀO LÕI TỔ KIẾN', '#e67e22'];
         case 'MINE_COLLAPSE': return ['TRẦN HANG ĐANG SẬP...', '#e056fd'];
-        case 'QUEEN':
-            if (mission.progress >= 2) return [`PHÁ XÚC TU BẰNG VŨ KHÍ NỔ: ${4 - zombies.filter(z => z.type === ANT.TENTACLE && z.hp > 0).length}/4`, '#48dbfb'];
-            return ['KIẾN CHÚA - CHỜ NÓ KIỆT SỨC RỒI DỒN HOẢ LỰC', '#e056fd'];
+        case 'QUEEN': {
+            let tentacles = zombies.filter(z => z.type === ANT.TENTACLE && z.hp > 0);
+            let q = zombies.find(z => z.type === ANT.QUEEN && z.hp > 0);
+            if (tentacles.length > 0) {
+                let posList = tentacles.slice(0, 4).map(t => t.posName || compassDirName(t.x - MAP_SIZE.w / 2, t.y - MAP_SIZE.h / 2)).join(', ') + (tentacles.length > 4 ? '...' : '');
+                let wv = (q && q.qWave) ? `ĐỢT ${q.qWave}/2 · ` : '';
+                return [`${wv}PHÁ ${tentacles.length} XÚC TU BẰNG VŨ KHÍ NỔ [${posList}]`, '#48dbfb'];
+            }
+            if (mission.progress >= 2 || (q && q.phase2Done)) return ['KHIÊN ĐÃ VỠ — DỒN HỎA LỰC HẠ KIẾN CHÚA CUỒNG NỘ!', '#ff7675'];
+            return ['KIẾN CHÚA - NÉ KIM ĐỘC & CHỜ KIỆT SỨC ĐỂ DỒN HỎA LỰC', '#e056fd'];
+        }
         case 'QUEEN_RUN':
             if (mission.progress >= 9) return ['TỚI KÍP NỔ VÀ BẤM BẮN!', '#f1c40f'];
             return [caveRun.timer > 0 ? `CHẠY TỚI CỬA HẦM! ${Math.ceil(caveRun.timer)}s` : 'HANG ĐANG SẬP - CHẠY!', '#ff4757'];
@@ -1215,10 +1491,13 @@ function drawAnt(z, T, ang, flash) {
     if (ty === ANT.QUEEN && z.downed) {
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         for (let k = 0; k < 3; k++) { let a = T * 4 + k * 2.09; ctx.fillStyle = '#f1c40f'; ctx.font = 'bold 16px Arial'; ctx.fillText('★', z.x + Math.cos(a) * 30, z.y - r - 6 + Math.sin(a) * 8); }
-        if (objState === 'QUEEN') outlinedText('KIỆT SỨC — x2 SÁT THƯƠNG', z.x, z.y + r + 20, '#f1c40f', 'bold 13px Arial');
-    } else if (ty === ANT.QUEEN && z.phase2Done && objState === 'QUEEN') {
+        if (objState === 'QUEEN') outlinedText('KIỆT SỨC — SÁT THƯƠNG TĂNG MẠNH', z.x, z.y + r + 20, '#f1c40f', 'bold 13px Arial');
+    } else if (ty === ANT.QUEEN && queenIsShielded(z) && objState === 'QUEEN') {
         ctx.beginPath(); ctx.arc(z.x, z.y, r + 22 + Math.sin(T * 6) * 3, 0, Math.PI * 2); ctx.strokeStyle = `rgba(72, 219, 251, ${0.6 + 0.3 * Math.sin(T * 8)})`; ctx.lineWidth = 5; ctx.stroke();
-        ctx.textAlign = 'center'; outlinedText('BẤT TỬ', z.x, z.y + r + 34, '#48dbfb', 'bold 13px Arial');
+        ctx.textAlign = 'center'; outlinedText('BẤT TỬ (PHÁ XÚC TU)', z.x, z.y + r + 34, '#48dbfb', 'bold 13px Arial');
+    } else if (ty === ANT.QUEEN && z.phase2Done && objState === 'QUEEN') {
+        ctx.beginPath(); ctx.arc(z.x, z.y, r + 18 + Math.sin(T * 10) * 4, 0, Math.PI * 2); ctx.strokeStyle = `rgba(255, 71, 87, ${0.45 + 0.3 * Math.sin(T * 12)})`; ctx.lineWidth = 3.5; ctx.setLineDash([10, 6]); ctx.stroke(); ctx.setLineDash([]);
+        ctx.textAlign = 'center'; outlinedText('KHIÊN VỠ — CUỒNG NỘ!', z.x, z.y + r + 32, '#ff7675', 'bold 12px Arial');
     }
 }
 function drawTentacle(z, T, flash) {
@@ -1231,7 +1510,10 @@ function drawTentacle(z, T, flash) {
     }
     let tipX = z.x + Math.sin(T * 2.4 + 3 + (z.nid || 0)) * 16, tipY = z.y + r * 0.4 - r * 2.4;
     ctx.beginPath(); ctx.arc(tipX, tipY, r * 0.24, 0, Math.PI * 2); ctx.fillStyle = `rgba(120, 255, 160, ${0.6 + 0.4 * Math.sin(T * 8)})`; ctx.fill();
-    if (z.beamT !== undefined) { ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; outlinedText(`QUÉT SAU ${Math.max(0, Math.ceil(z.beamT))}s`, z.x, z.y + r + 16, z.beamT < 6 ? '#ff4757' : '#dff9fb', 'bold 11px Arial'); }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    let pos = z.posName || compassDirName(z.x - MAP_SIZE.w / 2, z.y - MAP_SIZE.h / 2);
+    outlinedText(`XÚC TU [${pos}]`, z.x, z.y - r * 2.45, '#48dbfb', 'bold 11px Arial');
+    if (z.beamT !== undefined) { outlinedText(`QUÉT SAU ${Math.max(0, Math.ceil(z.beamT))}s`, z.x, z.y + r + 16, z.beamT < 6 ? '#ff4757' : '#dff9fb', 'bold 11px Arial'); }
 }
 
 // ---------------------------------------------------------------------------
@@ -1251,7 +1533,8 @@ function caveGuideGoal(lp) {
     return null;
 }
 function drawCaveGuide(T) {
-    let lp = tank.active ? tank : localPlayer();
+    let me = localPlayer();
+    let lp = inTank(me) ? tank : me;
     if (!lp || lp.isDowned) return;
     let goal = caveGuideGoal(lp);
     if (!goal) return;

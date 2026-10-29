@@ -152,18 +152,30 @@ function getXpRequired(level) {
     let base = Math.floor(140 + Math.pow(level, 2.05) * 95 + Math.pow(level, 1.35) * 45);
     // Các cấp đầu lên nhanh hơn hẳn (cấp 1 cần ~49% so với trước), tới cấp 8 thì trở lại đường cong cũ
     base = Math.floor(base * Math.min(1, 0.4 + 0.085 * level));
-    return isSinglePlayer ? base : base * 1.5;
+    if (isSinglePlayer) return base;
+    let n = activePlayerCount();
+    return Math.floor(base * (1 + (n - 1) * 0.42));
 }
 
-// ĐƯỜNG CONG ĐỘ KHÓ: map đầu nhẹ tay hơn, càng về sau quái càng đau và càng trâu để người chơi không "vô đối"
+// ĐƯỜNG CONG ĐỘ KHÓ: map đầu nhẹ tay hơn, từ Map 10-11+ giảm độ dốc của zombie thường để cân bằng sức mạnh người chơi (nhưng Boss vẫn rất trâu)
 function enemyDmgScale() {
     let d = diff().dmg;   // độ khó người chơi chọn ở menu
     if (currentLevel <= 2) return 0.75 * d;
     if (currentLevel <= 4) return 0.9 * d;
-    return Math.min(3.5, 1 + (currentLevel - 4) * 0.09) * d;
+    if (currentLevel <= 9) return (1 + (currentLevel - 4) * 0.08) * d;
+    return Math.min(2.6, 1.4 + (currentLevel - 9) * 0.04) * d;
 }
-function enemyLateHpMult() { return currentLevel > 6 ? Math.min(12, Math.pow(1.1, currentLevel - 6)) : 1; }
-function enemyLateSpeedMult() { return currentLevel > 6 ? Math.min(1.3, 1 + (currentLevel - 6) * 0.02) : 1; }
+function enemyLateHpMult(isBoss = false) {
+    if (currentLevel <= 6) return 1;
+    if (isBoss) return Math.min(14, Math.pow(1.11, currentLevel - 6));
+    if (currentLevel <= 9) return Math.pow(1.07, currentLevel - 6);
+    return Math.min(4.5, 1.225 * Math.pow(1.035, currentLevel - 9));
+}
+function enemyLateSpeedMult() {
+    if (currentLevel <= 6) return 1;
+    if (currentLevel <= 9) return 1 + (currentLevel - 6) * 0.018;
+    return Math.min(1.2, 1.054 + (currentLevel - 9) * 0.01);
+}
 function allyPowerScale() { return 1 + (currentLevel - 1) * 0.14; } // lính & NPC mạnh dần theo map để không thành vô dụng
 
 // Hoàn thiện bố cục map thường (không phải hang): dọn chỗ xuất phát, đảm bảo tháp / vật phẩm nhiệm vụ / NPC / đồ rơi
@@ -190,21 +202,19 @@ function finalizeMapLayout() {
     NAV.t = 0;
 }
 
-// Helpers cho hệ thống Tag dùng chung
+// Helpers cho hệ thống Tag dùng chung (tính tổng cả tổ đội 1–4 người)
 function getTeamTagLevel(tagName) {
-    let p1 = players[0] ? (players[0].tags[tagName] || 0) : 0;
-    let p2 = players[1] ? (players[1].tags[tagName] || 0) : 0;
-    return p1 + p2;
+    let s = 0;
+    for (let p of players) if (p && !p.netLeft) s += (p.tags[tagName] || 0);
+    return s;
 }
 function getPerkStacks(perkId) {
     let n = 0;
-    for (let p of players) n += (p.perkStacks && p.perkStacks[perkId]) || 0;
+    for (let p of players) if (p && !p.netLeft) n += (p.perkStacks && p.perkStacks[perkId]) || 0;
     return n;
 }
 function hasTeamPerk(perkId) {
-    let p1 = players[0] ? players[0].perks[perkId] : false;
-    let p2 = players[1] ? players[1].perks[perkId] : false;
-    return p1 || p2;
+    return players.some(p => p && !p.netLeft && p.perks && p.perks[perkId]);
 }
 function getMapName(type = currentMapType) {
     const names = {
@@ -293,7 +303,8 @@ function updateLoopSounds(dt) {
 // Tiếng zombie gục: càng xa người chơi càng nhỏ, quá xa thì không phát
 function playKillSound(x, y, insect = 0) {
     if (NET.mode === 'host' && NET.ev.length < 100) NET.ev.push(['sk', Math.round(x), Math.round(y), insect]);
-    let lp = tank.active ? tank : localPlayer();
+    let lp0 = localPlayer();
+    let lp = (typeof inTank === 'function' && inTank(lp0)) ? tank : lp0;
     let d = lp ? Math.hypot(x - lp.x, y - lp.y) : 0;
     if (d > 1300) return;
     Sound.kill(d < 220 ? 1 : Math.max(0.1, 1 - (d - 220) / 1000), !!insect);
@@ -815,6 +826,7 @@ function applyRandomStat(p) {
 
 function resolveCollision(entity) {
     for (let obs of obstacles) { let testX = entity.x, testY = entity.y; if (entity.x < obs.x) testX = obs.x; else if (entity.x > obs.x + obs.w) testX = obs.x + obs.w; if (entity.y < obs.y) testY = obs.y; else if (entity.y > obs.y + obs.h) testY = obs.y + obs.h; let distX = entity.x - testX, distY = entity.y - testY; let dist = Math.hypot(distX, distY); if (dist < entity.radius) { let overlap = entity.radius - dist; if (dist === 0) entity.y -= entity.radius; else { entity.x += (distX / dist) * overlap; entity.y += (distY / dist) * overlap; } } }
+    if (typeof resolveBaseGateCollision === 'function') resolveBaseGateCollision(entity);
     entity.x = Math.max(entity.radius, Math.min(MAP_SIZE.w - entity.radius, entity.x)); entity.y = Math.max(entity.radius, Math.min(MAP_SIZE.h - entity.radius, entity.y));
 }
 function isBlockedPoint(x, y, radius = 16) {
@@ -924,12 +936,12 @@ function advanceHangZFloor() {
     hangZRun.floor++;
     nextMapPreference = 10;
     generateMap(currentLevel);
-    for (let p of players) {
-        if (!p.isDowned) {
-            p.x = MAP_SIZE.w / 2 + (p.id === 1 ? -28 : 28);
+    players.forEach((p, idx) => {
+        if (!p.isDowned && !p.netLeft) {
+            p.x = MAP_SIZE.w / 2 + (idx - (players.length - 1) / 2) * 36;
             p.y = MAP_SIZE.h / 2;
         }
-    }
+    });
     zombies.length = 0;
     bullets.length = 0;
     enemyBullets.length = 0;
@@ -997,9 +1009,9 @@ function updateBushFire(dt) {
                 z.hp -= z.maxHp * 0.012 * dt;
             }
         }
-        // Bụi cỏ cháy thiêu MỌI mục tiêu đứng trong nó: người chơi, lính, người được cứu
+        // Bụi cỏ cháy thiêu MỌI mục tiêu đứng trong nó: người chơi (ngoài xe tăng), lính, người được cứu
         const inB = (e) => { let dx = (e.x - b.x) / b.rx, dy = (e.y - b.y) / b.ry; return dx * dx + dy * dy <= 1; };
-        if (!tank.active) for (let pl of players) if (!pl.isDowned && inB(pl)) { pl.takeDot(10 * dt); if (Math.random() < dt * 6) createParticles(pl.x, pl.y, '#e67e22', 2, 80); }
+        for (let pl of players) if (!pl.isDowned && !pl.netLeft && !(typeof inTank === 'function' && inTank(pl)) && inB(pl)) { pl.takeDot(10 * dt); if (Math.random() < dt * 6) createParticles(pl.x, pl.y, '#e67e22', 2, 80); }
         for (let a of allies) if (a.hp > 0 && inB(a)) a.takeDamage(8 * dt);
         for (let n of rescueNPCs) if (n.hp > 0 && n.kind !== 'house' && inB(n)) n.takeDamage(8 * dt);
         if (b.burnTime <= 0) {
@@ -1041,14 +1053,23 @@ function stunPlayer(p, dur = 0.8) {
     }
 
     // 4. Nếu không thỏa mãn điều kiện ăn combo choáng liên tục -> Dính choáng bình thường như cũ
+    let defTag = (p.tags && p.tags['PHÒNG THỦ']) || 0;
+    if (defTag >= 4) dur *= 0.6;
     p.stunTimer = Math.max(p.stunTimer || 0, dur);
+    if (defTag >= 5) p.stunImmunityTimer = Math.max(p.stunImmunityTimer || 0, dur + 1.5);
 
     createParticles(p.x, p.y, '#00d2d3', 12, 120);
     vfxList.push({ type: 'text', text: 'CHOÁNG!', x: p.x, y: p.y - 35, life: 0.8, color: '#00d2d3' });
 }
 function hurtPlayersInRadius(x, y, radius, dmg, opts = {}) {
+    if (tank.active && tank.p2InvulnTimer <= 0 && !opts.skipTank) {
+        let dtank = Math.hypot(tank.x - x, tank.y - y);
+        if (dtank <= radius + tank.radius) {
+            tank.hp -= dmg * Math.max(0.25, 1 - dtank / Math.max(radius, 1)) * 0.7;
+        }
+    }
     for (let p of players) {
-        if (!p || p.isDowned) continue;
+        if (!p || p.isDowned || p.netLeft || (typeof inTank === 'function' && inTank(p))) continue;
         let d = Math.hypot(p.x - x, p.y - y);
         if (d > radius + p.radius) continue;
         let amount = dmg * Math.max(0.25, 1 - d / Math.max(radius, 1));

@@ -18,14 +18,19 @@ function mutationTier() { return Math.floor(currentLevel / 3); }
 function zombieMutate(z) {
     if (z.type >= 30 || currentLevel < 3) return;
     let tier = mutationTier();
-    z.maxHp *= 1 + tier * 0.12;                                   // mỗi cấp đột biến: +12% máu
-    z.baseSpeed *= Math.min(1.25, 1 + tier * 0.03);               // +3% tốc độ (tối đa +25%)
+    let hpPerTier = currentLevel <= 13 ? 0.08 : 0.11;
+    z.maxHp *= 1 + tier * hpPerTier;                              // mỗi cấp đột biến: +8% (map <=13), +11% (map 14+)
+    z.baseSpeed *= Math.min(1.22, 1 + tier * 0.025);              // +2.5% tốc độ (tối đa +22%)
     if (NET.mode === 'guest') return;                              // khách nhận cờ biến dị từ chủ phòng
-    if (Math.random() < Math.min(0.3, 0.035 * tier)) makeMutant(z);
+    let mutChance = currentLevel <= 13 ? Math.min(0.22, 0.028 * tier) : Math.min(0.3, 0.035 * tier);
+    if (Math.random() < mutChance) makeMutant(z);
 }
 function makeMutant(z) {
     if (z.mutant) return;
-    z.mutant = true; z.maxHp *= 1.8; z.baseSpeed *= 1.15; z.radius = Math.round(z.radius * 1.15);
+    z.mutant = true;
+    z.maxHp *= currentLevel <= 13 ? 1.5 : 1.75;
+    z.baseSpeed *= 1.12;
+    z.radius = Math.round(z.radius * 1.15);
 }
 function drawMutantAura(z, T) {
     let r = z.radius, p = 0.5 + 0.5 * Math.sin(T * 6 + (z.nid || 0));
@@ -141,15 +146,17 @@ function huckerSkillTick(z, target, dist, ang, dt) {
     if (!hazards.includes(s.h) || s.t > 12) { z.hs = null; return false; }
     return true;
 }
-// Ném đá lên trời: rơi xuống TỪNG VIÊN một quanh người chơi
+// Ném đá lên trời: rơi xuống TỪNG VIÊN một quanh người chơi (tăng theo số người chơi)
 function huckerRocks(z) {
-    let n = z.phase2Done ? 9 : 6, al = players.filter(p => !p.isDowned); if (!al.length) al = players;
+    let extraP = Math.max(0, bossTeamCount() - 1);
+    let n = (z.phase2Done ? 9 : 6) + extraP * 2, al = players.filter(p => !p.netLeft && !p.isDowned);
+    if (!al.length) al = activePlayers();
     let A = story.arena;
     for (let k = 0; k < n; k++) {
-        let p = al[k % al.length], spread = k < 2 ? 60 : 520;
+        let p = al[k % al.length], spread = k < 2 + extraP ? 70 : 520;
         let x = p.x + (Math.random() - 0.5) * spread, y = p.y + (Math.random() - 0.5) * spread;
         if (A) { let d = Math.hypot(x - A.x, y - A.y), lim = A.r - 70; if (d > lim) { x = A.x + (x - A.x) / d * lim; y = A.y + (y - A.y) / d * lim; } }
-        let t = 1.5 + k * 0.45;
+        let t = 1.45 + k * 0.4;
         hazards.push({ type: 'hrock', x, y, radius: 88, timer: t, life: t + 0.15, dmg: 55 });
     }
     createParticles(z.x, z.y, '#7f8c8d', 40, 380); spawnRing(z.x, z.y, '#a1887f', 160, 0.4, 6); Sound.play('throw');
@@ -168,13 +175,14 @@ function updateSpin(h, dt) {
     if (h.timer > 0) return;
     let tang = h.ang + h.dir * Math.PI / 2;
     const onChain = (e, w) => Math.hypot(e.x - z.x, e.y - z.y) > z.radius && distancePointToSegment(e.x, e.y, z.x, z.y, h.x, h.y) < (e.radius || 14) + w;
-    if (!tank.active) for (let p of players) {
-        if (p.isDowned || (p._spinHit || 0) > survivalTime || !onChain(p, 22)) continue;
+    for (let p of players) {
+        if (p.netLeft || p.isDowned || inTank(p) || (p._spinHit || 0) > survivalTime || !onChain(p, 22)) continue;
         p._spinHit = survivalTime + 0.55;   // đứng yên sẽ bị xích bắt kịp và quất liên tục
         p.takeDamage(h.dmg); stunPlayer(p, 0.35);
         for (let s = 0; s < 10; s++) { p.x += Math.cos(tang) * 10; p.y += Math.sin(tang) * 10; resolveCollision(p); }
         vfxList.push({ type: 'text', text: 'DÍNH XÍCH XOAY!', x: p.x, y: p.y - 40, life: 1.0, color: '#ff7675' });
-    } else if (tank.p2InvulnTimer <= 0 && !(h.tankHit > survivalTime) && onChain(tank, 22)) { h.tankHit = survivalTime + 1; tank.hp -= 45; }
+    }
+    if (tank.active && tank.p2InvulnTimer <= 0 && !(h.tankHit > survivalTime) && onChain(tank, 22)) { h.tankHit = survivalTime + 1; tank.hp -= 45; }
     for (let a of allies) if (a.hp > 0 && !((a._spinHit || 0) > survivalTime) && onChain(a, 20)) { a._spinHit = survivalTime + 0.8; a.takeDamage(h.dmg * 0.6); }
     for (let n of rescueNPCs) if (n.hp > 0 && !((n._spinHit || 0) > survivalTime) && onChain(n, 20)) { n._spinHit = survivalTime + 0.8; n.takeDamage(h.dmg * 0.5); }
     bossHitZombiesSeg(z.x, z.y, h.x, h.y, 22, 99999);
@@ -188,13 +196,14 @@ function updateBoulder(h, dt) {
     let a = Math.atan2(z.y - h.y, z.x - h.x), d = Math.hypot(z.x - h.x, z.y - h.y), step = Math.min(d, h.v * dt), R = Math.abs(h.radius);
     h.x += Math.cos(a) * step; h.y += Math.sin(a) * step;
     if (Math.random() < dt * 30) createParticles(h.x, h.y, '#8d6e63', 2, 140);
-    if (!tank.active) for (let p of players) {
-        if (p.isDowned || Math.hypot(p.x - h.x, p.y - h.y) > R + p.radius) continue;
+    for (let p of players) {
+        if (p.netLeft || p.isDowned || inTank(p) || Math.hypot(p.x - h.x, p.y - h.y) > R + p.radius) continue;
         if (p.perks.invulnTimer > 0) continue;
         p.hp = 0; p.goDown();
         vfxList.push({ type: 'text', text: 'KẾT LIỄU!', x: p.x, y: p.y - 46, life: 1.6, color: '#ff4757' });
         addScreenShake(18); Sound.play('tank');
-    } else if (!h.tankHit && Math.hypot(tank.x - h.x, tank.y - h.y) < R + tank.radius) { h.tankHit = true; tank.hp -= 260; addScreenShake(16); }
+    }
+    if (tank.active && !h.tankHit && Math.hypot(tank.x - h.x, tank.y - h.y) < R + tank.radius) { h.tankHit = true; tank.hp -= 260; addScreenShake(16); }
     for (let al of allies) if (al.hp > 0 && Math.hypot(al.x - h.x, al.y - h.y) < R + al.radius) al.takeDamage(99999);
     for (let n of rescueNPCs) if (n.hp > 0 && Math.hypot(n.x - h.x, n.y - h.y) < R + n.radius) n.takeDamage(600);
     bossHitZombies(h.x, h.y, R, 99999, 0);
@@ -209,52 +218,169 @@ function updateBoulder(h, dt) {
 }
 
 // ---------------------------------------------------------------------------
-// KIẾN CHÚA: MƯA AXIT LIÊN TỤC (càng mất máu càng dày)
+// KIẾN CHÚA: MƯA AXIT LIÊN TỤC (càng mất máu & càng đông người chơi càng dày)
 // ---------------------------------------------------------------------------
 function queenAcidRain(z, A, dt) {
     if (z.breaking > 0 || !A) return;
     let tent = zombies.filter(e => e.type === 46 && e.hp > 0).length;
-    let danger = z.phase === 1 ? Math.min(1, Math.max(0, 1 - z.hp / z.maxHp) / 0.45) * 0.5 : 0.5 + (4 - tent) * 0.125;
+    let extraP = Math.max(0, bossTeamCount() - 1);
+    let danger = z.phase === 1
+        ? Math.min(1, Math.max(0, 1 - z.hp / z.maxHp) / 0.32) * 0.48
+        : (z.qShield ? 0.56 + Math.max(0, 6 - tent) * 0.05 : 0.82 + (z.qWave >= 2 ? 0.14 : 0));
     z.rainT = (z.rainT === undefined ? 1.5 : z.rainT) - dt;
     if (z.rainT > 0) return;
-    z.rainT = Math.max(0.28, 1.3 - danger);
-    let n = 1 + Math.floor(danger * 2.5), al = players.filter(p => !p.isDowned);
+    z.rainT = Math.max(0.24, 1.28 - danger * 0.95 - extraP * 0.06);
+    let n = 1 + Math.floor(danger * 2.6) + Math.floor(extraP * 0.7), al = players.filter(p => !p.netLeft && !p.isDowned);
     for (let k = 0; k < n; k++) {
         let x, y;
-        if (al.length && Math.random() < 0.35) { let p = al[Math.floor(Math.random() * al.length)]; x = p.x + (Math.random() - 0.5) * 320; y = p.y + (Math.random() - 0.5) * 320; }
+        if (al.length && Math.random() < 0.4) { let p = al[Math.floor(Math.random() * al.length)]; x = p.x + (Math.random() - 0.5) * 320; y = p.y + (Math.random() - 0.5) * 320; }
         else { let a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * (A.r - 80); x = A.x + Math.cos(a) * r; y = A.y + Math.sin(a) * r; }
         let t = 1.25 + Math.random() * 0.4;
-        hazards.push({ type: 'acidbomb', x, y, radius: 64 + danger * 16, timer: t, life: t + 0.2, dmg: 20, pool: 1.6 });
+        hazards.push({ type: 'acidbomb', x, y, radius: 64 + danger * 16, timer: t, life: t + 0.2, dmg: 22, pool: 1.7 });
     }
     createParticles(z.x, z.y, '#2ecc71', 4, 220);
 }
 
 // ---------------------------------------------------------------------------
-// TRẬN TRÊN NÓC TÀU: The Hucker ném đá, quét xích; kết thúc bằng vụ nổ C4 rồi tàu lao vào hầm
+// TRẬN TRÊN NÓC TÀU: The Hucker ném đá, quét xích kép, NÉM ZOMBIE LÊN TÀU, DẦM THÉP TRÊN CAO & TIẾP TẾ
 // ---------------------------------------------------------------------------
+let bossSupplyT = 14;
 function railHuckerAttacks(r, dt) {
     if (r.stun > 0 || r.fin >= 0) return;
-    r.rockT = (r.rockT === undefined ? 5 : r.rockT) - dt;
+    let stg = typeof railStageOf === 'function' ? railStageOf(r.dist) : 0;
+    let extraP = Math.max(0, bossTeamCount() - 1);
+    let al = players.filter(p => !p.netLeft && !p.isDowned);
+
+    // 1. Ném đá tảng lên nóc tàu (tăng theo số người chơi & giai đoạn cuối)
+    r.rockT = (r.rockT === undefined ? 4.8 : r.rockT) - dt;
     if (r.rockT <= 0) {
-        r.rockT = Math.max(3.2, 6 - r.dist / 300) + Math.random() * 1.5;
-        let n = 3 + (r.dist > 500 ? 2 : 0), al = players.filter(p => !p.isDowned);
+        r.rockT = Math.max(2.4, (stg >= 3 ? 3.4 : (stg >= 2 ? 4.2 : 5.6)) - extraP * 0.25) + Math.random() * 1.2;
+        let n = 3 + extraP + (stg >= 1 ? 1 : 0) + (stg >= 2 ? 2 : 0) + (stg >= 3 ? 2 : 0);
+        let rockCars = new Set();
         for (let k = 0; k < n; k++) {
-            let p = al.length && Math.random() < 0.5 ? al[k % al.length] : null;
+            let p = al.length && Math.random() < 0.55 ? al[k % al.length] : null;
             let x = p ? p.x + (Math.random() - 0.5) * 160 : ROOF.x0 + 30 + Math.random() * (ROOF.x1 - ROOF.x0 - 60);
-            let y = p ? p.y + (Math.random() - 0.5) * 160 : ROOF.y0 + 80 + Math.random() * (ROOF.y1 - ROOF.y0 - 160);
-            x = Math.max(ROOF.x0 + 20, Math.min(ROOF.x1 - 20, x)); y = Math.max(ROOF.y0 + 40, Math.min(ROOF.y1 - 40, y));
-            let t = 1.15 + k * 0.38;
-            hazards.push({ type: 'hrock', x, y, radius: 78, timer: t, life: t + 0.15, dmg: 40 });
+            let y = p ? p.y + (Math.random() - 0.5) * 170 : ROOF.y0 + 80 + Math.random() * (ROOF.y1 - ROOF.y0 - 160);
+            x = Math.max(ROOF.x0 + 22, Math.min(ROOF.x1 - 22, x)); y = Math.max(ROOF.y0 + 40, Math.min(ROOF.y1 - 40, y));
+            if (typeof railCarName === 'function') rockCars.add(railCarName(y));
+            let t = 1.12 + k * 0.32;
+            hazards.push({ type: 'hrock', x, y, radius: 78, timer: t, life: t + 0.15, dmg: 40 + stg * 3 });
         }
-        railMsg('THE HUCKER NÉM ĐÁ LÊN NÓC TÀU!', 1.6); Sound.play('throw');
+        railMsg(`🪨 THE HUCKER NÉM ĐÁ LÊN [${Array.from(rockCars).join(', ')}]!`, 1.7); Sound.play('throw');
     }
-    r.sweepT = (r.sweepT === undefined ? 13 : r.sweepT) - dt;
-    if (r.sweepT <= 0 && r.dist > 150) {
-        r.sweepT = Math.max(7, 13 - r.dist / 200) + Math.random() * 3;
-        let p = pickAlivePlayer(), y = Math.max(ROOF.y0 + 60, Math.min(ROOF.y1 - 60, p.y + (Math.random() - 0.5) * 120));
-        hazards.push({ type: 'hsweep', x: (ROOF.x0 + ROOF.x1) / 2, y, radius: 50, timer: 1.4, t0: 1.4, life: 1.7, dmg: 50 });
-        railMsg('⚠ XÍCH QUÉT NGANG — NÉ RA KHỎI VẠCH ĐỎ!', 1.6); Sound.play('clang');
+
+    // 2. Boss ném thẳng từng cụm Zombie lên nóc các toa tàu (nhiều hơn khi đông người & gần cuối / cuối)
+    r.throwT = (r.throwT === undefined ? 6.2 : r.throwT) - dt;
+    if (r.throwT <= 0 && r.dist > 55) {
+        r.throwT = Math.max(3.2, (stg >= 3 ? 4.3 : (stg >= 2 ? 5.5 : (stg >= 1 ? 7.0 : 8.4))) - extraP * 0.45) + Math.random() * 1.1;
+        let zCap = 48 + extraP * 12 + stg * 8;
+        let nZom = Math.min(Math.max(0, zCap - zombies.length), 2 + extraP * 2 + (stg >= 1 ? 1 : 0) + (stg >= 2 ? 2 : 0) + (stg >= 3 ? 3 : 0));
+        if (nZom > 0) {
+            let carPool = [0, 1, 2];
+            // Ưu tiên toa đang có người chơi đứng và rải thêm sang toa lân cận khi đông người / gần cuối
+            let pCar = al.length ? (al[0].y < 1747 ? 0 : (al[0].y < 2253 ? 1 : 2)) : 1;
+            let carCount = Math.min(3, 1 + (extraP >= 1 || stg >= 2 ? 1 : 0) + (extraP >= 2 && stg >= 2 ? 1 : 0));
+            let chosenCars = [pCar];
+            for (let c of carPool) if (chosenCars.length < carCount && !chosenCars.includes(c)) chosenCars.push(c);
+            let carLabels = [];
+            for (let k = 0; k < nZom; k++) {
+                let cIdx = chosenCars[k % chosenCars.length];
+                let cy = typeof railCarCenterY === 'function' ? railCarCenterY(cIdx) : (1500 + cIdx * 500);
+                let tx = Math.max(ROOF.x0 + 30, Math.min(ROOF.x1 - 30, 2000 + (Math.random() - 0.5) * 220));
+                let ty = Math.max(ROOF.y0 + 45, Math.min(ROOF.y1 - 45, cy + (Math.random() - 0.5) * 340));
+                let roll = Math.random(), zType = 0;
+                if (stg >= 3 && roll < 0.18) zType = 14;          // Bọc Thép
+                else if (stg >= 2 && roll < 0.30) zType = 10;     // Lao Húc
+                else if (roll < (stg >= 2 ? 0.58 : 0.36)) zType = 3; // Chạy Nhanh
+                else if (roll < 0.72) zType = Math.random() < 0.5 ? 2 : 1; // Phun Độc / Xác Béo
+                let flight = 1.15 + k * 0.13;
+                hazards.push({ type: 'zthrow', x: tx, y: ty, radius: 64, timer: flight, t0: flight, life: flight + 0.25, dmg: 32, angle: zType });
+                let cName = typeof railCarName === 'function' ? railCarName(ty) : 'NÓC TÀU';
+                if (!carLabels.includes(cName)) carLabels.push(cName);
+            }
+            let cx = (ROOF.x0 + ROOF.x1) / 2;
+            vfxList.push({ type: 'text', text: `🧟 NÉM ${nZom} ZOMBIE!`, x: cx, y: ROOF.y1 - 80, life: 1.8, color: '#ff7675' });
+            railMsg(`🧟 THE HUCKER NÉM ${nZom} ZOMBIE LÊN [${carLabels.join(' · ')}]!`, 2.6);
+            Sound.play('roar'); Sound.play('throw'); addScreenShake(7);
+        }
     }
+
+    // 3. Xích quét ngang (Gần cuối & Cuối hoặc đội đông quét KÉP 2 vạch!)
+    r.sweepT = (r.sweepT === undefined ? 11.5 : r.sweepT) - dt;
+    if (r.sweepT <= 0 && r.dist > 130) {
+        r.sweepT = Math.max(5.2, (stg >= 3 ? 6.5 : (stg >= 2 ? 8.2 : 11.5)) - extraP * 0.35) + Math.random() * 2.2;
+        let sweepN = (stg >= 2 || extraP >= 2) ? 2 : 1;
+        let sweepCars = [], usedY = [];
+        for (let k = 0; k < sweepN; k++) {
+            let p = al.length ? al[(k + Math.floor(Math.random() * al.length)) % al.length] : pickAlivePlayer();
+            let y = Math.max(ROOF.y0 + 65, Math.min(ROOF.y1 - 65, (k === 0 ? p.y : (ROOF.y0 + 180 + Math.random() * (ROOF.y1 - ROOF.y0 - 360))) + (Math.random() - 0.5) * 110));
+            if (usedY.some(uy => Math.abs(uy - y) < 160)) y = y < 2000 ? Math.min(ROOF.y1 - 70, y + 360) : Math.max(ROOF.y0 + 70, y - 360);
+            usedY.push(y);
+            let wind = (stg >= 3 ? 1.22 : 1.38) + k * 0.28;
+            hazards.push({ type: 'hsweep', x: (ROOF.x0 + ROOF.x1) / 2, y, radius: 50, timer: wind, t0: wind, life: wind + 0.3, dmg: 52 });
+            if (typeof railCarName === 'function') { let cn = railCarName(y); if (!sweepCars.includes(cn)) sweepCars.push(cn); }
+        }
+        railMsg(sweepN > 1 ? `⛓ XÍCH QUÉT KÉP TẠI [${sweepCars.join(' & ')}] — NÉ KHỎI VẠCH ĐỎ!` : `⛓ XÍCH QUÉT NGANG TẠI [${sweepCars[0] || 'NÓC TÀU'}] — NÉ VẠCH ĐỎ!`, 2.1);
+        Sound.play('clang');
+    }
+
+    // 4. Chướng ngại mới thú vị: Dầm thép tín hiệu trên cao lao dọc theo làn tàu (quét cả người lẫn zombie!)
+    r.beamT = (r.beamT === undefined ? 10.5 : r.beamT) - dt;
+    if (r.beamT <= 0 && r.dist > 220 && r.dist < ROOF.tunnel - 110) {
+        r.beamT = Math.max(6.8, (stg >= 3 ? 7.6 : (stg >= 2 ? 9.4 : 12.8))) + Math.random() * 2.5;
+        let lane = [-1, 0, 1][Math.floor(Math.random() * 3)];
+        let lx = lane < 0 ? 1932 : (lane > 0 ? 2068 : 2000);
+        let hw = lane === 0 ? 78 : 82;
+        let laneName = lane < 0 ? 'MẠN TRÁI' : (lane > 0 ? 'MẠN PHẢI' : 'GIỮA NÓC');
+        let safeHint = lane < 0 ? 'MẠN PHẢI' : (lane > 0 ? 'MẠN TRÁI' : 'HAI MÉP TÀU');
+        hazards.push({ type: 'railbeam', x: lx, y: ROOF.y0 - 30, radius: hw, timer: 1.35, t0: 1.35, life: 2.9, dmg: 52, angle: lane });
+        railMsg(`🚧 DẦM THÉP TRÊN CAO BÊN [${laneName}] — LÁCH SANG ${safeHint}!`, 2.3);
+        Sound.play('anvil');
+    }
+
+    // 5. Tiếp tế định kỳ rơi xuống nóc tàu (nhiều hơn khi đông người chơi + thông báo toa)
+    r.supT = (r.supT === undefined ? 11 : r.supT) - dt;
+    if (r.supT <= 0 && drops.length < 6 + extraP * 3) {
+        r.supT = Math.max(9.5, 15.5 - extraP * 1.4) + Math.random() * 2.5;
+        let supN = 1 + Math.floor(bossTeamCount() / 2);
+        let cIdx = Math.floor(Math.random() * 3);
+        let cy = typeof railCarCenterY === 'function' ? railCarCenterY(cIdx) : 2000;
+        let cName = ['TOA ĐẦU', 'TOA GIỮA', 'TOA ĐUÔI'][cIdx];
+        for (let k = 0; k < supN; k++) {
+            let dx = Math.max(ROOF.x0 + 34, Math.min(ROOF.x1 - 34, 2000 + (k - (supN - 1) / 2) * 65 + (Math.random() - 0.5) * 24));
+            let dy = cy + (Math.random() - 0.5) * 110;
+            let tp = k === 0 ? (Math.random() < 0.6 ? 'BLINDBOX' : 'MEDKIT') : (Math.random() < 0.5 ? 'MEDKIT' : 'FOOD');
+            drops.push({ x: dx, y: dy, type: tp, life: 90 });
+            spawnRing(dx, dy, '#f1c40f', 75, 0.45, 4);
+        }
+        vfxList.push({ type: 'text', text: `📦 TIẾP TẾ x${supN} (${cName})`, x: 2000, y: cy - 36, life: 2.2, color: '#f1c40f' });
+        if (r.msgT <= 0.5) railMsg(`📦 HÒM TIẾP TẾ ĐÃ THẢ TẠI [${cName}]!`, 2.0);
+        Sound.play('reload');
+    }
+}
+function updateRailBeam(h, dt) {
+    if (h.timer > 0) return;
+    if (!h.go) { h.go = true; Sound.play('swoosh'); addScreenShake(9); }
+    h.y += 1260 * dt;
+    let hw = Math.abs(h.radius) || 80;
+    for (let p of players) {
+        if (p.netLeft || p.isDowned || (p._beamHit || 0) > survivalTime) continue;
+        if (Math.abs(p.x - h.x) <= hw + p.radius * 0.7 && Math.abs(p.y - h.y) <= 32 + p.radius) {
+            p._beamHit = survivalTime + 0.9;
+            p.takeDamage(h.dmg || 52); stunPlayer(p, 0.45);
+            p.y = Math.min(ROOF.y1 - p.radius, p.y + 42);
+            vfxList.push({ type: 'text', text: 'VA DẦM THÉP!', x: p.x, y: p.y - 40, life: 1.1, color: '#f1c40f' });
+        }
+    }
+    for (let z of zombies) {
+        if (z.hp <= 0 || (z._beamHit || 0) > survivalTime) continue;
+        if (Math.abs(z.x - h.x) <= hw + z.radius && Math.abs(z.y - h.y) <= 36 + z.radius) {
+            z._beamHit = survivalTime + 0.8;
+            z.hp -= 650; z.hitFlash = 0.15; z.knockback(0, 420);
+            if (z.hp <= 0) zombieDown(z, null);
+        }
+    }
+    if (h.y > ROOF.y1 + 90) h.life = 0;
 }
 function railStartFinale(r) {
     r.fin = 0; r.boost = 6;
@@ -292,7 +418,7 @@ function drawRailFinale(r, T, x0, x1, y0, y1) {
         let k = r.fin - 0.9, fy = ROOF.y1 + 250 + k * 90;
         for (let j = 0; j < 6; j++) { let tt = (T * 1.4 + j / 6) % 1; ctx.beginPath(); ctx.arc(cx + Math.sin(j * 2.3) * 70, fy - tt * 140, 30 + tt * 70, 0, Math.PI * 2); ctx.fillStyle = `rgba(${j % 2 ? '230,126,34' : '60,60,60'}, ${0.45 * (1 - tt)})`; ctx.fill(); }
     }
-    let ty = ROOF.y0 - 900 + (r.dist - (ROOF.tunnel - 80)) / 80 * 760 - 120;
+    let ty = ROOF.y0 - 900 + (r.dist - (ROOF.tunnel - 90)) / 90 * 760 - 120;
     if (ty > y0) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.82)'; ctx.fillRect(x0, y0, x1 - x0, ty - y0);
         ctx.strokeStyle = '#636e72'; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(x0, ty); ctx.lineTo(x1, ty); ctx.stroke();
@@ -305,9 +431,37 @@ function drawRailFinale(r, T, x0, x1, y0, y1) {
 function updateBossExtras(dt) {
     for (let z of zombies) if (z._t0 === undefined && z.hp > 0 && isBossType(z.type)) z._t0 = survivalTime;
     updateWeatherExtras(dt);
+
+    // Tiếp tế chiến trường khi đánh Boss trên bộ (tăng số lượng & nhịp rơi khi đông người chơi + báo hướng)
+    let activeBoss = objState !== 'TRAIN' && objState !== 'HUB' && !isCaveMap()
+        ? zombies.find(z => z.hp > 0 && !z.hidden && !z.gone && isBossType(z.type) && z.type !== 46)
+        : null;
+    if (activeBoss) {
+        let extraP = Math.max(0, bossTeamCount() - 1);
+        bossSupplyT -= dt;
+        if (bossSupplyT <= 0 && drops.length < 10 + extraP * 4) {
+            bossSupplyT = Math.max(11, 18 - extraP * 1.6) + Math.random() * 3;
+            let A = story.arena, cx = A ? A.x : activeBoss.x, cy = A ? A.y : activeBoss.y, rad = A ? A.r - 110 : 380;
+            let cnt = 1 + Math.floor((bossTeamCount()) / 2);
+            let dirs = [];
+            for (let k = 0; k < cnt; k++) {
+                let ang = Math.random() * Math.PI * 2, rr = 140 + Math.random() * Math.max(80, rad - 140);
+                let sp = findSafePoint(cx + Math.cos(ang) * rr, cy + Math.sin(ang) * rr, 20);
+                let tp = k === 0 ? 'BLINDBOX' : (Math.random() < 0.65 ? 'MEDKIT' : 'FOOD');
+                drops.push({ x: sp.x, y: sp.y, type: tp, life: 75 });
+                spawnRing(sp.x, sp.y, '#f1c40f', 90, 0.5, 4);
+                let dir = typeof compassDirName === 'function' ? compassDirName(sp.x - cx, sp.y - cy) : 'GẦN ĐÓ';
+                if (!dirs.includes(dir)) dirs.push(dir);
+            }
+            for (let p of players) if (!p.netLeft) vfxList.push({ type: 'text', text: `📦 TIẾP TẾ PHÍA [${dirs.join(', ')}]!`, x: p.x, y: p.y - 68, life: 2.1, color: '#f1c40f' });
+            Sound.play('reload');
+        }
+    } else bossSupplyT = Math.min(bossSupplyT, 14);
+
     for (let h of hazards) {
         if (h.type === 'hspin') { updateSpin(h, dt); continue; }
         if (h.type === 'hboulder') { updateBoulder(h, dt); continue; }
+        if (h.type === 'railbeam') { updateRailBeam(h, dt); continue; }
         if (h.done || !(h.timer <= 0)) continue;
         if (h.type === 'hrock') {
             h.done = true; h.life = 0;
@@ -316,10 +470,19 @@ function updateBossExtras(dt) {
             for (let a of allies) if (a.hp > 0 && Math.hypot(a.x - h.x, a.y - h.y) < h.radius) a.takeDamage((h.dmg || 50) * 0.5);
             for (let n of rescueNPCs) if (n.hp > 0 && Math.hypot(n.x - h.x, n.y - h.y) < h.radius) n.takeDamage((h.dmg || 50) * 0.4);
             if (tank.active && tank.p2InvulnTimer <= 0 && Math.hypot(tank.x - h.x, tank.y - h.y) < h.radius + tank.radius) tank.hp -= (h.dmg || 50) * 0.5;
-            if (story.rail) story.rail.hp -= 1.5;
+            if (story.rail) story.rail.hp -= 1.2;
             createParticles(h.x, h.y, '#95a5a6', 32, 320); createParticles(h.x, h.y, '#5d4037', 12, 160);
             spawnRing(h.x, h.y, '#bdc3c7', h.radius * 1.15, 0.3, 5); addDecal(h.x, h.y, '#2b2b2b', h.radius * 0.45, 0.4);
             addScreenShake(8); Sound.play('tank');
+        } else if (h.type === 'zthrow') {
+            h.done = true; h.life = 0;
+            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 32, { stun: 0.25 });
+            let zType = Math.max(0, Math.round(h.angle || 0));
+            let nz = new Zombie(h.x, h.y, zType);
+            zombies.push(nz);
+            createParticles(h.x, h.y, '#6d4c41', 20, 240);
+            spawnRing(h.x, h.y, '#ff7675', h.radius * 1.05, 0.32, 4);
+            addScreenShake(6); Sound.play('hit');
         } else if (h.type === 'hail') {
             h.done = true; h.life = 0;
             hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 8);
@@ -329,7 +492,7 @@ function updateBossExtras(dt) {
             h.done = true;
             let xa = ROOF.x0 - 40, xb = ROOF.x1 + 40;
             for (let p of players) {
-                if (p.isDowned || Math.abs(p.y - h.y) > h.radius + p.radius) continue;
+                if (p.netLeft || p.isDowned || inTank(p) || Math.abs(p.y - h.y) > h.radius + p.radius) continue;
                 p.takeDamage(h.dmg); stunPlayer(p, 0.5);
                 vfxList.push({ type: 'text', text: 'BỊ XÍCH QUÉT!', x: p.x, y: p.y - 40, life: 1.0, color: '#ff7675' });
             }
@@ -341,7 +504,7 @@ function updateBossExtras(dt) {
     // Sau khi hạ boss: hút chiến lợi phẩm về phía người chơi gần nhất
     if (bossWin && (performance.now() - bossWin.at) / 1000 < 3.5) {
         bossWin.gain = Math.max(0, shopScrap - bossWin.scrap0);
-        let al = players.filter(p => !p.isDowned);
+        let al = players.filter(p => !p.netLeft && !p.isDowned);
         if (al.length) for (let d of drops) {
             let p = al.reduce((b, q) => Math.hypot(q.x - d.x, q.y - d.y) < Math.hypot(b.x - d.x, b.y - d.y) ? q : b, al[0]);
             let dd = Math.hypot(p.x - d.x, p.y - d.y);
@@ -389,7 +552,7 @@ bossSay = function (z, text, color) {
 // ---------------------------------------------------------------------------
 // GIAO DIỆN: THANH MÁU BOSS & BẢNG CHIẾN THẮNG
 // ---------------------------------------------------------------------------
-const BOSS_PHASES = { 30: [0.5], 37: [0.65, 0.35], 45: [0.55], 50: [0.5] };
+const BOSS_PHASES = { 30: [0.5], 37: [0.65, 0.35], 45: [0.68, 0.38, 0.22], 50: [0.5] };
 // Vẽ thanh máu boss ở đỉnh màn hình, trả về chiều cao đã dùng
 function drawBossHud(b, y, bw) {
     let now = performance.now() / 1000, dtv = Math.min(0.1, now - (b._tl || now)); b._tl = now;
@@ -397,11 +560,11 @@ function drawBossHud(b, y, bw) {
     if (b._trail === undefined || b._trail < pct) b._trail = pct; else if (now - (b._hitAt || 0) > 0.6) b._trail = Math.max(pct, b._trail - 0.35 * dtv);
     if (b._lastPct !== undefined && pct < b._lastPct - 0.0005) b._hitAt = now;
     b._lastPct = pct;
-    let locked = b.hidden || b.invuln || (b.type === 45 && b.phase === 2);
+    let locked = b.hidden || b.invuln || (b.type === 45 && typeof queenIsShielded === 'function' && queenIsShielded(b));
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; ctx.fillRect(x - 8, y, bw + 16, 42);
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left'; outlinedText('☠ ' + (BOSS_NAMES[b.type] || 'BOSS'), x, y + 10, b.color, 'bold 13px Arial');
-    let state = locked ? 'BẤT TỬ' : (b.exhaust > 0 ? 'KIỆT SỨC x2' : ((b.chargeStun > 0 || b.stunTimer > 0 || b.downed) ? 'CHOÁNG' : ''));
+    let state = locked ? 'BẤT TỬ (PHÁ XÚC TU)' : (b.exhaust > 0 ? 'KIỆT SỨC x2' : ((b.chargeStun > 0 || b.stunTimer > 0 || b.downed) ? 'CHOÁNG' : (b.type === 45 && b.phase2Done ? 'KHIÊN VỠ — CUỒNG NỘ' : '')));
     ctx.textAlign = 'right'; outlinedText((state ? state + '  ' : '') + Math.ceil(pct * 100) + '%', x + bw, y + 10, state ? (locked ? '#b2bec3' : '#f1c40f') : '#fff', 'bold 12px Arial');
     let by = y + 21;
     ctx.fillStyle = 'rgba(40, 10, 10, 0.9)'; ctx.fillRect(x, by, bw, bh);
@@ -493,6 +656,57 @@ function drawBoulderRock(x, y, R, rot) {
 }
 function drawBossHazard(h, T) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (h.type === 'venomring') {
+        let R = Math.max(20, h.radius || 80);
+        ctx.save();
+        ctx.beginPath(); ctx.arc(h.x, h.y, R, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(46, 204, 113, 0.85)'; ctx.lineWidth = 18; ctx.stroke();
+        ctx.beginPath(); ctx.arc(h.x, h.y, Math.max(6, R - 10), 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(155, 89, 182, 0.75)'; ctx.lineWidth = 6; ctx.setLineDash([16, 10]); ctx.lineDashOffset = -T * 90; ctx.stroke();
+        ctx.setLineDash([]); ctx.lineDashOffset = 0;
+        ctx.restore();
+        return;
+    }
+    if (h.type === 'zthrow') {
+        let R = h.radius || 64, t0 = h.t0 || 1.2, pct = h.timer > 0 ? Math.max(0, Math.min(1, 1 - h.timer / t0)) : 1;
+        // Vòng báo động nơi Zombie sắp đáp xuống nóc tàu
+        ctx.beginPath(); ctx.arc(h.x, h.y, R, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 118, 117, ${0.14 + 0.2 * pct})`; ctx.fill();
+        ctx.strokeStyle = '#ff7675'; ctx.lineWidth = 2.5; ctx.setLineDash([8, 6]); ctx.stroke(); ctx.setLineDash([]);
+        ctx.beginPath(); ctx.arc(h.x, h.y, R * pct, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.25)'; ctx.fill();
+        if (h.timer > 0) {
+            let sx = 2000, sy = (typeof ROOF !== 'undefined' ? ROOF.y1 : h.y + 400) + 230;
+            let zx = sx + (h.x - sx) * pct, zy = sy + (h.y - sy) * pct - Math.sin(pct * Math.PI) * 210;
+            drawShadow(sx + (h.x - sx) * pct, sy + (h.y - sy) * pct, 16 * (0.5 + 0.5 * pct));
+            let zt = Math.round(h.angle || 0);
+            let zCol = zt === 14 ? '#636e72' : (zt === 10 ? '#d63031' : (zt === 3 ? '#e17055' : (zt === 2 ? '#00b894' : '#2ecc71')));
+            ctx.save(); ctx.translate(zx, zy); ctx.rotate(T * 11 + h.x * 0.02);
+            ctx.beginPath(); ctx.arc(0, 0, zt === 1 || zt === 14 ? 20 : 15, 0, Math.PI * 2);
+            ctx.fillStyle = zCol; ctx.fill(); ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.stroke();
+            ctx.restore();
+            outlinedText('🧟 RƠI!', h.x, h.y, '#ffeaa7', 'bold 11px Arial', 3);
+        }
+        return;
+    }
+    if (h.type === 'railbeam') {
+        let hw = Math.abs(h.radius) || 80, xa = h.x - hw, xb = h.x + hw;
+        let ya = typeof ROOF !== 'undefined' ? ROOF.y0 : h.y - 300, yb = typeof ROOF !== 'undefined' ? ROOF.y1 : h.y + 800;
+        if (h.timer > 0) {
+            let pulse = 0.5 + 0.5 * Math.sin(T * 18);
+            ctx.fillStyle = `rgba(241, 196, 15, ${0.12 + 0.16 * pulse})`; ctx.fillRect(xa, ya, xb - xa, yb - ya);
+            ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 3; ctx.setLineDash([18, 12]); ctx.strokeRect(xa, ya, xb - xa, yb - ya); ctx.setLineDash([]);
+            for (let yy = ya + 140; yy < yb - 80; yy += 260) outlinedText('🚧 DẦM THÉP SẮP QUÉT!', h.x, yy, '#f1c40f', 'bold 13px Arial', 4);
+        } else {
+            drawShadow(h.x, h.y + 18, hw * 0.8);
+            ctx.fillStyle = '#2d3436'; ctx.fillRect(xa - 6, h.y - 24, xb - xa + 12, 48);
+            ctx.strokeStyle = '#dfe6e9'; ctx.lineWidth = 4; ctx.strokeRect(xa - 6, h.y - 24, xb - xa + 12, 48);
+            ctx.fillStyle = '#f1c40f';
+            for (let sx = xa; sx < xb - 12; sx += 28) ctx.fillRect(sx, h.y - 18, 14, 36);
+            outlinedText('🚧 DẦM THÉP', h.x, h.y, '#fff', 'bold 13px Arial', 4);
+        }
+        return;
+    }
     if (h.type === 'hsweep') {
         let xa = (typeof ROOF !== 'undefined' ? ROOF.x0 : h.x - 180) - 40, xb = (typeof ROOF !== 'undefined' ? ROOF.x1 : h.x + 180) + 40;
         if (h.timer > 0) {
@@ -570,4 +784,4 @@ function bossNetApply(x) {
     if (Array.isArray(c) && (!bossCast || bossCast.text !== String(c[0]))) bossCast = { text: String(c[0]), color: String(c[1]), at: now - (c[2] | 0) * 10 };
 }
 
-['hspin', 'hboulder', 'hsweep'].forEach(t => ARS_HZ.add(t));
+['hspin', 'hboulder', 'hsweep', 'zthrow', 'railbeam', 'venomring'].forEach(t => ARS_HZ.add(t));

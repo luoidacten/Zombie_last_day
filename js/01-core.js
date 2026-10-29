@@ -16,7 +16,17 @@ const UI = {
     p2BtnA: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 },
     p2BtnB: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 },
     p2BtnC: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 },
-    p2BtnD: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 }
+    p2BtnD: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 },
+    p3Stick: { active: false, cx: 0, cy: 0, id: null, dx: 0, dy: 0, baseX: 0, baseY: 0 },
+    p3BtnA: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 },
+    p3BtnB: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 },
+    p3BtnC: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 },
+    p3BtnD: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 },
+    p4Stick: { active: false, cx: 0, cy: 0, id: null, dx: 0, dy: 0, baseX: 0, baseY: 0 },
+    p4BtnA: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 },
+    p4BtnB: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 },
+    p4BtnC: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 },
+    p4BtnD: { pressed: false, justPressed: false, justReleased: false, id: null, x: 0, y: 0 }
 };
 
 // --- 2. KHAI BÁO PC_INPUT LÊN ĐẦU ---

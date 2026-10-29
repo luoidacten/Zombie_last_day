@@ -31,9 +31,13 @@ function enterHub() {
     for (let i = 0; i < 500; i++) GROUND_DOTS.push({ x: 1300 + Math.random() * 1400, y: 1450 + Math.random() * 1100, r: Math.random() * 2.5 + 0.5 });
     }
 
+    tank.crew = [];
+    const hubOff = [[0, 30], [-45, 30], [45, 30], [0, -25]];
     players.forEach((p, i) => {
+        if (p.netLeft) return;
         if (p.isDowned) { p.isDowned = false; p.hp = Math.max(1, p.maxHp * 0.3); }   // đồng đội gục được đưa về trại
-        p.x = HUB.x + (players.length > 1 ? (i ? 40 : -40) : 0); p.y = HUB.y + 30; p.status = {}; p.stunTimer = 0; p.netTimer = 0; p.pullingPin = false; p.chargeTime = 0;
+        let off = players.length > 1 ? (hubOff[(i + 1) % 4] || [0, 30]) : [0, 30];
+        p.x = HUB.x + off[0]; p.y = HUB.y + off[1]; p.status = {}; p.stunTimer = 0; p.netTimer = 0; p.pullingPin = false; p.chargeTime = 0;
     });
     allies = allies.filter(a => a.hp > 0); allies.forEach((a, i) => { a.x = HUB.x + (i % 2 ? 90 : -90); a.y = HUB.y + 90; });
     hub = { armed: false, panel: null };   // phải bước ra khỏi vòng rồi bước vào lại mới mở bảng
@@ -51,6 +55,7 @@ function enterHub() {
 function updateHub(dt) {
     syncPcControls();
     for (let p of players) {
+        if (p.netLeft) continue;
         p.update(dt);
         p.hunger = Math.max(p.hunger, 60);
         if (!p.isDowned && p.hp < p.maxHp) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * (Math.hypot(p.x - HUB.fire.x, p.y - HUB.fire.y) < 170 ? 0.08 : 0.02) * dt);

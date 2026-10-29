@@ -35,6 +35,15 @@ function setPcButton(name, source, down) {
     setButtonInput(getButtonObject(name), sources.size > 0);
 }
 
+function clearPlayerUiSlot(pid) {
+    let st = UI['p' + pid + 'Stick'];
+    if (st) { st.active = false; st.dx = 0; st.dy = 0; st.id = null; }
+    for (let n of ['A', 'B', 'C', 'D']) {
+        let b = UI['p' + pid + 'Btn' + n];
+        if (b) { b.pressed = false; b.justPressed = false; b.justReleased = false; b.id = null; }
+    }
+}
+
 function clearPcInputs() {
     PC_INPUT.keys.clear();
     for (let name of Object.keys(PC_INPUT.buttons)) {
@@ -44,8 +53,9 @@ function clearPcInputs() {
     }
     UI.p1Stick.active = false; UI.p1Stick.dx = 0; UI.p1Stick.dy = 0; UI.p1Stick.id = null;
     if (NET.mode !== 'host') {
-        UI.p2Stick.active = false; UI.p2Stick.dx = 0; UI.p2Stick.dy = 0; UI.p2Stick.id = null;
-        for (let n of ['A', 'B', 'C', 'D']) { let b = UI['p2Btn' + n]; b.pressed = false; b.justPressed = false; b.justReleased = false; b.id = null; }
+        clearPlayerUiSlot(2);
+        clearPlayerUiSlot(3);
+        clearPlayerUiSlot(4);
     }
 }
 
@@ -81,16 +91,25 @@ function getPcAimAngle(worldX, worldY, fallbackAngle) {
     return Math.atan2(dy, dx);
 }
 
-// Người chơi này có đang ngắm bằng chuột không? (P2 online lấy từ máy khách; P2 chung máy thì không)
+// Người chơi này có đang ngắm bằng chuột không? (Khách P2..P4 online lấy từ máy khách; P2 chung máy thì không)
 function playerUsesPointer(p) {
-    if (NET.mode === 'host' && p.id === 2) return NET.remote.ptr;
+    if (NET.mode === 'host' && p.id >= 2) {
+        let rem = typeof netRemoteOf === 'function' ? netRemoteOf(p.id) : NET.remote;
+        return !!(rem && rem.ptr);
+    }
     return p.id === 1 && PC_INPUT.pointer.active;
 }
 
 function applyAim(player) {
     if (!playerUsesPointer(player)) return;
     const fallbackAngle = Math.atan2(player.facingY, player.facingX);
-    const angle = (NET.mode === 'host' && player.id === 2) ? NET.remote.ang : getPcAimAngle(player.x, player.y, fallbackAngle);
+    let angle = fallbackAngle;
+    if (NET.mode === 'host' && player.id >= 2) {
+        let rem = typeof netRemoteOf === 'function' ? netRemoteOf(player.id) : NET.remote;
+        if (rem) angle = rem.ang;
+    } else {
+        angle = getPcAimAngle(player.x, player.y, fallbackAngle);
+    }
     player.facingX = Math.cos(angle);
     player.facingY = Math.sin(angle);
 }
@@ -198,11 +217,13 @@ function cleanUpStuckTouches(e) {
     }
 }
 function updateJoystick(stick, tx, ty) { let dx = tx - stick.baseX, dy = ty - stick.baseY, dist = Math.hypot(dx, dy), maxDist = 40; if (dist > maxDist) { dx = (dx / dist) * maxDist; dy = (dy / dist) * maxDist; } stick.cx = stick.baseX + dx; stick.cy = stick.baseY + dy; stick.dx = dx / maxDist; stick.dy = dy / maxDist; }
-function getJoystickState(id) { return id === 1 ? UI.p1Stick : UI.p2Stick; }
+function getJoystickState(id) {
+    let slot = Math.max(1, Math.min(4, id || 1));
+    return UI['p' + slot + 'Stick'] || UI.p1Stick;
+}
 function getButtonState(id, btn, type = 'pressed') {
-    let b;
-    if (id === 1) b = (btn === 'A' ? UI.p1BtnA : (btn === 'B' ? UI.p1BtnB : (btn === 'C' ? UI.p1BtnC : UI.p1BtnD)));
-    else b = (btn === 'A' ? UI.p2BtnA : (btn === 'B' ? UI.p2BtnB : (btn === 'C' ? UI.p2BtnC : UI.p2BtnD)));
+    let slot = Math.max(1, Math.min(4, id || 1));
+    let b = UI['p' + slot + 'Btn' + btn] || UI['p1Btn' + btn];
 
     if (type === 'justPressed') { let r = b.justPressed; b.justPressed = false; return r; }
     if (type === 'released') { let r = b.justReleased; b.justReleased = false; return r; }

@@ -111,12 +111,13 @@ function colonyArrive() {
     let moved = colonySettle();   // chỉ ở lại được khi đủ NHÀ Ở và LƯƠNG THỰC
     if (n || mat) netToast(`🏘 ${n ? `${n} người được giải cứu đã về căn cứ${moved < n ? ` — ${base.wait} người đang chờ vì thiếu nhà ở / nông trại` : ''}. ` : ''}${mat ? `${w} thợ chế tạo được +${mat} 🧱 Vật Liệu.` : ''}`, 5500);
 }
-// Thủ thành: thợ sửa Nhà Chính
+// Thủ thành: Nhà Chính chỉ tự hồi & được thợ sửa khi KHÔNG bị tấn công trong 5 giây (tốc độ hồi đã giảm)
 function colonyDefTick(dt, h) {
     let w = Math.min(8, baseWorkers());
-    if (w > 0 && h && h.hp > 0 && h.hp < h.maxHp) {
-        h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.003 * w * dt);
-        if (Math.random() < dt * 2) createParticles(h.x + (Math.random() - 0.5) * 160, h.y + (Math.random() - 0.5) * 100, '#f1c40f', 2, 80);
+    if (h && h.hp > 0 && h.hp < h.maxHp && h.noHitT >= 5.0) {
+        let rate = 0.0007 + 0.0008 * w;
+        h.hp = Math.min(h.maxHp, h.hp + h.maxHp * rate * baseRegenDt(dt, h.noHitT));
+        if (Math.random() < dt * 1.5) createParticles(h.x + (Math.random() - 0.5) * 160, h.y + (Math.random() - 0.5) * 100, '#f1c40f', 2, 80);
     }
 }
 function forgeBuy(pi) {
@@ -289,21 +290,22 @@ function zapStartFlee(z) {
         if (Math.hypot(x - A.x, y - A.y) > 1000 && !isBlockedPoint(x, y, 70)) g = { x, y };
     }
     if (!g) g = findSafePoint(MAP_SIZE.w - A.x, MAP_SIZE.h - A.y, 70);
-    let hp = 2200 + currentLevel * 250;
+    let hp = Math.round((2200 + currentLevel * 250) * (1 + (bossTeamCount() - 1) * 0.35));
     obstacles = obstacles.filter(o => !(o.x < g.x + 120 && o.x + o.w > g.x - 120 && o.y < g.y + 120 && o.y + o.h > g.y - 120) || o.arena);
     story.props.push({ kind: 'zgen', breakable: true, x: g.x, y: g.y, r: 48, hp, maxHp: hp });
     zx.fl = { st: 'run', gx: g.x, gy: g.y, bt: 1.4, lt: 1.2 }; zx.final = 1; zx.fs = 1;
     missionItems = [];
     removeBossArena();
-    bossSay(z, 'ZAP-1624 BỎ CHẠY!', '#f9ca24');
-    for (let p of players) vfxList.push({ type: 'text', text: 'NÓ BỎ CHẠY VỀ MÁY PHÁT ĐIỆN — ĐUỔI THEO, NÉ SÉT!', x: p.x, y: p.y - 96, life: 3.0, color: '#f9ca24' });
-    queueRadio('Tiến sĩ Aegis: Nó cạn năng lượng và đang chạy về Máy Phát Điện dự phòng để sạc! Đuổi theo — PHÁ HỦY MÁY PHÁT là nó chết hẳn!', null, 7);
+    let gDir = compassDirName(g.x - A.x, g.y - A.y);
+    bossSay(z, `ZAP-1624 BỎ CHẠY VỀ PHÍA [${gDir}]!`, '#f9ca24');
+    for (let p of activePlayers()) vfxList.push({ type: 'text', text: `NÓ BỎ CHẠY VỀ MÁY PHÁT ĐIỆN PHÍA [${gDir}] — ĐUỔI THEO!`, x: p.x, y: p.y - 96, life: 3.0, color: '#f9ca24' });
+    queueRadio(`Tiến sĩ Aegis: Nó cạn năng lượng và đang chạy về Máy Phát Điện dự phòng ở phía [${gDir}] để sạc! Đuổi theo — PHÁ HỦY MÁY PHÁT là nó chết hẳn!`, null, 7);
     Sound.play('thunder'); addScreenShake(18);
 }
 function zapFleeUpdate(z, target, dt) {
     let zx = story.zx, f = zx.fl, gen = story.props.find(p => p.kind === 'zgen');
     z.invuln = true; z.downed = false; z.kbX = z.kbY = 0;
-    let al = players.filter(p => !p.isDowned);
+    let al = players.filter(p => !p.netLeft && !p.isDowned);
     if (f.st === 'run') {
         zx.final = 1; zx.fs = 1;
         // sét đánh vào chỗ người chơi đang đuổi theo

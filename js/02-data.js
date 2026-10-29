@@ -11,8 +11,18 @@ let loopToken = 0, frameDt = 1 / 60, killCount = 0, zombieIdSeq = 0, frameElectr
 let shardGrantedLevel = 0, pendingBattery = 0, levelStartTexts = [];
 let shopFlags = { flare: false, mines: 0, herbicide: false, urbanMap: false };
 let cam = { x: MAP_SIZE.w / 2, y: MAP_SIZE.h / 2, zoom: 0.9 };
-// Trạng thái mạng (Online Co-op). mode: null | 'host' | 'guest'
-const NET = { mode: null, role: null, localIdx: 0, peer: null, conn: null, remote: { ptr: false, ang: 0 }, ev: [], seq: 0, lastSeq: 0, lastRecv: 0, ping: 0, sendAcc: 0, slowAcc: 0, inputAcc: 0, sig: {}, zmap: new Map(), applying: false, lastPt: 0, lastPtAt: 0 };
+const PLAYER_COLORS = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f'];
+function playerColorOf(id) { return PLAYER_COLORS[Math.max(0, Math.min(3, (id || 1) - 1))]; }
+function activePlayers() { return typeof players !== 'undefined' ? players.filter(p => p && !p.netLeft) : []; }
+function activePlayerCount() { return Math.max(1, activePlayers().length); }
+// Hệ số nhân theo số người chơi dùng cho kỹ năng/triệu hồi/tiếp tế Boss
+function bossTeamCount() { return activePlayerCount(); }
+function bossTeamHpMult(isQueen = false) {
+    let n = activePlayerCount();
+    return 1 + (n - 1) * (isQueen ? 0.52 : 0.42);
+}
+// Trạng thái mạng (Online Co-op 2-4 người). mode: null | 'host' | 'guest'
+const NET = { mode: null, role: null, localIdx: 0, playerCount: 1, locked: false, peer: null, conn: null, peers: [], remote: { ptr: false, ang: 0 }, ev: [], seq: 0, lastSeq: 0, lastRecv: 0, ping: 0, sendAcc: 0, slowAcc: 0, inputAcc: 0, sig: {}, zmap: new Map(), applying: false, lastPt: 0, lastPtAt: 0 };
 
 // Hệ thống tiến hóa xe tăng
 let globalTankKills = 0;
@@ -33,7 +43,9 @@ const TAG_RULES = {
     'TRỰC THĂNG': { reqBreak: 5, exclusive: false }, // Có thể Bức phá cùng với 1 Độc tôn khác
     'NỔ': { reqBreak: 5, exclusive: false },
     'QUAN_DOI': { reqBreak: 5, exclusive: false },
-    'DONG_MINH': { reqBreak: 5, exclusive: false }
+    'DONG_MINH': { reqBreak: 5, exclusive: false },
+    'HÚT MÁU': { reqBreak: 5, exclusive: false },
+    'PHÒNG THỦ': { reqBreak: 5, exclusive: false }
 
 };
 
@@ -63,6 +75,8 @@ const TAG_DEFS = {
     'ĐIỆN': { max: 15, color: '#00d2d3' },
     'NÉM': { max: 5, color: '#fab1a0' },
     'LIỀM': { max: 3, color: '#ff5e57' },
+    'HÚT MÁU': { max: 6, color: '#ff3838', label: 'HÚT MÁU' },
+    'PHÒNG THỦ': { max: 6, color: '#54a0ff', label: 'PHÒNG THỦ' },
     'KHAN_DOC': { max: 5, color: '#2ecc71', label: 'ĐỘC TỐ' },
     'THOI_KHONG': { max: 3, color: '#8e44ad', label: 'THỜI KHÔNG' },
     'TRIEU_HOI': { max: 6, color: '#00cec9', label: 'TRIỆU HỒI' },
@@ -111,8 +125,8 @@ const UPGRADES = [
     { id: 'd_learn', type: 'Tuyệt Kỹ', name: 'Học Tập (Nhiệm vụ)', desc: 'Drone nhặt đồ giúp bạn. Drone giết 200 quái -> Tiến hóa AI (tự bắn).', tags: ['DRONE', 'BẬC THẦY'] },
 
     // --- HỆ KIẾM SƯ MỞ RỘNG ---
-    { id: 'k_kyThuat', type: 'Kỹ Năng', name: 'Kỹ Thuật Cản Phá', desc: 'Cận chiến: 30% tỷ lệ phản đòn và miễn sát thương.', tags: ['CẬN CHIẾN', 'KIẾM SƯ'] },
-    { id: 'k_hoi', type: 'Kỹ Năng', name: 'Kiếm Hồi Phục', desc: 'Katana: Giết quái hồi độ bền, 2% tỷ lệ hồi 1% Máu.', tags: ['HỒI MÁU', 'KIẾM SƯ'] },
+    { id: 'k_kyThuat', type: 'Kỹ Năng', name: 'Kỹ Thuật Cản Phá', desc: 'Cận chiến: 30% tỷ lệ phản đòn và miễn sát thương.', tags: ['CẬN CHIẾN', 'KIẾM SƯ', 'PHÒNG THỦ'] },
+    { id: 'k_hoi', type: 'Kỹ Năng', name: 'Kiếm Hồi Phục', desc: 'Katana: Giết quái hồi độ bền, 2% tỷ lệ hồi 1% Máu.', tags: ['HỒI MÁU', 'KIẾM SƯ', 'HÚT MÁU'] },
     { id: 'k_thieu', type: 'Kỹ Năng', name: 'Kiếm Hỏa', desc: 'Katana: Đòn chém gây hiệu ứng Thiêu Đốt.', tags: ['KIẾM SƯ'] },
     { id: 'k_pha', type: 'Kỹ Năng', name: 'Phá Trảm', desc: 'Katana: 10% tỷ lệ tạo ra đòn chém xoay vòng tròn.', tags: ['KIẾM SƯ'] },
     { id: 'k_diet', type: 'Tuyệt Kỹ', name: 'Tuyệt Diệt (Bí thuật)', desc: 'Katana: 5% gọi 2 Phân ảnh chữ V khi giết địch (Có thể lan truyền).', tags: ['ĐẶC BIỆT', 'KIẾM SƯ'] },
@@ -144,8 +158,8 @@ const UPGRADES = [
     { id: 'v_tenNo', type: 'Tuyệt Kỹ', name: 'Trận Địa Tên Nổ', desc: 'Cung: Mưa Tên tăng 50% phạm vi, sát thương và liên tục kích nổ liên hoàn.', tags: ['ĐẶC BIỆT', 'NỔ'] },
     { id: 'v_cungMaster', type: 'Kỹ Năng', name: 'Đại Sư Khúc Xạ', desc: 'Cung: Tăng mạnh tốc độ tụ lực và +40% sát thương gốc của cung tên.', tags: ['CHỈ SỐ'] },
     // perks DOT
-    { id: 'a_chongAnMon', type: 'Phong Thu', name: 'Kháng Ăn Mòn', desc: 'Giảm 35% sát thương ăn mòn và vũng acid gây lên người chơi.', tags: ['ĐẶC BIỆT', 'KHAN_DOC'] },
-    { id: 'a_matNaLoc', type: 'Phong Thu', name: 'Mặt Nạ Lọc', desc: 'Giảm mạnh thời gian hiệu ứng Nhiễm Điện và Sợ Hãi.', tags: ['ĐẶC BIỆT', 'TRỢ GIÚP', 'KHAN_DOC'] },
+    { id: 'a_chongAnMon', type: 'Phòng Thủ', name: 'Kháng Ăn Mòn', desc: 'Giảm 35% sát thương ăn mòn và vũng acid gây lên người chơi.', tags: ['PHÒNG THỦ', 'ĐẶC BIỆT', 'KHAN_DOC'] },
+    { id: 'a_matNaLoc', type: 'Phòng Thủ', name: 'Mặt Nạ Lọc', desc: 'Giảm mạnh thời gian hiệu ứng Nhiễm Điện và Sợ Hãi.', tags: ['PHÒNG THỦ', 'ĐẶC BIỆT', 'TRỢ GIÚP', 'KHAN_DOC'] },
     { id: 'a_apSuatCao', type: 'Kỹ Năng', name: 'Áp Suất Cao', desc: 'Súng phun lửa và phun acid bắn xa hơn, tia ổn định hơn.', tags: ['TIẾN CÔNG', 'CHỈ SỐ', 'KHAN_DOC'] },
     // --- HỆ ĐỘC TỐ & THỜI KHÔNG (trước đây có Link nhưng chưa có thẻ / hiệu ứng) ---
     { id: 'x_venom', type: 'Kỹ Năng', name: 'Nọc Độc', desc: 'Mọi đòn đánh của bạn có 20% gây Ăn Mòn lên mục tiêu.', tags: ['KHAN_DOC', 'TIẾN CÔNG'] },
@@ -156,7 +170,7 @@ const UPGRADES = [
 
     // CÁC NÂNG CẤP ĐẶC CHẾ CHỈ XUẤT HIỆN KHI QUA 3 TẦNG ĐIỆN (Sẽ được xử lý bộ lọc ở hàm render)
     { id: 'e_dienAp', type: 'Điện Năng', name: '⚡ Điện Áp', desc: 'Tạo trường điện quanh cơ thể gây sát thương điện liên tục lên quái vật xung quanh.', tags: ['ĐIỆN'] },
-    { id: 'e_giapNangLuong', type: 'Phòng Thủ', name: '🛡️ Giáp Năng Lượng', desc: 'Cứ mỗi 5 giây nhận 1 lớp khiên điện bảo vệ chặn hoàn toàn đòn đánh kế tiếp.', tags: ['ĐIỆN'] },
+    { id: 'e_giapNangLuong', type: 'Phòng Thủ', name: '🛡️ Giáp Năng Lượng', desc: 'Cứ mỗi 5 giây nhận 1 lớp khiên điện bảo vệ chặn hoàn toàn đòn đánh kế tiếp.', tags: ['ĐIỆN', 'PHÒNG THỦ'] },
     { id: 'e_chuoiSet', type: 'Tuyệt Kỹ', name: '⚡ Chuỗi Sét', desc: 'Vũ khí nhóm Điện giật lan thêm +5 mục tiêu mỗi cấp. Lấy tối đa 5 lần.', tags: ['ĐIỆN'] },
     { id: 'e_thietXaLoiDong', type: 'Tuyệt Kỹ', name: '⚡ Thiết Xa Lôi Động', desc: 'Xe tăng tăng tốc. Vụ nổ tạo vùng điện. Kỹ năng Càn Quét để lại vệt điện kéo dài.', tags: ['CHIẾN XA', 'ĐIỆN'] },
     { id: 'e_joule', type: 'Kỹ Năng', name: '🔥 Hiệu Ứng Joule', desc: 'Tất cả các tia điện giật lan từ mọi nguồn gây thêm hiệu ứng Thiêu Đốt lên quái vật.', tags: ['ĐIỆN'] },
@@ -170,9 +184,9 @@ const UPGRADES = [
     { id: 'n_explode', type: 'Kỹ Năng', name: 'Ném Nổ', desc: 'Vũ khí ném phát nổ khi chạm mục tiêu, không gây hại cho phe ta.', tags: ['NÉM', 'NỔ'] },
     // Song Kiếm & Liềm (Liềm chỉ mở sau khi hạ boss ẩn The Dead)
     { id: 'm_songKiem', type: 'Hỗ Trợ', name: 'Song Kiếm', desc: 'Hộp thường có 25% ra Song Kiếm. Đã có Thanh Kiếm Truyền Thuyết: Hòm Thính có thể ra Song Katana Huyền Thoại.', tags: ['KIẾM SƯ', 'VẬT PHẨM'] },
-    { id: 'sc_soul', type: 'Kỹ Năng', name: 'Gặt Hồn', desc: 'Liềm: tỉ lệ kẻ bị giết hoá Tế Phẩm tăng từ 2% lên 8%.', tags: ['LIỀM', 'CẬN CHIẾN'] },
+    { id: 'sc_soul', type: 'Kỹ Năng', name: 'Gặt Hồn', desc: 'Liềm: tỉ lệ giết quái hoá Tế Phẩm tăng từ 6% lên 16% và +40% Máu Ảo nhận được khi tạo Tế Phẩm.', tags: ['LIỀM', 'CẬN CHIẾN', 'HÚT MÁU'] },
     { id: 'sc_blast', type: 'Kỹ Năng', name: 'Tế Phẩm Cuồng Bạo', desc: 'Liềm: Tế Phẩm nổ rộng hơn 60% và sát thương x2.', tags: ['LIỀM', 'NỔ'] },
-    { id: 'sc_reap', type: 'Kỹ Năng', name: 'Lưỡi Hái Tử Thần', desc: 'Liềm: tầm chém +25%; mỗi mạng hạ bằng Liềm hồi 1 độ bền và 2 máu.', tags: ['LIỀM', 'HỒI MÁU'] },
+    { id: 'sc_reap', type: 'Kỹ Năng', name: 'Lưỡi Hái Tử Thần', desc: 'Liềm: tầm chém +25%; mỗi mạng hạ bằng Liềm hồi 1 độ bền, thêm 4 máu và +6 Máu Ảo.', tags: ['LIỀM', 'HỒI MÁU', 'HÚT MÁU'] },
     { id: 'n_multi', type: 'Kỹ Năng', name: 'Ném Chùm', desc: 'Mỗi lần ném văng thêm 2 bản sao hình quạt (50% sát thương).', tags: ['NÉM', 'TIẾN CÔNG'] },
     { id: 'n_phiDao', type: 'Kỹ Năng', name: 'Phi Dao', desc: 'Dao Quân Sự: kỹ năng [C] phóng thêm 3 phi dao (tốn 3 độ bền); nút Ném [B] tung vòng phi dao quanh người như Phi Tiêu (mỗi dao tốn 3 độ bền).', tags: ['NÉM', 'CẬN CHIẾN'] },
     { id: 'w_rage', type: 'Tuyệt Kỹ', name: 'Thịnh Nộ', desc: 'Mở khoá kỹ năng NỘ [D] của vũ khí: Minigun, Súng Ngắm, Búa / Rìu, Cung, Phun Lửa. (Kỹ năng [C] có hồi chiêu thì vũ khí nào cũng có sẵn.)', tags: ['TIẾN CÔNG', 'ĐẶC BIỆT'] },
@@ -193,6 +207,20 @@ const UPGRADES = [
     { id: 'a_heavy_artillery', type: 'Chiến Lược', name: 'Pháo Kích Hiệp Lực', desc: 'Tank bắn pháo thì lính ném lựu đạn theo hướng nòng pháo.', tags: ['QUAN_DOI', 'CHIẾN XA'] },
     { id: 'a_drone_link_protocol', type: 'Tuyệt Kỹ', name: 'Giao Thức Đồng Bộ Drone', desc: 'Khi bạn có Drone: lính tự hồi 4 máu/giây và bắn nhanh hơn 15%.', tags: ['TRIEU_HOI', 'DRONE', 'BẬC THẦY'] },
     { id: 'u_drone_carrier', type: 'Tuyệt Kỹ', name: 'Mẫu Hạm Drone Chỉ Huy', desc: 'Cần Link 3 Drone + 3 Triệu Hồi. Mỗi lính có Mini Drone bắn phụ.', tags: ['TRIEU_HOI', 'DRONE'] },
+
+    // --- HỆ HÚT MÁU & MÁU ẢO ---
+    { id: 'ls_fang', type: 'Kỹ Năng', name: '🩸 Nanh Huyết', desc: 'Đòn đánh hút máu theo sát thương gây ra (cận chiến hút mạnh hơn); tăng 25% hiệu quả hút máu của Liềm.', tags: ['HÚT MÁU', 'TIẾN CÔNG'] },
+    { id: 'ls_overheal', type: 'Phòng Thủ', name: '🩸 Huyết Giáp', desc: 'Hút máu dư khi đầy cây máu chuyển 65% thành Máu Ảo (tăng trần Máu Ảo +40% Máu tối đa); đầu map nhận 25% Máu Ảo.', tags: ['HÚT MÁU', 'PHÒNG THỦ'] },
+    { id: 'ls_thirst', type: 'Kỹ Năng', name: '🩸 Khát Máu', desc: 'Máu thật càng thấp, tốc độ chạy và lượng hút máu càng tăng (tối đa +35%); hạ gục quái hồi ngay 3 máu.', tags: ['HÚT MÁU', 'CẬN CHIẾN'] },
+    { id: 'ls_feast', type: 'Kỹ Năng', name: '🩸 Huyết Tế', desc: 'Hạ quái biến dị/đặc biệt hồi 8 máu cho bạn, 5 máu cho đồng đội gần đó; Tế Phẩm nổ hồi 8 máu. Cả hai hiệu ứng cấp thêm 22 Máu Ảo cho người nhận.', tags: ['HÚT MÁU', 'HỒI MÁU'] },
+    { id: 'ls_crimson', type: 'Tuyệt Kỹ', name: '🩸 Huyết Ma Thức Tỉnh', desc: 'Khi đang có Máu Ảo, +30% sát thương gây ra; cứ mỗi 8 đòn trúng đích phóng xung huyết kiếm hút máu & làm chậm quái quanh mình.', tags: ['HÚT MÁU', 'ĐẶC BIỆT'] },
+
+    // --- HỆ PHÒNG THỦ ---
+    { id: 'df_plate', type: 'Phòng Thủ', name: '🛡️ Giáp Hợp Kim', desc: '+60 Máu tối đa và giảm 15% mọi sát thương nhận vào.', tags: ['PHÒNG THỦ', 'CHỈ SỐ'] },
+    { id: 'df_thorns', type: 'Phòng Thủ', name: '🛡️ Giáp Gai Phản Chấn', desc: 'Giảm 15% sát thương nhận thêm ở tầm gần; kẻ địch cắn trúng bạn bị phản sát thương lớn và đẩy lùi.', tags: ['PHÒNG THỦ', 'CẬN CHIẾN'] },
+    { id: 'df_bastion', type: 'Phòng Thủ', name: '🛡️ Thành Lũy Kiên Cố', desc: 'Đứng gần đồng đội/lính hoặc công trình giảm 20% sát thương nhận & +18% sát thương; Cửa Chắn và Nhà Chính +25% máu.', tags: ['PHÒNG THỦ', 'TRỢ GIÚP'] },
+    { id: 'df_aegis', type: 'Phòng Thủ', name: '🛡️ Lá Chắn Tái Tạo', desc: 'Sau 5 giây không bị tấn công, tự động nạp dần Máu Ảo lên tới 35% Máu tối đa.', tags: ['PHÒNG THỦ', 'HỒI MÁU'] },
+    { id: 'df_unbreakable', type: 'Tuyệt Kỹ', name: '🛡️ Pháo Đài Bất Khuất', desc: 'Một đòn đánh thường không thể lấy quá 35% Máu tối đa; vỡ Máu Ảo hoặc xuống dưới 40% máu sẽ nổ choáng quái quanh mình (hồi 6s).', tags: ['PHÒNG THỦ', 'ĐẶC BIỆT'] },
 
 ];
 

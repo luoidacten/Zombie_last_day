@@ -20,7 +20,10 @@ function arsMult(src) { return (src && src.getTotalDamageMult) ? src.getTotalDam
 function arsenalLevelStart() {
     for (let p of players) {
         p.mgHeat = 0; p.jamT = 0; p.ventT = 0; p.leapT = 0; p.blinkCD = 0; p.rewindUsed = false; p.flurryT = 0; p.overT = 0;
+        p.noHitT = 5.0; p.unbreakCD = 0; p.lsIcd = 0; p.lsNovaCD = 0;
         if (p.rage === undefined) p.rage = 0;
+        if (p.perks.ls_overheal) p.vHp = Math.max(p.vHp || 0, Math.round(p.maxHp * 0.25));
+        if (typeof p.getMaxVHp === 'function') p.vHp = Math.min(p.getMaxVHp(), p.vHp || 0);
         // Link TĂNG TIẾN mốc 3: mỗi map mới +4% sát thương vĩnh viễn
         if (currentLevel > 1 && (p.tags['TĂNG TIẾN'] || 0) >= 3) p.dmgMult += 0.04;
     }
@@ -468,8 +471,8 @@ function drawArsenalHazard(h, T) {
         ctx.globalCompositeOperation = 'source-over'; ctx.lineCap = 'butt';
     } else if (h.type === 'slashzone') {
         drawSkillHazard(h, T);
-    } else if (h.type === 'hspin' || h.type === 'hboulder' || h.type === 'hsweep') {
-        drawBossHazard(h, T);   // chiêu The Hucker (17-bosses.js)
+    } else if (h.type === 'hspin' || h.type === 'hboulder' || h.type === 'hsweep' || h.type === 'zthrow' || h.type === 'railbeam' || h.type === 'venomring') {
+        drawBossHazard(h, T);   // chiêu The Hucker & Boss mở rộng (17-bosses.js)
     } else if (h.type === 'deadzone') {
         ctx.beginPath(); ctx.arc(h.x, h.y, h.radius, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(30, 60, 90, ${0.26 + 0.04 * Math.sin(T * 3 + h.x)})`; ctx.fill();
@@ -560,10 +563,13 @@ function rerollGuaranteed(p) {
     return picks;
 }
 function updateRerollButtons() {
-    for (let pid = 1; pid <= 2; pid++) {
-        let b = document.getElementById(`p${pid}RerollBtn`); if (!b) continue;
-        let p = players[pid - 1], confirmed = pid === 1 ? p1Confirmed : p2Confirmed;
-        let show = gameState === 'UPGRADE' && p && p.pendingUpgrades > 0 && !confirmed;
+    for (let slot = 1; slot <= 2; slot++) {
+        let b = document.getElementById(`p${slot}RerollBtn`); if (!b) continue;
+        let pid = (NET.mode === 'guest' && slot === 2) ? (NET.localIdx + 1) : slot;
+        if (NET.mode === 'guest' && slot === 1) { b.style.display = 'none'; continue; }
+        if (NET.mode === 'host' && slot === 2) { b.style.display = 'none'; continue; }
+        let p = players[pid - 1], confirmed = isUpgConfirmed(pid);
+        let show = gameState === 'UPGRADE' && p && !p.netLeft && p.pendingUpgrades > 0 && !confirmed;
         b.style.display = show ? 'block' : 'none';
         b.disabled = shopScrap < REROLL_COST;
         b.textContent = `🎲 ĐỔI THẺ (-${REROLL_COST}⚙ · còn ${shopScrap}⚙)`;
@@ -571,7 +577,8 @@ function updateRerollButtons() {
 }
 function rerollCards(pid) {
     if (gameState !== 'UPGRADE') return;
-    if ((pid === 1 && p1Confirmed) || (pid === 2 && p2Confirmed)) return;
+    if (NET.mode === 'guest') pid = NET.localIdx + 1;
+    if (isUpgConfirmed(pid)) return;
     if (shopScrap < REROLL_COST) { Sound.play('hit'); netToast('Không đủ linh kiện ⚙ để đổi thẻ!', 1500); return; }
     if (NET.mode === 'guest') { netSend({ t: 'rr' }); return; }   // chủ phòng trừ ⚙ rồi báo lại
     shopScrap -= REROLL_COST;
@@ -579,10 +586,11 @@ function rerollCards(pid) {
     netSendSync();
 }
 function doReroll(pid) {
-    if (pid === 1) p1SelectedUpg = null; else p2SelectedUpg = null;
-    let cb = document.getElementById(`p${pid}ConfirmBtn`); if (cb) cb.disabled = true;
+    setSelectedUpg(pid, null);
+    let slot = upgDomSlot(pid);
+    let cb = document.getElementById(`p${slot}ConfirmBtn`); if (cb) cb.disabled = true;
     Sound.play('shard');
-    renderCards(pid, `p${pid}Cards`, true);
+    renderCards(pid, `p${slot}Cards`, true);
     updateRerollButtons();
 }
 
@@ -595,7 +603,7 @@ function savePlayer(p) {
         hp: p.hp, maxHp: p.maxHp, hunger: p.hunger, baseSpeed: p.baseSpeed, level: p.level, xp: p.xp, pend: p.pendingUpgrades,
         dmgMult: p.dmgMult, critBonus: p.critBonus, armorMult: p.armorMult, tags: p.tags, perks: p.perks, st: p.perkStacks,
         w: p.weapon ? { k: p.weapon.key, a: p.weapon.ammo, m: p.weapon.maxAmmo } : null,
-        sk: p.swordKills, ck: p.cKills, dc: p.dCharge, dk: p.droneKills, lk: p.luckyKills, rc: p.reviveCount, tox: p.caveToxinResist || 0, rage: p.rage || 0, down: p.isDowned ? 1 : 0
+        sk: p.swordKills, ck: p.cKills, dc: p.dCharge, dk: p.droneKills, lk: p.luckyKills, rc: p.reviveCount, tox: p.caveToxinResist || 0, rage: p.rage || 0, vhp: Math.round(p.vHp || 0), down: p.isDowned ? 1 : 0
     };
 }
 // Gọi ở đầu startLevel (trước khi map mới tiêu thụ các lựa chọn tuyến đường)
@@ -673,7 +681,7 @@ function loadGame() {
         if (d.st) for (let k in STACKABLE_PERKS) if (typeof d.st[k] === 'number') p.perkStacks[k] = d.st[k];
         if (d.w && WEAPON_TYPES[d.w.k]) { p.weapon = { ...WEAPON_TYPES[d.w.k] }; p.weapon.maxAmmo = num(d.w.m, p.weapon.maxAmmo); p.weapon.ammo = Math.max(1, num(d.w.a, p.weapon.ammo)); }
         p.swordKills = num(d.sk, 0); p.cKills = num(d.ck, 0); p.dCharge = num(d.dc, 0); p.droneKills = num(d.dk, 0); p.luckyKills = num(d.lk, 0);
-        p.reviveCount = num(d.rc, 0); p.caveToxinResist = num(d.tox, 0); p.rage = num(d.rage, 0); p.isDowned = !!d.down;
+        p.reviveCount = num(d.rc, 0); p.caveToxinResist = num(d.tox, 0); p.rage = num(d.rage, 0); p.vHp = Math.max(0, num(d.vhp, 0)); p.isDowned = !!d.down;
         players.push(p);
     });
     if (!isSinglePlayer && players.length < 2) players.push(new Player(2, MAP_SIZE.w / 2, MAP_SIZE.h / 2, colors[1]));

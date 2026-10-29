@@ -98,7 +98,7 @@ function admEnsureRun() { if (!admInGame()) { admClose(); startCampaign(true); }
 function admToast(t) { netToast('🛠 ' + t, 1800); }
 function admDo(k, arg) {
     const val = (id) => { let e = document.getElementById(id); return e ? e.value : ''; };
-    const P = () => players.filter(p => p);
+    const P = () => players.filter(p => p && !p.netLeft);
     let keepOpen = true;
     switch (k) {
         case 'scrap': shopScrap += 500; break;
@@ -179,7 +179,7 @@ function admJump(L, route) {
 let admBtn = null, admDbg = null, admFps = { n: 0, t: performance.now(), v: 0 };
 (function admFpsLoop() { admFps.n++; let now = performance.now(); if (now - admFps.t >= 1000) { admFps.v = admFps.n; admFps.n = 0; admFps.t = now; } requestAnimationFrame(admFpsLoop); })();
 setInterval(() => {
-    if (adm.god) for (let p of players) if (p) { p.hp = p.maxHp; p.hunger = Math.max(p.hunger, 90); if (p.isDowned) { p.isDowned = false; } }
+    if (adm.god) for (let p of players) if (p && !p.netLeft) { p.hp = p.maxHp; p.hunger = Math.max(p.hunger, 90); if (p.isDowned) { p.isDowned = false; } }
     if (!admBtn) {
         admBtn = document.createElement('button'); admBtn.textContent = '🛠';
         admBtn.title = 'Admin / Test (F8)';

@@ -42,7 +42,12 @@ function labAfterGenerate(level) {
     story.props.push({ kind: 'print', x: 2710, y: 2310, r: 16, on: false });
     story.props.push({ kind: 'print', x: 1262, y: 1470, r: 16, on: false });
     story.props.push({ kind: 'traindoor', x: LAB.train.x, y: LAB.train.y, r: 210 });
-    players.forEach((p, i) => { p.x = LAB.start.x + (players.length > 1 ? (i ? 34 : -34) : 0); p.y = LAB.start.y; });
+    const lbOffs = [[-45, 0], [45, 0], [-24, 34], [24, 34]];
+    players.forEach((p, i) => {
+        if (p.netLeft) return;
+        let o = players.length > 1 ? lbOffs[i % lbOffs.length] : [0, 0];
+        p.x = LAB.start.x + o[0]; p.y = LAB.start.y + o[1];
+    });
     allies.forEach((a, i) => { a.x = LAB.start.x + (i % 2 ? 60 : -60); a.y = LAB.start.y + 50; });
     drops = drops.filter(d => !inLab(d.x, d.y) || Math.random() < 0.5);
     for (let k = 0; k < 3; k++) rescueNPCs.push(new Scientist(1940 + k * 60, 1600 + (k % 2) * 40));
@@ -68,7 +73,7 @@ function labFail(text) {
     let L = story.lab; if (!L || L.stage === 'done') return;
     L.stage = 'done'; L.result = { ok: false, text };
     L.endT = 3;
-    for (let p of players) vfxList.push({ type: 'text', text: 'NHIỆM VỤ THẤT BẠI!', x: p.x, y: p.y - 80, life: 2.6, color: '#ff4757' });
+    for (let p of players) if (!p.netLeft) vfxList.push({ type: 'text', text: 'NHIỆM VỤ THẤT BẠI!', x: p.x, y: p.y - 80, life: 2.6, color: '#ff4757' });
     objState = 'LAB_FAIL'; Sound.play('down');
 }
 function labFinish() {
@@ -79,12 +84,12 @@ function labFinish() {
     if (r.ok) {
         let reward = 90 + currentLevel * 3;
         shopScrap += reward; breakthroughShards++;
-        for (let p of players) { p.level++; p.pendingUpgrades++; if (p.isDowned) { p.isDowned = false; p.hp = p.maxHp * 0.4; } }
+        for (let p of players) { if (p.netLeft) continue; p.level++; p.pendingUpgrades++; if (p.isDowned) { p.isDowned = false; p.hp = p.maxHp * 0.4; } }
         netToast(`🚂 ĐOÀN TÀU ĐÃ VÀO HẦM AN TOÀN! +${reward} ⚙, +1 ◆ Mảnh Bức Phá, cả đội +1 cấp.`, 5000);
         Sound.play('level');
     } else {
         shopScrap = Math.max(0, shopScrap - 30);
-        for (let p of players) { if (p.isDowned || p.hp < p.maxHp * 0.3) { p.isDowned = false; p.hp = Math.max(1, p.maxHp * 0.3); } }
+        for (let p of players) { if (p.netLeft) continue; if (p.isDowned || p.hp < p.maxHp * 0.3) { p.isDowned = false; p.hp = Math.max(1, p.maxHp * 0.3); } }
         netToast((r.text || 'Nhiệm vụ thất bại.') + '  (-30 ⚙)', 5000);
         Sound.play('upgrade');
     }
@@ -96,12 +101,12 @@ function labSoldierUpdate(npc, dt) {
     let L = story.lab; if (!L) return;
     if (L.stage === 'c4') {
         if (Math.hypot(LAB.plant.x - npc.x, LAB.plant.y - npc.y) < 34) { npc.state = 'plant'; return; }
-        if (tank.active || players.some(p => !p.isDowned && Math.hypot(p.x - npc.x, p.y - npc.y) < 480)) { navMoveTo(npc, LAB.plant.x, LAB.plant.y, 150, dt); npc.state = 'move'; }
+        if ((tank.active && Math.hypot(tank.x - npc.x, tank.y - npc.y) < 480) || players.some(p => !p.netLeft && !p.isDowned && Math.hypot(p.x - npc.x, p.y - npc.y) < 480)) { navMoveTo(npc, LAB.plant.x, LAB.plant.y, 150, dt); npc.state = 'move'; }
         else npc.state = 'wait';
         return;
     }
     npc.state = 'move';
-    let f = players.filter(p => !p.isDowned).sort((a, b) => Math.hypot(a.x - npc.x, a.y - npc.y) - Math.hypot(b.x - npc.x, b.y - npc.y))[0] || players[0];
+    let f = players.filter(p => !p.netLeft && !p.isDowned).sort((a, b) => Math.hypot(a.x - npc.x, a.y - npc.y) - Math.hypot(b.x - npc.x, b.y - npc.y))[0] || players[0];
     let d = Math.hypot(f.x - npc.x, f.y - npc.y);
     if (d > 1100) { let sp = findSafePoint(f.x + 60, f.y + 40, npc.radius); npc.x = sp.x; npc.y = sp.y; }
     else if (d > 120) friendlyMoveTo(npc, f.x, f.y, d > 320 ? 220 : 175, dt);
@@ -131,7 +136,7 @@ function updateLab(dt) {
     if (L.stage === 'done') { if (L.endT > 0) { L.endT -= dt; if (L.endT <= 0) labFinish(); } return; }
     const machines = story.props.filter(p => p.kind === 'machine'), prints = story.props.filter(p => p.kind === 'print');
     const sci = rescueNPCs.filter(n => n.kind === 'scientist');
-    const alive = players.filter(p => !p.isDowned);
+    const alive = players.filter(p => !p.netLeft && !p.isDowned);
 
     if (L.stage === 'c4') {
         let s = L.soldier;
@@ -148,22 +153,22 @@ function updateLab(dt) {
         if (s.state === 'plant') {
             L.plant = Math.min(1, L.plant + dt / 18);
             L.waveT -= dt;
-            if (L.waveT <= 0) { L.waveT = 2.4; labWave(2 + Math.floor(currentLevel / 3)); }
+            if (L.waveT <= 0) { L.waveT = 2.4; labWave(2 + Math.floor(currentLevel / 3) + Math.max(0, bossTeamCount() - 1)); }
             if (L.plant >= 1) {
                 labOpenDoor('s'); L.stage = 'decon'; objState = 'LAB_DECON'; mission.type = 'LAB_DECON'; mission.required = 5; mission.progress = 0;
-                for (let p of players) vfxList.push({ type: 'text', text: 'C4 NỔ — CỬA ĐÃ BỊ XÉ TOẠC!', x: p.x, y: p.y - 90, life: 2.4, color: '#f1c40f' });
+                for (let p of players) if (!p.netLeft) vfxList.push({ type: 'text', text: 'C4 NỔ — CỬA ĐÃ BỊ XÉ TOẠC!', x: p.x, y: p.y - 90, life: 2.4, color: '#f1c40f' });
                 queueRadio('Chỉ huy: Khí độc đang tràn trong Lab! Bật 3 Máy Khử Độc, tìm 2 Bản Thiết Kế Thuốc Giải và cứu nhóm Nhà Khoa Học!', null, 7);
             }
         }
     } else if (L.stage === 'decon') {
         let on = machines.filter(m => m.on).length, gas = (3 - on) / 3;
-        // Khí độc rút máu ngầm khi đứng trong Lab
-        if (gas > 0 && !tank.active) for (let p of alive) if (inLab(p.x, p.y)) p.takeDot(4.5 * gas * (1 - (p.caveToxinResist || 0)) * dt);
+        // Khí độc rút máu ngầm khi đứng trong Lab (chỉ ảnh hưởng người đi bộ ngoài xe tăng)
+        if (gas > 0) for (let p of alive) if (!inTank(p) && inLab(p.x, p.y)) p.takeDot(4.5 * gas * (1 - (p.caveToxinResist || 0)) * dt);
         for (let m of machines) {
             if (m.on) continue;
             let near = alive.some(p => Math.hypot(p.x - m.x, p.y - m.y) < 115);
             m.hp = near ? m.hp + dt : Math.max(0, m.hp - dt * 0.5);
-            if (m.hp >= m.maxHp) { m.on = true; Sound.play('level'); spawnRing(m.x, m.y, '#2ecc71', 260, 0.6, 6); vfxList.push({ type: 'text', text: `MÁY KHỬ ĐỘC ${on + 1}/3 ĐÃ BẬT!`, x: m.x, y: m.y - 50, life: 1.8, color: '#2ecc71' }); labWave(3); }
+            if (m.hp >= m.maxHp) { m.on = true; Sound.play('level'); spawnRing(m.x, m.y, '#2ecc71', 260, 0.6, 6); vfxList.push({ type: 'text', text: `MÁY KHỬ ĐỘC ${on + 1}/3 ĐÃ BẬT!`, x: m.x, y: m.y - 50, life: 1.8, color: '#2ecc71' }); labWave(3 + Math.max(0, bossTeamCount() - 1)); }
         }
         for (let b of prints) if (!b.on && alive.some(p => Math.hypot(p.x - b.x, p.y - b.y) < 40)) { b.on = true; Sound.play('shard'); createParticles(b.x, b.y, '#74b9ff', 24, 180); vfxList.push({ type: 'text', text: 'BẢN THIẾT KẾ THUỐC GIẢI!', x: b.x, y: b.y - 34, life: 1.6, color: '#74b9ff' }); }
         let got = prints.filter(b => b.on).length, sAlive = sci.filter(n => n.hp > 0);
@@ -180,7 +185,7 @@ function updateLab(dt) {
             L.sciSaved = sAlive.length; L.stage = 'hold'; L.hold = 40; L.waveT = 1.5;
             rescueNPCs = rescueNPCs.filter(n => n.kind !== 'scientist');
             objState = 'STATION_HOLD'; mission.type = 'STATION_HOLD';
-            for (let p of players) vfxList.push({ type: 'text', text: 'NHÀ KHOA HỌC ĐÃ LÊN TÀU — GIỮ BẾN 40 GIÂY!', x: p.x, y: p.y - 90, life: 2.6, color: '#f1c40f' });
+            for (let p of players) if (!p.netLeft) vfxList.push({ type: 'text', text: 'NHÀ KHOA HỌC ĐÃ LÊN TÀU — GIỮ BẾN 40 GIÂY!', x: p.x, y: p.y - 90, life: 2.6, color: '#f1c40f' });
             let h = new Zombie(LAB.train.x, 1180, 37);
             zombies.push(h);
             makeBossArena(h, LAB.train.x, 830, 640, true);
@@ -189,15 +194,15 @@ function updateLab(dt) {
         L.hold -= dt; L.waveT -= dt;
         if (L.waveT <= 0) {
             L.waveT = 1.7;
-            let A = story.arena || { x: LAB.train.x, y: 830, r: 640 };
-            for (let k = 0; k < 3 + Math.floor(currentLevel / 3) && zombies.length < 60; k++) {
+            let A = story.arena || { x: LAB.train.x, y: 830, r: 640 }, extraP = Math.max(0, bossTeamCount() - 1);
+            for (let k = 0; k < 3 + Math.floor(currentLevel / 3) + extraP && zombies.length < 60 + extraP * 10; k++) {
                 let a = Math.random() * Math.PI * 2, r = A.r - 90 - Math.random() * 60, x = A.x + Math.cos(a) * r, y = A.y + Math.sin(a) * r;
-                if (!isBlockedPoint(x, y, 22) && !players.some(p => Math.hypot(p.x - x, p.y - y) < 300)) zombies.push(new Zombie(x, y));
+                if (!isBlockedPoint(x, y, 22) && !players.some(p => !p.netLeft && Math.hypot(p.x - x, p.y - y) < 300)) zombies.push(new Zombie(x, y));
             }
         }
         if (L.hold <= 0) {
             L.stage = 'board'; L.board = 0; objState = 'STATION_BOARD'; mission.type = 'STATION_BOARD';
-            for (let p of players) vfxList.push({ type: 'text', text: 'TÀU RÚC CÒI! NHẢY LÊN TOA TÀU!', x: p.x, y: p.y - 90, life: 2.6, color: '#2ecc71' });
+            for (let p of players) if (!p.netLeft) vfxList.push({ type: 'text', text: 'TÀU RÚC CÒI! NHẢY LÊN TOA TÀU!', x: p.x, y: p.y - 90, life: 2.6, color: '#2ecc71' });
             Sound.play('level'); addScreenShake(8);
         }
     } else if (L.stage === 'board') {
@@ -223,7 +228,7 @@ function updateHucker(z, target, dist, ang, dt, speed) {
     if (story.lab && z.hp <= z.maxHp * 0.35) {
         z.gone = true; z.hidden = true; z.invuln = true;
         createParticles(z.x, z.y, '#2d3436', 70, 420); spawnRing(z.x, z.y, '#6d4c41', 300, 0.6, 8);
-        for (let p of players) vfxList.push({ type: 'text', text: 'THE HUCKER LÙI VÀO BÓNG TỐI...', x: p.x, y: p.y - 96, life: 2.6, color: '#e17055' });
+        for (let p of players) if (!p.netLeft) vfxList.push({ type: 'text', text: 'THE HUCKER LÙI VÀO BÓNG TỐI...', x: p.x, y: p.y - 96, life: 2.6, color: '#e17055' });
         Sound.play('roar');
         return true;
     }
@@ -237,35 +242,40 @@ function updateHucker(z, target, dist, ang, dt, speed) {
             vfxList.push({ type: 'laser_beam', x: z.x, y: z.y, tx: z.targetX, ty: z.targetY, life: 0.35 });
             Sound.play('throw'); addScreenShake(6);
             bossHitZombiesSeg(z.x, z.y, z.targetX, z.targetY, 34, 260);
-            if (!tank.active) for (let p of players) {
-                if (p.isDowned || distancePointToSegment(p.x, p.y, z.x, z.y, z.targetX, z.targetY) > p.radius + 34) continue;
+            for (let p of players) {
+                if (p.netLeft || p.isDowned || inTank(p) || distancePointToSegment(p.x, p.y, z.x, z.y, z.targetX, z.targetY) > p.radius + 34) continue;
                 p.takeDamage(28); stunPlayer(p, 0.5);
                 let a = Math.atan2(z.y - p.y, z.x - p.x), pull = Math.max(0, Math.hypot(z.x - p.x, z.y - p.y) - z.radius - 40);
                 for (let s = 0; s < 10; s++) { p.x += Math.cos(a) * pull / 10; p.y += Math.sin(a) * pull / 10; resolveCollision(p); }
                 vfxList.push({ type: 'text', text: 'BỊ MÓC XÍCH!', x: p.x, y: p.y - 40, life: 1.0, color: '#e17055' });
             }
+            if (tank.active && tank.p2InvulnTimer <= 0 && distancePointToSegment(tank.x, tank.y, z.x, z.y, z.targetX, z.targetY) <= tank.radius + 34) tank.hp -= 35;
             z.rootTimer = 0.4;
         }
         return true;
     }
     if (z.spCD <= 0) {
+        let extraP = Math.max(0, bossTeamCount() - 1);
         // Chiêu mới (17-bosses.js): ĐẬP ĐẤT & MƯA ĐÁ, BÓP MÓC LAO TỚI, KÉO TẢNG ĐÁ, MÓC XOAY
         let opts = dist < 270 ? ['slam', 'rocks', 'hookdash', 'hook'] : ['hook', 'boulder', 'rocks', 'hookdash', 'summon'];
         if (!(z.spinCD > 0)) opts.push('spin', 'spin');
         let skill = pickBossSkill(z, opts);
-        if (skill === 'slam') { hazards.push({ type: 'quake', x: z.x, y: z.y, radius: 240, timer: 0.9, life: 1.1, dmg: 70, stun: 0.7, bz: 420 }); z.rootTimer = 0.9; bossSay(z, 'NỆN XÍCH!', '#e17055'); }
+        if (skill === 'slam') { hazards.push({ type: 'quake', x: z.x, y: z.y, radius: 240 + extraP * 20, timer: 0.9, life: 1.1, dmg: 70, stun: 0.7, bz: 420 }); z.rootTimer = 0.9; bossSay(z, 'NỆN XÍCH!', '#e17055'); }
         else if (skill === 'hook') {
-            let len = Math.min(640, dist + 140);
+            let len = Math.min(680, dist + 150);
             z.targetX = z.x + Math.cos(ang) * len; z.targetY = z.y + Math.sin(ang) * len; z.warnBeamTimer = z.phase2Done ? 0.6 : 0.8;
             bossSay(z, 'MÓC XÍCH!', '#e17055');
-        } else if (skill === 'summon') { labWave(4 + Math.floor(currentLevel / 3)); Sound.play('roar'); spawnRing(z.x, z.y, z.color, 260, 0.6, 6); bossSay(z, 'GỌI BẦY!', '#e17055'); }
-        else huckerStart(z, skill, target, dist, ang);
-        z.spCD = z.phase2Done ? 2.3 : 3.1;
+        } else if (skill === 'summon') {
+            labWave(4 + Math.floor(currentLevel / 3) + extraP * 2);
+            Sound.play('roar'); spawnRing(z.x, z.y, z.color, 260, 0.6, 6); bossSay(z, 'GỌI BẦY!', '#e17055');
+        } else huckerStart(z, skill, target, dist, ang);
+        let cdMul = Math.max(0.76, 1 - extraP * 0.08);
+        z.spCD = (z.phase2Done ? 2.3 : 3.1) * cdMul;
     }
     z.x += Math.cos(ang) * speed * dt; z.y += Math.sin(ang) * speed * dt; resolveCollision(z); storyArenaClamp(z);
     if (z.atkCD <= 0) {
-        if (tank.active) { if (tank.p2InvulnTimer <= 0 && dist < z.radius + tank.radius + 8) { tank.hp -= 50; z.atkCD = 1.1; } }
-        else for (let p of players) if (!p.isDowned && Math.hypot(z.x - p.x, z.y - p.y) < z.radius + p.radius + 8) { p.takeDamage(48); stunPlayer(p, 0.3); z.atkCD = 1.1; }
+        if (tank.active && tank.p2InvulnTimer <= 0 && Math.hypot(z.x - tank.x, z.y - tank.y) < z.radius + tank.radius + 8) { tank.hp -= 50; z.atkCD = 1.1; }
+        for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p) && Math.hypot(z.x - p.x, z.y - p.y) < z.radius + p.radius + 8) { p.takeDamage(48); stunPlayer(p, 0.3); z.atkCD = 1.1; }
     }
     return true;
 }
@@ -299,63 +309,141 @@ function drawHucker(z, T, ang, flash) {
 //   C  TĂNG TỐC: xả hơi nước, tàu chạy nhanh hơn trong 4 giây
 //   D  CHUYỂN RAY: khi có cảnh báo đá chắn đường ray, bấm kịp để né
 // ---------------------------------------------------------------------------
-const ROOF = { x0: 1850, x1: 2150, y0: 1250, y1: 2750, tunnel: 1000 };
+const ROOF = { x0: 1850, x1: 2150, y0: 1250, y1: 2750, tunnel: 1500 };
+const RAIL_CHAIN_SPOTS = [
+    { x: 2000, y: 1268, name: 'TOA ĐẦU - MŨI TÀU', minStage: 1 },
+    { x: 1864, y: 1410, name: 'TOA ĐẦU - TRÁI TRƯỚC', minStage: 0 },
+    { x: 2136, y: 1410, name: 'TOA ĐẦU - PHẢI TRƯỚC', minStage: 0 },
+    { x: 1864, y: 1615, name: 'TOA ĐẦU - TRÁI SAU', minStage: 0 },
+    { x: 2136, y: 1615, name: 'TOA ĐẦU - PHẢI SAU', minStage: 0 },
+    { x: 1882, y: 1747, name: 'KHỚP ĐẦU-GIỮA (TRÁI)', minStage: 1 },
+    { x: 2118, y: 1747, name: 'KHỚP ĐẦU-GIỮA (PHẢI)', minStage: 1 },
+    { x: 1864, y: 1915, name: 'TOA GIỮA - MẠN TRÁI', minStage: 0 },
+    { x: 2000, y: 2000, name: 'TOA GIỮA - GIỮA NÓC', minStage: 2 },
+    { x: 2136, y: 1915, name: 'TOA GIỮA - MẠN PHẢI', minStage: 0 },
+    { x: 1864, y: 2125, name: 'TOA GIỮA - HÔNG TRÁI', minStage: 0 },
+    { x: 2136, y: 2125, name: 'TOA GIỮA - HÔNG PHẢI', minStage: 0 },
+    { x: 1882, y: 2253, name: 'KHỚP GIỮA-ĐUÔI (TRÁI)', minStage: 0 },
+    { x: 2118, y: 2253, name: 'KHỚP GIỮA-ĐUÔI (PHẢI)', minStage: 0 },
+    { x: 1864, y: 2485, name: 'TOA ĐUÔI - MẠN TRÁI', minStage: 0 },
+    { x: 2136, y: 2485, name: 'TOA ĐUÔI - MẠN PHẢI', minStage: 0 },
+    { x: 1935, y: 2734, name: 'TOA ĐUÔI - ĐUÔI TRÁI', minStage: 0 },
+    { x: 2065, y: 2734, name: 'TOA ĐUÔI - ĐUÔI PHẢI', minStage: 0 }
+];
+function railCarName(y) {
+    return y < 1747 ? 'TOA ĐẦU' : (y < 2253 ? 'TOA GIỮA' : 'TOA ĐUÔI');
+}
+function railCarCenterY(idx) {
+    let carH = (ROOF.y1 - ROOF.y0 - 40) / 3;
+    return ROOF.y0 + idx * (carH + 20) + carH * 0.5;
+}
+function railChainLabel(x, y) {
+    let best = RAIL_CHAIN_SPOTS[0], bd = Infinity;
+    for (let s of RAIL_CHAIN_SPOTS) {
+        let d = Math.hypot(s.x - x, s.y - y);
+        if (d < bd) { bd = d; best = s; }
+    }
+    if (bd < 95) return best.name;
+    let side = x < 1935 ? 'MẠN TRÁI' : (x > 2065 ? 'MẠN PHẢI' : 'GIỮA NÓC');
+    return `${railCarName(y)} - ${side}`;
+}
+function railStageOf(dist) {
+    let pct = (dist || 0) / ROOF.tunnel;
+    return pct >= 0.82 ? 3 : (pct >= 0.60 ? 2 : (pct >= 0.34 ? 1 : 0));
+}
+
 function startTrainGame() {
     story.cut = null; story.train = null; story.arena = null;
     zombies = []; bullets = []; enemyBullets = []; hazards = []; fireZones = []; thrownItems = []; slashes = []; airdropMarkers = []; drops = [];
     obstacles = []; story.props = []; rescueNPCs = []; bushes = []; slowZones = []; decals = [];
-    heliSupport.active = false; tank.active = false;
+    heliSupport.active = false; tank.active = false; tank.crew = [];
     bgMapColor = '#14181b'; currentWeather = 1;
-    story.rail = { hp: 100, speed: 70, dist: 0, chainT: 2.0, cannon: 4, boost: 0, boostCD: 0, sw: 0, swT: 8, stun: 0, end: 0, win: false, fin: -1, msg: 'TRÊN NÓC TÀU! B: LỆNH PHÁO · C: TĂNG TỐC · D: CHUYỂN RAY — phá MÓC XÍCH, né ĐÁ RƠI và XÍCH QUÉT!', msgT: 6, shift: 0 };
+    story.rail = { hp: 100, speed: 72, dist: 0, stage: 0, chainT: 1.8, cannon: 3.5, boost: 0, boostCD: 0, sw: 0, swT: 8.5, stun: 0, end: 0, win: false, fin: -1, msg: 'TRÊN NÓC TÀU! B: LỆNH PHÁO · C: TĂNG TỐC · D: CHUYỂN RAY — phá MÓC XÍCH theo vị trí báo động, né DẦM THÉP & ZOMBIE NÉM LÊN TÀU!', msgT: 6.5, shift: 0 };
     story.noSpawn = true; radioDialogs.length = 0;
+    const trOffs = [[-55, -26], [55, -26], [-55, 36], [55, 36]];
     players.forEach((p, i) => {
-        p.x = (ROOF.x0 + ROOF.x1) / 2 + (players.length > 1 ? (i ? 50 : -50) : 0); p.y = 2000; p.stunTimer = 0; p.netTimer = 0;
+        if (p.netLeft) return;
+        let o = players.length > 1 ? trOffs[i % trOffs.length] : [0, 0];
+        p.x = (ROOF.x0 + ROOF.x1) / 2 + o[0]; p.y = 2000 + o[1]; p.stunTimer = 0; p.netTimer = 0;
         if (!p.weapon && !p.isDowned) p.weapon = { ...WEAPON_TYPES.AR };   // tay không thì nhặt khẩu AR trên tàu
     });
     allies.forEach((a, i) => { a.x = 2000 + (i % 2 ? 60 : -60); a.y = 2100; });
+    // Thả sẵn tiếp tế khởi đầu trên tàu theo số người chơi
+    let initDrops = Math.max(1, bossTeamCount() - 1);
+    for (let k = 0; k < initDrops; k++) {
+        drops.push({ x: 1940 + (k % 2) * 120, y: 1930 + Math.floor(k / 2) * 120, type: k % 2 === 0 ? 'BLINDBOX' : 'MEDKIT', life: 90 });
+    }
     objState = 'TRAIN'; mission.type = 'TRAIN'; mission.complete = false;
     if (story.lab) story.lab.stage = 'train';
     NAV.dirty = true; NAV.t = 0;
     clearPcInputs(); updateCamera(0, true);
     if (NET.mode === 'host') netSendMap();
 }
-function railMsg(text, t = 2.4) { let r = story.rail; r.msg = text; r.msgT = t; }
+function railMsg(text, t = 2.4) { let r = story.rail; if (r) { r.msg = text; r.msgT = t; } }
 // Móc trong Player.update: trên nóc tàu, B / C / D là lệnh điều khiển tàu (không ném vũ khí, không dùng kỹ năng)
 function railInput(p) {
     let r = story.rail; if (!r || r.end) return;
+    let stg = railStageOf(r.dist), extraP = Math.max(0, bossTeamCount() - 1);
     if (getButtonState(p.id, 'B', 'justPressed')) {
         if (r.cannon > 0) vfxList.push({ type: 'text', text: `PHÁO ĐANG NẠP ${r.cannon.toFixed(1)}s`, x: p.x, y: p.y - 50, life: 0.7, color: '#95a5a6' });
         else {
-            r.cannon = 8; r.stun = 4;
-            let chains = story.props.filter(c => c.kind === 'chain').slice(0, 2);
+            r.cannon = stg >= 3 ? 7.2 : 8.0;
+            r.stun = stg >= 3 ? 2.8 : (stg >= 2 ? 3.3 : 4.0);
+            let cutN = 2 + Math.floor(extraP / 2) + (stg >= 3 ? 1 : 0);
+            let chains = story.props.filter(c => c.kind === 'chain').slice(0, cutN);
             for (let c of chains) c.hp = 0;
             let hx = 2000, hy = ROOF.y1 + 250;
             vfxList.push({ type: 'laser_beam', x: 2000, y: ROOF.y1 - 60, tx: hx, ty: hy, life: 0.25 });
             vfxList.push({ type: 'flash', x: hx, y: hy, r: 220, life: 0.4, max: 0.4 }); createParticles(hx, hy, '#e67e22', 50, 500);
             addScreenShake(16); Sound.play('explode');
-            railMsg(chains.length ? `PHÁO TRÚNG THE HUCKER! ĐỨT ${chains.length} SỢI XÍCH` : 'PHÁO TRÚNG THE HUCKER! NÓ CHOÁNG 4 GIÂY', 2.2);
+            railMsg(chains.length ? `💥 PHÁO TRÚNG THE HUCKER! ĐỨT ${chains.length} MÓC XÍCH!` : `💥 PHÁO TRÚNG THE HUCKER! CHOÁNG ${r.stun.toFixed(1)} GIÂY`, 2.2);
         }
     }
     if (getButtonState(p.id, 'C', 'justPressed')) {
         if (r.boostCD > 0) vfxList.push({ type: 'text', text: `NỒI HƠI ĐANG HỒI ${r.boostCD.toFixed(1)}s`, x: p.x, y: p.y - 50, life: 0.7, color: '#95a5a6' });
-        else { r.boost = 4; r.boostCD = 12; Sound.play('level'); railMsg('XẢ HƠI — TĂNG TỐC!', 1.6); }
+        else { r.boost = 4.2; r.boostCD = 11.5; Sound.play('level'); railMsg('🚂 XẢ HƠI NƯỚC — ĐOÀN TÀU TĂNG TỐC MẠNH!', 1.7); }
     }
     if (getButtonState(p.id, 'D', 'justPressed')) {
-        if (r.sw > 0) { r.sw = 0; r.swT = 8 + Math.random() * 5; r.shift = 0.5; Sound.play('upgrade'); addScreenShake(6); railMsg('ĐÃ CHUYỂN RAY — NÉ ĐƯỢC ĐÁ!', 1.8); }
+        if (r.sw > 0) { r.sw = 0; r.swT = (stg >= 2 ? 5.8 : 8) + Math.random() * 4; r.shift = 0.5; Sound.play('upgrade'); addScreenShake(6); railMsg('✔ ĐÃ CHUYỂN RAY — LÁCH QUA CHƯỚNG NGẠI VẬT!', 1.8); }
         else vfxList.push({ type: 'text', text: 'CHƯA CÓ GÌ CHẮN ĐƯỜNG', x: p.x, y: p.y - 50, life: 0.7, color: '#95a5a6' });
     }
 }
-function railAddChain() {
-    let side = Math.random(), x, y;
-    if (side < 0.42) { x = ROOF.x0 + 14; y = ROOF.y0 + 150 + Math.random() * (ROOF.y1 - ROOF.y0 - 300); }
-    else if (side < 0.84) { x = ROOF.x1 - 14; y = ROOF.y0 + 150 + Math.random() * (ROOF.y1 - ROOF.y0 - 300); }
-    else { x = ROOF.x0 + 40 + Math.random() * (ROOF.x1 - ROOF.x0 - 80); y = ROOF.y1 - 14; }
-    let hp = 240 + currentLevel * 45;
-    story.props.push({ kind: 'chain', breakable: true, x, y, r: 22, hp, maxHp: hp, cd: 0.8 });
-    vfxList.push({ type: 'laser_beam', x: 2000, y: ROOF.y1 + 250, tx: x, ty: y, life: 0.3 });
-    vfxList.push({ type: 'text', text: '⛓ MÓC XÍCH!', x, y: y - 30, life: 1.2, color: '#ff7675' });
-    Sound.play('throw'); addScreenShake(5);
+function railSpawnChains(r, forceCount) {
+    let stg = railStageOf(r ? r.dist : 0), extraP = Math.max(0, bossTeamCount() - 1);
+    let existing = story.props.filter(c => c.kind === 'chain');
+    let maxChains = Math.min(11, 6 + extraP * 2 + (stg >= 2 ? 2 : 0) + (stg >= 3 ? 1 : 0));
+    let availSlots = Math.max(0, maxChains - existing.length);
+    if (availSlots <= 0) return 0;
+
+    let want = forceCount || (1 + (extraP >= 2 ? 1 : 0) + (stg >= 2 && Math.random() < 0.72 ? 1 : 0) + (stg >= 3 && Math.random() < 0.55 ? 1 : 0));
+    want = Math.min(availSlots, want);
+
+    let freeSpots = RAIL_CHAIN_SPOTS.filter(s => s.minStage <= stg && !existing.some(c => Math.hypot(c.x - s.x, c.y - s.y) < 75));
+    if (!freeSpots.length) return 0;
+
+    // Ưu tiên rải móc ra nhiều toa khác nhau để đội phải di chuyển phối hợp
+    let labels = [], spawned = 0;
+    while (spawned < want && freeSpots.length > 0) {
+        let idx = Math.floor(Math.random() * freeSpots.length);
+        let sp = freeSpots.splice(idx, 1)[0];
+        let jx = sp.x === 2000 ? (Math.random() - 0.5) * 18 : 0;
+        let jy = (sp.y > ROOF.y0 + 40 && sp.y < ROOF.y1 - 40) ? (Math.random() - 0.5) * 18 : 0;
+        let x = Math.round(sp.x + jx), y = Math.round(sp.y + jy);
+        let hp = Math.round((230 + currentLevel * 42) * (1 + extraP * 0.22) * (stg >= 2 ? 1.15 : 1));
+        story.props.push({ kind: 'chain', breakable: true, x, y, r: 22, hp, maxHp: hp, cd: 0.65 + spawned * 0.25 });
+        vfxList.push({ type: 'laser_beam', x: 2000, y: ROOF.y1 + 250, tx: x, ty: y, life: 0.34 });
+        vfxList.push({ type: 'text', text: `⛓ ${sp.name}`, x, y: y - 32, life: 1.8, color: '#ff7675' });
+        labels.push(sp.name);
+        spawned++;
+    }
+    if (spawned > 0) {
+        Sound.play('throw'); addScreenShake(5 + spawned * 2);
+        railMsg(`⛓ MÓC XÍCH BÁM TẠI: [${labels.join(' · ')}]!`, 2.8);
+    }
+    return spawned;
 }
+function railAddChain() { return railSpawnChains(story.rail); }
+
 // Vòng cập nhật trên nóc tàu (gọi từ updateStory khi objState === 'TRAIN')
 function updateRail(dt) {
     let r = story.rail; if (!r) return;
@@ -368,82 +456,142 @@ function updateRail(dt) {
     }
     const cx = (ROOF.x0 + ROOF.x1) / 2;
     // Giữ phe ta trên nóc tàu; quái bị hất văng khỏi mép nóc thì rơi xuống đường ray
-    const clamp = (e) => { let m = (e.radius || 14); e.x = Math.max(ROOF.x0 + m, Math.min(ROOF.x1 - m, e.x)); e.y = Math.max(ROOF.y0 + m, Math.min(ROOF.y1 - m, e.y)); };
+    const clamp = (e) => { if (e.netLeft) return; let m = (e.radius || 14); e.x = Math.max(ROOF.x0 + m, Math.min(ROOF.x1 - m, e.x)); e.y = Math.max(ROOF.y0 + m, Math.min(ROOF.y1 - m, e.y)); };
     players.forEach(clamp); allies.forEach(clamp);
     for (let z of zombies) {
         if (z.hp <= 0) continue;
         if (z.x < ROOF.x0 - 26 || z.x > ROOF.x1 + 26 || z.y < ROOF.y0 - 26 || z.y > ROOF.y1 + 26) { z.hp = 0; z.noLoot = true; createParticles(z.x, z.y, '#95a5a6', 8, 200); vfxList.push({ type: 'text', text: 'RƠI KHỎI TÀU!', x: z.x, y: z.y - 20, life: 0.7, color: '#dfe6e9' }); }
         else if (Math.abs(z.kbX) + Math.abs(z.kbY) < 40) { z.x = Math.max(ROOF.x0 + 6, Math.min(ROOF.x1 - 6, z.x)); z.y = Math.max(ROOF.y0 + 6, Math.min(ROOF.y1 - 6, z.y)); }
     }
+    // Tránh kẹt tay không trên nóc tàu: nếu ai lỡ mất súng quá 3.5s thì tự tiếp tế súng dự phòng
+    for (let p of players) {
+        if (p.netLeft || p.isDowned) continue;
+        if (!p.weapon) {
+            p._railUnarmed = (p._railUnarmed || 0) + dt;
+            if (p._railUnarmed >= 3.2) {
+                p._railUnarmed = 0;
+                p.weapon = { ...WEAPON_TYPES[Math.random() < 0.65 ? 'AR' : 'SHOTGUN'] };
+                vfxList.push({ type: 'text', text: `TIẾP TẾ KHẨN: ${p.weapon.name}!`, x: p.x, y: p.y - 44, life: 1.5, color: '#f1c40f' });
+                Sound.play('reload');
+            }
+        } else p._railUnarmed = 0;
+    }
 
-    // Tàu
+    // Tàu & leo thang độ khó theo quãng đường (Đầu -> Giữa -> Gần Cuối -> Cuối)
+    let stg = railStageOf(r.dist), extraP = Math.max(0, bossTeamCount() - 1);
+    if ((r.stage || 0) < stg) {
+        r.stage = stg;
+        if (stg === 1) {
+            railMsg('⚡ GIAI ĐOẠN GIỮA — THE HUCKER TĂNG TỐC VÂY ÉP TRÊN CẢ 3 TOA!', 2.8);
+            Sound.play('roar'); addScreenShake(10);
+        } else if (stg === 2) {
+            railMsg('🔥 GẦN CUỐI ĐƯỜNG RAY — THE HUCKER NỔI ĐIÊN! MÓC XÍCH ĐA VỊ TRÍ & NÉM ZOMBIE DỒN DẬP!', 3.4);
+            Sound.play('big_roar'); addScreenShake(18);
+            railSpawnChains(r, 2 + (extraP >= 2 ? 1 : 0));
+            drops.push({ x: cx - 40, y: railCarCenterY(1), type: 'SUPERBOX', life: 90 });
+            drops.push({ x: cx + 40, y: railCarCenterY(1), type: 'MEDKIT', life: 90 });
+            for (let k = 0; k < extraP; k++) drops.push({ x: cx + (k % 2 ? 55 : -55), y: railCarCenterY(k % 3), type: 'BLINDBOX', life: 90 });
+            vfxList.push({ type: 'text', text: '📦 TIẾP TẾ ĐẶC BIỆT TẠI [TOA GIỮA]!', x: cx, y: railCarCenterY(1) - 42, life: 2.4, color: '#f1c40f' });
+        } else if (stg === 3) {
+            railMsg('☠ CHẶNG CUỐI TỬ THẦN — CỬA HẦM TRƯỚC MẶT! TOÀN LỰC GIỮ VỮNG ĐOÀN TÀU!', 3.6);
+            Sound.play('big_roar'); addScreenShake(24); addScreenFlash(0.32, 36);
+            railSpawnChains(r, 2 + Math.min(2, extraP));
+            for (let k = 0; k < 1 + Math.floor(bossTeamCount() / 2); k++) {
+                let cy = railCarCenterY(k % 3);
+                drops.push({ x: cx + (k % 2 ? 48 : -48), y: cy, type: k === 0 ? 'MEDKIT' : 'BLINDBOX', life: 90 });
+            }
+        }
+    }
+
     let chains = story.props.filter(c => c.kind === 'chain');
     if (r.boost > 0) r.boost -= dt;
     if (r.boostCD > 0) r.boostCD -= dt;
     if (r.cannon > 0) r.cannon -= dt;
     // Kết thúc: C4 nổ tung toa đuôi cuốn theo The Hucker, đoàn tàu lao vào hầm (17-bosses.js)
     if (r.fin >= 0) { railFinale(r, dt); return; }
-    let target = Math.max(22, 108 - chains.length * 14) + (r.boost > 0 ? 35 : 0);
+    let dragMul = 1 / (1 + extraP * 0.22);
+    let target = Math.max(20, 110 - chains.length * 11.5 * dragMul) + (r.boost > 0 ? 38 : 0);
     r.speed += Math.max(-50 * dt, Math.min(18 * dt, target - r.speed));
-    r.dist += r.speed / 100 * 19 * dt;
-    r.hp -= chains.length * 0.8 * dt;
-    if (r.dist >= ROOF.tunnel - 70) { railStartFinale(r); return; }
+    r.dist += r.speed / 100 * 18.5 * dt;
+    r.hp -= chains.length * (stg >= 3 ? 0.88 : (stg >= 2 ? 0.78 : 0.66)) * dragMul * dt;
+    if (r.dist >= ROOF.tunnel - 75) { railStartFinale(r); return; }
     // Mọi người đều gục: thất bại (không game over)
-    if (players.every(p => p.isDowned)) { r.win = false; r.failText = 'Cả đội gục ngã trên nóc tàu.'; r.end = 2.5; railMsg('CẢ ĐỘI ĐÃ GỤC!', 3); return; }
+    let actP = activePlayers();
+    if (actP.length > 0 && actP.every(p => p.isDowned)) { r.win = false; r.failText = 'Cả đội gục ngã trên nóc tàu.'; r.end = 2.5; railMsg('CẢ ĐỘI ĐÃ GỤC!', 3); return; }
 
-    // The Hucker phóng xích
+    // The Hucker phóng xích (nhiều vị trí hơn, dồn dập hơn ở gần cuối & cuối và khi đông người)
     if (r.stun > 0) r.stun -= dt;
     else {
         r.chainT -= dt;
-        if (r.chainT <= 0 && chains.length < 6) { r.chainT = Math.max(1.7, 4.4 - r.dist / 330) + Math.random() * 1.2; railAddChain(); }
+        if (r.chainT <= 0) {
+            let baseCD = stg >= 3 ? 1.85 : (stg >= 2 ? 2.45 : (stg >= 1 ? 3.2 : 3.9));
+            r.chainT = Math.max(1.35, baseCD - extraP * 0.22) + Math.random() * 0.9;
+            railSpawnChains(r);
+        }
     }
-    railHuckerAttacks(r, dt);   // ném đá lên nóc tàu, xích quét ngang (17-bosses.js)
+    railHuckerAttacks(r, dt);   // ném đá, xích quét kép, ném zombie, dầm thép & tiếp tế (17-bosses.js)
     // Zombie trèo lên theo từng sợi xích
+    let zCap = 40 + extraP * 10 + (stg >= 2 ? 10 : 0) + (stg >= 3 ? 6 : 0);
     for (let c of chains) {
         c.cd -= dt;
-        if (c.cd <= 0 && zombies.length < 42) {
-            c.cd = 1.15 + Math.random() * 0.7;
-            let t = Math.random() < 0.25 ? 3 : (Math.random() < 0.12 && currentLevel >= 6 ? 1 : 0);
-            let ix = c.x + (c.x < cx ? 20 : (c.x > cx + 100 ? -20 : 0)), iy = c.y - (c.y > ROOF.y1 - 40 ? 22 : 0);
+        if (c.cd <= 0 && zombies.length < zCap) {
+            c.cd = (stg >= 3 ? 0.82 : (stg >= 2 ? 0.96 : 1.15)) + Math.random() * 0.55;
+            let roll = Math.random(), t = 0;
+            if (stg >= 3 && roll < 0.16) t = 14;          // Bọc Thép ở chặng cuối
+            else if (stg >= 2 && roll < 0.26) t = 10;     // Lao Húc ở gần cuối
+            else if (roll < (stg >= 2 ? 0.54 : 0.30)) t = 3; // Chạy Nhanh
+            else if (roll < 0.68 && currentLevel >= 6) t = Math.random() < 0.5 ? 1 : 2;
+            let ix = c.x + (c.x < cx - 30 ? 22 : (c.x > cx + 30 ? -22 : 0));
+            let iy = c.y + (c.y < ROOF.y0 + 45 ? 24 : (c.y > ROOF.y1 - 45 ? -24 : 0));
             zombies.push(new Zombie(ix, iy, t)); createParticles(c.x, c.y, '#7f8c8d', 5, 120);
         }
     }
-    // Đá chắn đường ray
+    // Đá chắn đường ray (càng về cuối xuất hiện càng gắt)
     if (r.sw > 0) {
         r.sw -= dt;
-        if (r.sw <= 0) { r.sw = 0; r.swT = 8 + Math.random() * 5; r.hp -= 18; r.speed = Math.min(r.speed, 30); addScreenShake(22); Sound.play('explode'); railMsg('TÀU ĐÂM VÀO ĐÁ! -18 MÁU TÀU, MẤT TỐC ĐỘ', 2.4); for (let p of players) if (!p.isDowned) stunPlayer(p, 0.6); }
+        if (r.sw <= 0) {
+            r.sw = 0; r.swT = (stg >= 2 ? 5.8 : 8) + Math.random() * 4;
+            let hitDmg = stg >= 3 ? 22 : 18;
+            r.hp -= hitDmg; r.speed = Math.min(r.speed, 28); addScreenShake(22); Sound.play('explode');
+            railMsg(`💥 TÀU ĐÂM VÀO ĐÁ TẢNG! -${hitDmg} MÁU TÀU, MẤT TỐC ĐỘ!`, 2.4);
+            for (let p of players) if (!p.netLeft && !p.isDowned) stunPlayer(p, 0.6);
+        }
     } else {
         r.swT -= dt;
-        if (r.swT <= 0 && r.dist < ROOF.tunnel - 120) { r.sw = 4.5; Sound.play('hit'); railMsg('⚠ ĐÁ CHẮN ĐƯỜNG RAY — BẤM D ĐỂ CHUYỂN RAY!', 4.5); }
+        if (r.swT <= 0 && r.dist < ROOF.tunnel - 110) {
+            r.sw = stg >= 3 ? 3.6 : (stg >= 2 ? 4.0 : 4.5);
+            Sound.play('hit'); railMsg('⚠ ĐÁ CHẮN ĐƯỜNG RAY — BẤM [D] ĐỂ CHUYỂN RAY NGAY!', r.sw);
+        }
     }
     if (r.hp <= 0) { r.hp = 0; r.win = false; r.end = 2.8; addScreenShake(24); Sound.play('explode'); railMsg('ĐOÀN TÀU BỊ PHÁ HỦY!', 3); }
 }
 // Móc xích bị phá
 function railChainBroken(c) {
     createParticles(c.x, c.y, '#b2bec3', 24, 300); Sound.play('melee'); addScreenShake(4);
-    vfxList.push({ type: 'text', text: 'ĐỨT XÍCH!', x: c.x, y: c.y - 30, life: 1.0, color: '#2ecc71' });
+    vfxList.push({ type: 'text', text: `ĐỨT XÍCH (${railCarName(c.y)})!`, x: c.x, y: c.y - 30, life: 1.1, color: '#2ecc71' });
 }
 
 // Vẽ: đất trôi về phía sau, đường ray, 3 toa tàu nhìn từ trên xuống, The Hucker bám theo, các sợi xích
 function drawRail(T, x0, x1, y0, y1) {
     let r = story.rail; if (!r) return;
     const cx = (ROOF.x0 + ROOF.x1) / 2, scroll = r.dist * 22, sh = r.shift > 0 ? Math.sin(r.shift * 12) * 10 : 0;
-    ctx.fillStyle = '#1a2124'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+    let stg = railStageOf(r.dist);
+    ctx.fillStyle = stg >= 3 ? '#22171a' : (stg === 2 ? '#1e1b20' : '#1a2124'); ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
     ctx.fillStyle = 'rgba(255,255,255,0.06)';
     for (let i = 0; i < 90; i++) { let gx = x0 + ((i * 137.5) % (x1 - x0)), gy = y0 + ((i * 71.3 + scroll * (0.8 + (i % 3) * 0.2)) % (y1 - y0)); ctx.fillRect(gx, gy, 4, 14); }
     // Đường ray (lệch sang ngang khi chuyển ray)
     ctx.fillStyle = '#3b2f26'; for (let y = y0 - 40 + (scroll % 44); y < y1 + 40; y += 44) ctx.fillRect(cx - 96 + sh, y, 192, 12);
     ctx.fillStyle = '#95a5a6'; ctx.fillRect(cx - 70 + sh, y0, 8, y1 - y0); ctx.fillRect(cx + 62 + sh, y0, 8, y1 - y0);
     // Hầm an toàn hiện ra ở cuối chặng
-    if (r.dist > ROOF.tunnel - 80) {
-        let ty = ROOF.y0 - 900 + (r.dist - (ROOF.tunnel - 80)) / 80 * 760;
+    if (r.dist > ROOF.tunnel - 90) {
+        let ty = ROOF.y0 - 900 + (r.dist - (ROOF.tunnel - 90)) / 90 * 760;
         ctx.fillStyle = '#2d3436'; ctx.fillRect(x0, ty - 700, x1 - x0, 760);
         ctx.fillStyle = '#000'; ctx.fillRect(cx - 190, ty - 120, 380, 180); ctx.beginPath(); ctx.arc(cx, ty - 120, 190, Math.PI, 0); ctx.fill();
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; outlinedText('HẦM AN TOÀN', cx, ty - 380, '#2ecc71', 'bold 40px Arial');
     }
     // The Hucker bám phía sau + xích
-    let hx = cx + Math.sin(T * 0.8) * 110, hy = ROOF.y1 + 250 + Math.sin(T * 1.7) * 14;
-    ctx.strokeStyle = '#b2bec3'; ctx.lineWidth = 6; ctx.setLineDash([14, 9]);
+    let hx = cx + Math.sin(T * (stg >= 2 ? 1.25 : 0.8)) * (stg >= 2 ? 128 : 110), hy = ROOF.y1 + 250 + Math.sin(T * 1.7) * 14;
+    ctx.strokeStyle = stg >= 2 ? '#ff7675' : '#b2bec3'; ctx.lineWidth = 6; ctx.setLineDash([14, 9]);
     for (let c of story.props) if (c.kind === 'chain') { ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(c.x, c.y); ctx.stroke(); }
     ctx.setLineDash([]);
     let blown = r.fin >= 0.9, bk = blown ? r.fin - 0.9 : 0;
@@ -454,18 +602,22 @@ function drawRail(T, x0, x1, y0, y1) {
         drawHucker({ x: hx, y: by, radius: 62, phase2Done: true }, T, -Math.PI / 2 + bk * 7, (r.stun > 0 || blown) && Math.floor(T * 12) % 2 === 0);
         ctx.restore();
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        outlinedText(blown ? 'THE HUCKER — BỊ THỔI BAY!' : (r.stun > 0 ? 'THE HUCKER — CHOÁNG!' : 'THE HUCKER'), hx, by + 92, r.stun > 0 || blown ? '#f1c40f' : '#e17055', 'bold 15px Arial');
+        let hTag = blown ? 'THE HUCKER — BỊ THỔI BAY!' : (r.stun > 0 ? 'THE HUCKER — CHOÁNG!' : (stg >= 3 ? 'THE HUCKER — TỬ CHIẾN!' : (stg >= 2 ? 'THE HUCKER — CUỒNG NỘ!' : 'THE HUCKER')));
+        outlinedText(hTag, hx, by + 92, r.stun > 0 || blown ? '#f1c40f' : (stg >= 2 ? '#ff4757' : '#e17055'), 'bold 15px Arial');
     }
-    // Ba toa tàu (nóc)
-    let jit = Math.sin(T * 38) * 1.2, carH = (ROOF.y1 - ROOF.y0 - 40) / 3;
+    // Ba toa tàu (nóc) + ký hiệu rõ TOA ĐẦU / TOA GIỮA / TOA ĐUÔI
+    let jit = Math.sin(T * 38) * (stg >= 2 ? 1.8 : 1.2), carH = (ROOF.y1 - ROOF.y0 - 40) / 3;
+    const carNames = ['TOA ĐẦU', 'TOA GIỮA', 'TOA ĐUÔI'];
     for (let k = 0; k < 3; k++) {
         let y = ROOF.y0 + k * (carH + 20), jx = k % 2 ? jit : -jit;
         ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(ROOF.x0 - 14 + 12, y + 12, ROOF.x1 - ROOF.x0 + 28, carH);
-        ctx.fillStyle = k === 0 ? '#34495e' : '#4b6584'; ctx.fillRect(ROOF.x0 - 14 + jx, y, ROOF.x1 - ROOF.x0 + 28, carH);
+        ctx.fillStyle = k === 0 ? '#34495e' : (k === 1 ? '#4b6584' : '#3d566e'); ctx.fillRect(ROOF.x0 - 14 + jx, y, ROOF.x1 - ROOF.x0 + 28, carH);
         ctx.strokeStyle = '#1e272e'; ctx.lineWidth = 5; ctx.strokeRect(ROOF.x0 - 14 + jx, y, ROOF.x1 - ROOF.x0 + 28, carH);
         ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 3; ctx.beginPath(); for (let yy = y + 50; yy < y + carH - 20; yy += 60) { ctx.moveTo(ROOF.x0 + jx, yy); ctx.lineTo(ROOF.x1 + jx, yy); } ctx.stroke();
         ctx.fillStyle = '#2d3436'; ctx.fillRect(cx - 34 + jx, y + carH / 2 - 26, 68, 52); ctx.fillStyle = `rgba(255, 234, 167, ${0.4 + 0.15 * Math.sin(T * 7 + k)})`; ctx.fillRect(cx - 26 + jx, y + carH / 2 - 18, 52, 36);   // cửa nóc
-        if (k < 2) { ctx.fillStyle = '#2f3542'; ctx.fillRect(cx - 22, y + carH, 44, 20); }
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.font = '900 22px Arial'; ctx.fillText(carNames[k], cx + jx, y + 32);
+        if (k < 2) { ctx.fillStyle = '#2f3542'; ctx.fillRect(cx - 26, y + carH, 52, 20); }
     }
     // Đầu máy nhả khói
     for (let k = 0; k < 5; k++) { let t = (T * 0.9 + k * 0.2) % 1; ctx.beginPath(); ctx.arc(cx + Math.sin(k * 2.1 + T) * 30, ROOF.y0 + 60 + t * 260, 22 + t * 60, 0, Math.PI * 2); ctx.fillStyle = `rgba(210, 210, 210, ${0.18 * (1 - t)})`; ctx.fill(); }
@@ -478,11 +630,14 @@ function drawRail(T, x0, x1, y0, y1) {
     drawRailFinale(r, T, x0, x1, y0, y1);
 }
 function drawRailChain(c, T) {
-    ctx.beginPath(); ctx.arc(c.x, c.y, c.r + 4 + Math.sin(T * 8) * 2, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255, 71, 87, 0.8)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r + 4 + Math.sin(T * 8) * 2, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255, 71, 87, 0.85)'; ctx.lineWidth = 3; ctx.stroke();
     ctx.strokeStyle = '#dfe6e9'; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(c.x, c.y, 13, 0.6, 4.6); ctx.stroke(); ctx.lineCap = 'butt';
     ctx.fillStyle = '#636e72'; ctx.beginPath(); ctx.arc(c.x, c.y, 6, 0, Math.PI * 2); ctx.fill();
-    drawMiniBar(c.x, c.y - c.r - 14, 46, 5, c.hp, c.maxHp, '#ff7675');
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; outlinedText('MÓC XÍCH', c.x, c.y + c.r + 12, '#ff7675', 'bold 10px Arial');
+    drawMiniBar(c.x, c.y - c.r - 14, 50, 5, c.hp, c.maxHp, '#ff7675');
+    let lbl = railChainLabel(c.x, c.y);
+    let tx = Math.max(ROOF.x0 + 36, Math.min(ROOF.x1 - 36, c.x));
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    outlinedText('⛓ ' + lbl, tx, c.y + c.r + 12, '#ff9f43', 'bold 10px Arial', 3);
 }
 // Bảng trạng thái tàu trên màn hình
 function drawRailHud(T) {
@@ -493,21 +648,31 @@ function drawRailHud(T) {
         ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w, h);
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Arial'; ctx.fillText(label, x + 6, y + h / 2 + 1);
     };
-    let bw = Math.min(250, W - 20), bx = W / 2 - bw / 2, by = small ? 126 : 96, n = story.props.filter(c => c.kind === 'chain').length;
+    let stg = railStageOf(r.dist), stgTag = stg >= 3 ? ' · ☠ CHẶNG CUỐI' : (stg === 2 ? ' · 🔥 GẦN CUỐI' : (stg === 1 ? ' · ⚡ TĂNG TỐC' : ''));
+    let bw = Math.min(270, W - 20), bx = W / 2 - bw / 2, by = small ? 126 : 96, chains = story.props.filter(c => c.kind === 'chain'), n = chains.length;
     bar(bx, by, bw, 16, r.hp / 100, r.hp < 35 ? '#ff4757' : '#e74c3c', `MÁU TÀU ${Math.ceil(r.hp)}`);
     bar(bx, by + 19, bw, 13, r.speed / 135, n ? '#e67e22' : '#3498db', `TỐC ĐỘ ${Math.round(r.speed)}%${n ? '  ·  ⛓ x' + n : ''}`);
-    bar(bx, by + 35, bw, 13, r.dist / ROOF.tunnel, '#2ecc71', `HẦM AN TOÀN ${Math.max(0, Math.ceil(ROOF.tunnel - r.dist))}m`);
+    bar(bx, by + 35, bw, 13, r.dist / ROOF.tunnel, stg >= 3 ? '#ff4757' : (stg === 2 ? '#f39c12' : '#2ecc71'), `HẦM AN TOÀN ${Math.max(0, Math.ceil(ROOF.tunnel - r.dist))}m${stgTag}`);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     let cds = `B PHÁO ${r.cannon > 0 ? r.cannon.toFixed(0) + 's' : '✔'}   C TĂNG TỐC ${r.boostCD > 0 ? r.boostCD.toFixed(0) + 's' : '✔'}   D CHUYỂN RAY ${r.sw > 0 ? '⚠' : '—'}`;
     outlinedText(cds, W / 2, by + 60, '#dfe6e9', 'bold 11px Arial');
+    if (n > 0) {
+        // Dòng tóm tắt vị trí các móc xích đang bám theo từng toa để cả đội dễ chia nhau phá
+        let c0 = chains.filter(c => c.y < 1747).length, c1 = chains.filter(c => c.y >= 1747 && c.y < 2253).length, c2 = chains.filter(c => c.y >= 2253).length;
+        let parts = [];
+        if (c0) parts.push(`ĐẦU:${c0}`);
+        if (c1) parts.push(`GIỮA:${c1}`);
+        if (c2) parts.push(`ĐUÔI:${c2}`);
+        outlinedText(`⛓ VỊ TRÍ MÓC ĐANG BÁM: ${parts.join('  |  ')}`, W / 2, by + 75, '#ff9f43', 'bold 11px Arial', 3);
+    }
     if (r.sw > 0) {
         let a = 0.6 + 0.4 * Math.sin(T * 14);
         ctx.fillStyle = `rgba(160, 0, 0, ${0.18 * a})`; ctx.fillRect(0, 0, W, H);
         outlinedText('⚠ ĐÁ CHẮN ĐƯỜNG RAY', W / 2, H * 0.32, '#ff4757', `900 ${small ? 20 : 28}px Arial`, 6); outlinedText(`BẤM D ĐỂ CHUYỂN RAY!  ${r.sw.toFixed(1)}s`, W / 2, H * 0.32 + (small ? 26 : 36), '#f1c40f', `900 ${small ? 16 : 22}px Arial`, 5);
     } else if (r.msgT > 0) {
         ctx.globalAlpha = Math.min(1, r.msgT * 2); ctx.font = `bold ${small ? 12 : 16}px Arial`;
-        let lines = storyWrap(r.msg, Math.min(W - 24, 560));
-        lines.forEach((l, i) => outlinedText(l, W / 2, H * 0.34 + i * (small ? 16 : 22), '#f1c40f', `bold ${small ? 12 : 16}px Arial`, 4));
+        let lines = storyWrap(r.msg, Math.min(W - 24, 580));
+        lines.forEach((l, i) => outlinedText(l, W / 2, H * 0.34 + i * (small ? 16 : 22), stg >= 3 ? '#ff7675' : '#f1c40f', `bold ${small ? 12 : 16}px Arial`, 4));
         ctx.globalAlpha = 1;
     }
     if (r.hp < 35 && !r.end) { ctx.fillStyle = `rgba(200, 0, 0, ${0.1 + 0.08 * Math.sin(T * 9)})`; ctx.fillRect(0, 0, W, H); }   // tàu sắp vỡ: viền đỏ nhịp tim

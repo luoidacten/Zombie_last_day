@@ -11,16 +11,27 @@ let deadWarnT = 0;                               // thời gian còn lại của
 let deadSlain = false;
 try { deadSlain = localStorage.getItem('zs_dead_slain') === '1'; } catch (e) { }
 
-// LIỀM: kẻ bị giết có 2% (thẻ Gặt Hồn: 8%) hoá thành Tế Phẩm phe ta, lao vào kẻ địch gần nhất rồi phát nổ
+// LIỀM: mặc định có hút máu cao, khi giết quái tạo ra Tế Phẩm (6%, thẻ Gặt Hồn: 16%) sẽ cấp ngay Máu Ảo cho chủ nhân
 function scytheKill(z, src) {
-    let perks = (src && src.perks) || {};
-    if (perks.sc_reap && src.weapon && src.weapon.isScythe) { src.weapon.ammo = Math.min(src.weapon.maxAmmo, src.weapon.ammo + 1); src.applyHeal(2 / HEALING_MULT); }
+    let perks = (src && src.perks) || {}, tags = (src && src.tags) || {};
+    if (src && typeof src.applyLifesteal === 'function') src.applyLifesteal(perks.sc_reap ? 8 : 4);
+    if (perks.sc_reap && src && src.weapon && src.weapon.isScythe) {
+        src.weapon.ammo = Math.min(src.weapon.maxAmmo, src.weapon.ammo + 1);
+        if (typeof src.addVirtualHp === 'function') src.addVirtualHp(6);
+    }
     if (isBossType(z.type) || z.type === OFFERING_T) return;
-    if (Math.random() >= (perks.sc_soul ? 0.08 : 0.02)) return;
+    let procCh = (perks.sc_soul ? 0.16 : 0.06) + ((tags['LIỀM'] || 0) >= 3 ? 0.04 : 0);
+    if (Math.random() >= procCh) return;
     if (hazards.filter(h => h.type === 'soul').length >= 12) return;
     hazards.push({ type: 'soul', x: z.x, y: z.y, radius: 16, life: 7, friendly: true, source: src, big: !!perks.sc_blast });
+    let vGain = 0;
+    if (src && typeof src.addVirtualHp === 'function') {
+        vGain = Math.round((20 + src.maxHp * 0.14) * (perks.sc_soul ? 1.4 : 1.0));
+        vGain = Math.round(src.addVirtualHp(vGain));
+        createParticles(src.x, src.y, '#48dbfb', 14, 180);
+    }
     createParticles(z.x, z.y, '#ff5e57', 22, 240); spawnRing(z.x, z.y, '#ff5e57', 60, 0.3);
-    vfxList.push({ type: 'text', text: 'TẾ PHẨM!', x: z.x, y: z.y - 28, life: 0.9, color: '#ff5e57' });
+    vfxList.push({ type: 'text', text: vGain > 0 ? `TẾ PHẨM! +${vGain} MÁU ẢO` : 'TẾ PHẨM!', x: z.x, y: z.y - 28, life: 1.15, color: '#48dbfb' });
     Sound.play('dead_offering');
 }
 
@@ -47,7 +58,7 @@ function spawnTheDead() {
     // Góc khuất: góc bản đồ xa người chơi nhất
     let best = null, bd = -1;
     for (let c of [[320, 320], [MAP_SIZE.w - 320, 320], [320, MAP_SIZE.h - 320], [MAP_SIZE.w - 320, MAP_SIZE.h - 320]]) {
-        let d = Math.min(...players.filter(p => !p.isDowned).map(p => Math.hypot(p.x - c[0], p.y - c[1])).concat([1e9]));
+        let d = Math.min(...players.filter(p => !p.netLeft && !p.isDowned).map(p => Math.hypot(p.x - c[0], p.y - c[1])).concat([1e9]));
         if (d > bd) { bd = d; best = c; }
     }
     let sp = findSafePoint(best[0], best[1], 44);
@@ -55,7 +66,7 @@ function spawnTheDead() {
     zombies.push(z);
     createParticles(z.x, z.y, '#c0392b', 60, 420); spawnRing(z.x, z.y, '#ff3838', 300, 0.8, 8);
     addScreenShake(16); Sound.play('roar');
-    for (let p of players) vfxList.push({ type: 'text', text: 'TỬ THẦN ĐÃ XUẤT HIỆN!', x: p.x, y: p.y - 90, life: 3.0, color: '#ff3838' });
+    for (let p of activePlayers()) vfxList.push({ type: 'text', text: 'TỬ THẦN ĐÃ XUẤT HIỆN!', x: p.x, y: p.y - 90, life: 3.0, color: '#ff3838' });
 }
 
 // Gọi mỗi khung hình trong gameLoop
@@ -83,10 +94,11 @@ function updateDeadHazards(dt) {
         if (h.type === 'd_arc') {
             if (h.done || h.timer > 0) continue;
             h.done = true; h.life = 0;
-            if (!tank.active) for (let p of players) {
-                if (p.isDowned || !deadInArc(h, p.x, p.y, p.radius)) continue;
+            for (let p of players) {
+                if (p.netLeft || p.isDowned || inTank(p) || !deadInArc(h, p.x, p.y, p.radius)) continue;
                 p.takeDamage(h.dmg); deadPush(p, Math.atan2(p.y - h.y, p.x - h.x), h.push || 180);
-            } else if (deadInArc(h, tank.x, tank.y, tank.radius) && tank.p2InvulnTimer <= 0) tank.hp -= h.dmg;
+            }
+            if (tank.active && deadInArc(h, tank.x, tank.y, tank.radius) && tank.p2InvulnTimer <= 0) tank.hp -= h.dmg;
             for (let z of zombies) {
                 if (z.type === DEAD_T || z.hp <= 0 || z.flying || !deadInArc(h, z.x, z.y, z.radius)) continue;
                 z.hp -= h.zdmg || 600; let a = Math.atan2(z.y - h.y, z.x - h.x); z.knockback(Math.cos(a) * 900, Math.sin(a) * 900);
@@ -101,7 +113,7 @@ function updateDeadHazards(dt) {
             if (!h.started) { h.started = true; Sound.play('slash_heavy'); addScreenShake(6); }
             h.tick = (h.tick || 0) - dt;
             if (h.tick <= 0) { h.tick = 0.5; Sound.play('slash'); createParticles(h.x, h.y, '#ff3838', 6, 240); }
-            if (!tank.active) for (let p of players) if (!p.isDowned && Math.hypot(p.x - h.x, p.y - h.y) < h.radius + p.radius) p.takeDot(h.dmg * dt);
+            for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p) && Math.hypot(p.x - h.x, p.y - h.y) < h.radius + p.radius) p.takeDot(h.dmg * dt);
             if (tank.active && tank.p2InvulnTimer <= 0 && Math.hypot(tank.x - h.x, tank.y - h.y) < h.radius + tank.radius) tank.hp -= h.dmg * 0.5 * dt;
             for (let z of zombies) if (z.type !== DEAD_T && z.hp > 0 && !z.flying && Math.hypot(z.x - h.x, z.y - h.y) < h.radius + z.radius) { z.hp -= 450 * dt; if (Math.random() < dt * 6) createParticles(z.x, z.y, '#c0392b', 3, 200); }
             for (let n of rescueNPCs) if (n.hp > 0 && Math.hypot(n.x - h.x, n.y - h.y) < h.radius) n.takeDamage(h.dmg * dt);
@@ -120,11 +132,21 @@ function updateDeadHazards(dt) {
                 h.done = true; h.life = 0;
                 let mult = (h.source && h.source.getTotalDamageMult) ? h.source.getTotalDamageMult() : 1;
                 explode(h.x, h.y, h.big ? 210 : 130, (h.big ? 520 : 260) * mult, h.source || null, true);
+                if (h.source && h.source.perks && h.source.perks.ls_feast) {
+                    for (let pl of players) {
+                        if (!pl || pl.isDowned || pl.netLeft) continue;
+                        if (pl === h.source || Math.hypot(pl.x - h.x, pl.y - h.y) < 340) {
+                            pl.applyLifesteal(8);
+                            pl.addVirtualHp(22);
+                        }
+                    }
+                    spawnRing(h.x, h.y, '#48dbfb', 160, 0.3, 4);
+                }
             }
         } else if (h.type === 'd_moon') {
             // Lãnh Địa Huyết Nguyệt: bước RA NGOÀI vòng máu sẽ bị rút máu + làm chậm; quái bên ngoài tiến vào cũng dính
-            if (!tank.active) for (let p of players) {
-                if (p.isDowned || Math.hypot(p.x - h.x, p.y - h.y) <= h.radius) continue;
+            for (let p of players) {
+                if (p.netLeft || p.isDowned || inTank(p) || Math.hypot(p.x - h.x, p.y - h.y) <= h.radius) continue;
                 p.takeDot(24 * dt); p.netTimer = Math.max(p.netTimer || 0, 0.3);
                 if (Math.random() < dt * 8) createParticles(p.x, p.y, '#c0392b', 2, 80);
             }
@@ -154,16 +176,17 @@ function updateDeadFamily(z, target, dist, ang, dt, speed) {
     }
 
     if (z.spCD <= 0) {
-        let near = zombies.filter(e => e !== z && e.hp > 0 && !isBossType(e.type) && e.type !== OFFERING_T && !e.hidden && !e.flying && Math.hypot(e.x - z.x, e.y - z.y) < 400);
+        let tc = bossTeamCount(), extraP = tc - 1;
+        let near = zombies.filter(e => e !== z && e.hp > 0 && !isBossType(e.type) && e.type !== OFFERING_T && !e.hidden && !e.flying && Math.hypot(e.x - z.x, e.y - z.y) < 420);
         let offerings = zombies.filter(e => e.type === OFFERING_T && e.hp > 0);
         let opts = ['shadow', 'harvest', 'destruction'];
         if (!hazards.some(h => h.type === 'd_moon')) opts.push('moon');
-        if (near.length >= 1 || Math.random() < 0.15) opts.push('art');    // không có zombie quanh thì chiêu này xịt
+        if (near.length >= 1 || extraP > 0 || Math.random() < 0.15) opts.push('art');
         if (offerings.length) opts.push('life', 'life');
         if (dist > 420) opts.push('shadow');
         let skill = dist > 900 ? 'shadow' : pickBossSkill(z, opts);          // ở quá xa: luôn Huyết Ảnh để áp sát
         z.lastSkill = skill;
-        z.spCD = 4 + Math.random();
+        z.spCD = Math.max(2.9, 4.0 - extraP * 0.25) + Math.random() * 0.8;
 
         if (skill === 'shadow') {
             // Huyết Ảnh: dịch chuyển tới cạnh người chơi
@@ -174,27 +197,44 @@ function updateDeadFamily(z, target, dist, ang, dt, speed) {
             createParticles(z.x, z.y, '#ff3838', 50, 420); spawnRing(z.x, z.y, '#ff3838', 150, 0.4, 6);
             vfxList.push({ type: 'laser_beam', x: z.x, y: z.y - 260, tx: z.x, ty: z.y, life: 0.25, jag: true });
             bossSay(z, 'HUYẾT ẢNH!', '#ff3838'); Sound.play('saber'); addScreenShake(8);
-            z.frame = 0.5; z.spCD = 1.6;
+            z.frame = 0.5; z.spCD = 1.5;
         } else if (skill === 'harvest') {
             // Gặt: quét lưỡi liềm hình cung phía trước, đẩy lùi mạnh
-            hazards.push({ type: 'd_arc', x: z.x, y: z.y, angle: ang, radius: 280, spread: 2.1, timer: 0.8, life: 1.0, dmg: 70, zdmg: 700, push: 200 });
+            hazards.push({ type: 'd_arc', x: z.x, y: z.y, angle: ang, radius: 280 + extraP * 12, spread: 2.1, timer: 0.8, life: 1.0, dmg: 70, zdmg: 700, push: 200 });
             z.frame = 1.0; bossSay(z, 'GẶT!', '#ff3838');
         } else if (skill === 'destruction') {
-            // Hủy Diệt: ném liềm thành vùng xoay 5 giây; Boss đứng im ngửa mặt suốt thời gian đó
-            hazards.push({ type: 'd_scythe', x: target.x, y: target.y, radius: 135, timer: 0.8, life: 5.8, dmg: 90 });
+            // Hủy Diệt: ném liềm thành vùng xoay 5 giây (nhiều người chơi sẽ thêm lưỡi bóng máu phụ)
+            let al = activePlayers().filter(p => !p.isDowned && !inTank(p));
+            let scytheN = 1 + (tc >= 3 ? 1 : 0);
+            for (let k = 0; k < scytheN; k++) {
+                let tgt = (k === 0 || !al.length) ? target : al[(al.indexOf(target) + k) % al.length];
+                hazards.push({ type: 'd_scythe', x: tgt.x, y: tgt.y, radius: 135, timer: 0.8 + k * 0.2, life: 5.8, dmg: 90 });
+            }
             z.frame = 5.8; z.throwing = 5.8; bossSay(z, 'HỦY DIỆT!', '#ff3838'); Sound.play('throw');
         } else if (skill === 'art') {
-            // Trỗi Dậy - Nghệ Thuật Máu: giết tối đa 5 zombie quanh mình, xác biến thành Tế Phẩm
-            let victims = near.sort((a, b) => Math.hypot(a.x - z.x, a.y - z.y) - Math.hypot(b.x - z.x, b.y - z.y)).slice(0, 5);
-            if (!victims.length) { bossSay(z, '...', '#7f8c8d'); z.spCD = 1.5; }
+            // Trỗi Dậy - Nghệ Thuật Máu: giết zombie quanh mình biến thành Tế Phẩm (nhiều hơn khi đông người chơi)
+            let cap = 5 + extraP * 2;
+            let victims = near.sort((a, b) => Math.hypot(a.x - z.x, a.y - z.y) - Math.hypot(b.x - z.x, b.y - z.y)).slice(0, cap);
+            let dirs = [];
+            for (let v of victims) {
+                vfxList.push({ type: 'laser_beam', x: z.x, y: z.y, tx: v.x, ty: v.y, life: 0.3 });
+                createParticles(v.x, v.y, '#8e1b1b', 24, 260);
+                v.hp = 0; v._credited = true; v.noLoot = true;
+                zombies.push(new Zombie(v.x, v.y, OFFERING_T));
+                let dir = compassDirName(v.x - z.x, v.y - z.y);
+                if (!dirs.includes(dir)) dirs.push(dir);
+            }
+            let extraSpawn = Math.max(0, (2 + extraP * 2) - victims.length);
+            for (let k = 0; k < extraSpawn; k++) {
+                let a = Math.random() * Math.PI * 2, sp = findSafePoint(z.x + Math.cos(a) * 220, z.y + Math.sin(a) * 220, 20);
+                zombies.push(new Zombie(sp.x, sp.y, OFFERING_T));
+                createParticles(sp.x, sp.y, '#8e1b1b', 22, 240);
+                let dir = compassDirName(sp.x - z.x, sp.y - z.y);
+                if (!dirs.includes(dir)) dirs.push(dir);
+            }
+            if (!victims.length && !extraSpawn) { bossSay(z, '...', '#7f8c8d'); z.spCD = 1.5; }
             else {
-                for (let v of victims) {
-                    vfxList.push({ type: 'laser_beam', x: z.x, y: z.y, tx: v.x, ty: v.y, life: 0.3 });
-                    createParticles(v.x, v.y, '#8e1b1b', 24, 260);
-                    v.hp = 0; v._credited = true; v.noLoot = true;
-                    zombies.push(new Zombie(v.x, v.y, OFFERING_T));
-                }
-                z.frame = 0.9; bossSay(z, 'NGHỆ THUẬT MÁU!', '#ff3838'); Sound.play('dead_offering'); addScreenShake(8);
+                z.frame = 0.9; bossSay(z, `NGHỆ THUẬT MÁU [${dirs.slice(0, 3).join(', ')}]!`, '#ff3838'); Sound.play('dead_offering'); addScreenShake(8);
             }
         } else if (skill === 'life') {
             // Thu Hoạch Sinh Mệnh: gồng 1.6s (kịp dọn Tế Phẩm) rồi hút hết Tế Phẩm còn sống để hồi máu
@@ -246,8 +286,9 @@ function deadFamilyDeath(z) {
     // Lần đầu hạ Tử Thần: mở khoá vĩnh viễn LIỀM; lần nào cũng rơi một hòm chứa Liềm
     if (!deadSlain) { deadSlain = true; try { localStorage.setItem('zs_dead_slain', '1'); } catch (e) { } netToast('☠ ĐÃ MỞ KHOÁ VŨ KHÍ: LIỀM (có trong Hòm Thính) và 3 thẻ nâng cấp Liềm!', 5000); }
     drops.push({ type: 'SUPERBOX', x: z.x, y: z.y + 90, radius: 16, lifeTime: 900, forceWeapon: 'SCYTHE' });
+    for (let k = 1; k < activePlayerCount(); k++) drops.push({ type: 'BLINDBOX', x: z.x + (k % 2 ? 75 : -75) * Math.ceil(k / 2), y: z.y + 90, radius: 16, lifeTime: 900 });
     drops.push({ type: 'SHARD', x: z.x, y: z.y - 50, radius: 16, lifeTime: 900 });
-    for (let p of players) vfxList.push({ type: 'text', text: 'ĐÃ HẠ TỬ THẦN!  +40 ⚙  +1 ◆', x: p.x, y: p.y - 90, life: 3.0, color: '#f1c40f' });
+    for (let p of activePlayers()) vfxList.push({ type: 'text', text: 'ĐÃ HẠ TỬ THẦN!  +40 ⚙  +1 ◆', x: p.x, y: p.y - 90, life: 3.0, color: '#f1c40f' });
     Sound.play('level');
 }
 

@@ -82,7 +82,15 @@ function skillAim(p, range) {
     p.facingX = Math.cos(a); p.facingY = Math.sin(a);
     return a;
 }
-function skillHit(z, dmg, w, p) { z.hp -= calcDamage(dmg, w, z.x, z.y, p, z); createParticles(z.x, z.y, '#e74c3c', 8, 220); zombieDown(z, p); }
+function skillHit(z, dmg, w, p) {
+    if (z.hp <= 0) return;
+    let damage = calcDamage(dmg, w, z.x, z.y, p, z);
+    let hitDamage = Math.min(z.hp, Math.max(0, damage));
+    z.hp -= damage; z.lastHitBy = p;
+    p.onHitEnemy(hitDamage, w.type === 'melee', !!w.isScythe);
+    createParticles(z.x, z.y, '#e74c3c', 8, 220);
+    if (zombieDown(z, p) && w.isScythe) scytheKill(z, p);
+}
 // Phi dao / phi tiêu bay thẳng
 function skillBlade(p, ang, w, mult = 1) {
     return new Bullet(p.x, p.y, ang, { key: w.key, name: w.name, type: w.type === 'melee' ? 'melee' : 'gun', color: w.color, range: 560, dmg: w.dmg * mult, pierce: 2, bk: w.key === 'KNIFE' ? 17 : 14, spd: 1000, critCh: w.critCh || 0.1 }, p);
@@ -394,15 +402,16 @@ function gardenPlantDead(s) {
 }
 function gardenUpdate(dt) {
     let g = story.garden; if (!g || mission.complete) return;
-    let alive = players.filter(p => !p.isDowned);
+    let alive = players.filter(p => !p.netLeft && !p.isDowned && !inTank(p));
     for (let s of story.props) {
         if (s.kind !== 'plant') continue;
         if (s.burnT > 0) s.burnT -= dt;
         s.cd -= dt;
         let tgt = null, bd = 520;
         for (let p of alive) { let d = Math.hypot(p.x - s.x, p.y - s.y); if (d < bd) { bd = d; tgt = p; } }
-        if (!tgt || tank.active) continue;
-        if (s.v === 1) { if (bd < 200) tgt.takeDot(6 * dt); for (let p of alive) if (p !== tgt && Math.hypot(p.x - s.x, p.y - s.y) < 200) p.takeDot(6 * dt); }
+        if (!tgt && tank.active && Math.hypot(tank.x - s.x, tank.y - s.y) < bd) tgt = tank;
+        if (!tgt) continue;
+        if (s.v === 1) { for (let p of alive) if (Math.hypot(p.x - s.x, p.y - s.y) < 200) p.takeDot(6 * dt); }
         if (s.cd > 0) continue;
         if (s.v === 0 && bd < 140) { s.cd = 1.6; hurtPlayersInRadius(s.x, s.y, 140, 14); spawnRing(s.x, s.y, '#e84393', 140, 0.3, 4); s.biteT = 0.3; }
         else if (s.v === 2) { s.cd = 2.4; for (let j = -1; j <= 1; j++) { let a = Math.atan2(tgt.y - s.y, tgt.x - s.x) + j * 0.18; enemyBullets.push(new EnemyBullet(s.x, s.y, s.x + Math.cos(a) * 100, s.y + Math.sin(a) * 100, 'arrow')); } }
@@ -499,7 +508,9 @@ const WIKI_TAGS = {
     'CẬN CHIẾN': '2/3/4/5: +10/25/50/100% sát thương cận chiến. 3: vũ khí cận chiến +50% độ bền, ném đau hơn 50%.',
     'KIẾM SƯ': '1: hộp thường dễ ra Katana. 2: mỗi nhát chém kèm sóng kiếm. 5: thêm sóng lửa, mở Nộ KIẾM CƯỜNG (đủ 50 mạng), 20 mạng +5% sát thương. 8: 3 sóng kiếm lớn, 50% phản đòn. 10: 5 sóng kiếm, 80% phản đòn, lướt gây nổ.',
     'NHẤT KIẾM': '1: Lướt [C] của Katana hồi 2 giây thay vì 3.',
-    'LIỀM': '2: +25% sát thương Liềm. 3: Liềm chém trọn vòng 360°.',
+    'LIỀM': 'Mặc định Liềm có hút máu cao và tạo Tế Phẩm sẽ cấp ngay Máu Ảo. 2: +25% sát thương Liềm. 3: chém trọn vòng 360° & +4% tỉ lệ Tế Phẩm.',
+    'HÚT MÁU': '2: mọi đòn đánh đều hút máu và +25% lượng hút máu. 4: hút máu dư chuyển 50% thành Máu Ảo, dưới 50% máu hút máu x1.5. 5 (Bức Phá): +50% trần Máu Ảo, +25% sát thương khi có Máu Ảo, hạ quái nổ huyết quang.',
+    'PHÒNG THỦ': '2: giảm 12% sát thương nhận & +25 Máu tối đa. 4: giảm 24% sát thương nhận, giảm 40% choáng, tự hồi Máu Ảo sau 5s không trúng đòn. 5 (Bức Phá): giảm 35% sát thương nhận, kháng choáng liên hoàn, định kỳ phóng xung phản chấn.',
     'NÉM': '2/4: +25/60% sát thương ném. 4: mục tiêu trúng đòn ném choáng lâu hơn.',
     'NỔ': '1/2/4/6: sát thương nổ +10/15/30/50%, tự gây hại −10/20/40/60%. 4: vụ nổ để lại lửa. 6: phạm vi +50%. Minigun quá nhiệt mạnh hơn theo số Link.',
     'TIẾN CÔNG': '2: +15% sát thương. 4: mỗi đòn 15% gây x2.',
@@ -546,6 +557,9 @@ function renderWiki() {
     let rage = Object.keys(RAGE_WEAPONS).map(k => `<b class="text-white">${WEAPON_TYPES[k].name}</b>: ${RAGE_WEAPONS[k]}`).join(' · ');
     let maps = Object.keys(ROUTE_MAPS).map(k => `<b class="text-white">${ROUTE_NAMES[k]}</b> ⚙ ${ROUTE_MAPS[k]}`).join(' · ');
     box.innerHTML = sec('📚 WIKI — TOÀN BỘ LINK (HỆ) VÀ MỐC HIỆU ỨNG', '#f1c40f', tags)
+        + sec('🩸 HÚT MÁU & 🛡 PHÒNG THỦ — THẺ NÂNG CẤP', '#54a0ff',
+            UPGRADES.filter(u => /^(ls_|df_|sc_)/.test(u.id)).map(u => `<div class="mb-2"><b class="text-white">${u.name}</b>: ${u.desc}</div>`).join('')
+            + '<br>Máu Ảo hấp thụ sát thương trước máu thật, có giới hạn và mất khi bị hạ. Liềm có sẵn hút máu; khi hạ địch có tỉ lệ tạo Tế Phẩm để nhận thêm Máu Ảo.')
         + sec('⚔ KỸ NĂNG VŨ KHÍ [C / phím Q] — có sẵn, chỉ cần chờ hồi chiêu', '#ffeaa7', sk)
         + sec('💢 NỘ [D / phím R] — cần thẻ "Thịnh Nộ"', '#e056fd', rage + '<br>Hạ quái để nạp Nộ. Katana dùng Nộ KIẾM CƯỜNG theo Link Kiếm Sư 5, không cần thẻ.')
         + sec('🎯 VŨ KHÍ NÉM', '#fab1a0', '<b class="text-white">Phi Tiêu</b>: bắn 1 phi tiêu; Ném [B] tung vòng quanh người theo số còn lại. <b class="text-white">Bom Lửa</b>: giữ bắn để châm, [B] để ném, vỡ thành biển lửa. <b class="text-white">Lựu Đạn</b>: giữ bắn rút chốt, [B] ném.')
@@ -553,7 +567,7 @@ function renderWiki() {
         + sec('🌩 THỜI TIẾT', '#74b9ff', '<b class="text-white">Xấu</b> (Mưa, Gió mạnh, Sương mù, Nắng nóng, Bóng tối): trực thăng tới & đón <b>nhanh x1.5</b>. <b class="text-white">Khắc nghiệt</b> (Bão sét, Bão tuyết, Mưa acid, Bão điện từ, Mưa đá): <b>nhanh x2</b>. Mưa đá: hạt đá rơi trúng cả người lẫn quái, đi chậm 15%.<br>Map 1-4: 45% thời tiết xấu · map 5-9: 65% → 81% và hay mưa hơn · map 10: 85% · map 20: 100%.')
         + sec('🏡 NHÀ Ở · NÔNG TRẠI · NHÀ CHÍNH', '#7bed9f', 'Muốn thêm dân phải đủ <b class="text-white">nhà ở</b> (3 người/nhà) và <b class="text-white">nông trại</b> (nuôi 4 người/trại); người dư phải chờ tới khi xây thêm. Tính năng Nhà Chính: cấp 2 hồi 25% máu khi về căn cứ · cấp 3 hồi 50% và mở <b class="text-white">Phòng Tập</b> (+30 máu / +12 tốc độ mỗi cấp, tối đa 5) · cấp 4 thêm 4 <b class="text-white">Tháp Canh</b> tự bắn khi căn cứ bị tấn công · cấp 5 sắp có.<br>Kỹ năng vũ khí [C] tốn độ bền (cận chiến) hoặc đạn (súng). Acid của quái đốt chậm, tối đa 5 Acidier mỗi map, và không thể kéo máu bạn xuống dưới 50%.')
         + sec('🐜 PHẦN THƯỞNG KIẾN CHÚA', '#2ecc71', (typeof queenSlain !== 'undefined' && queenSlain ? '<b class="text-emerald-300">ĐÃ MỞ KHOÁ.</b> ' : '<b class="text-gray-400">Chưa mở — hạ Kiến Chúa ở Hầm Mỏ.</b> ') + '<b class="text-white">Súng Phun Acid cải tiến</b>: sau kỹ năng NỔ ACID mọc cánh bay 5 giây — bay qua tường, miễn sát thương tầm gần, vẫn bắn thường; hồi chiêu và Nộ chỉ chạy lại khi đáp đất. Cầm súng Acid giảm 80% sát thương acid. Thẻ mới: <b class="text-white">Kiến Chúa</b> (kiến nhỏ hỗ trợ), <b class="text-white">Acid+++</b>, <b class="text-white">Ăn Mòn Vật Thể</b>, <b class="text-white">Dị Chất</b> (2% quái chết nổ acid), <b class="text-white">Nộ Acid: Ăn Mòn Khu Vực</b> (nổ acid rồi bay 8 giây thả acid).')
-        + sec('🏘 CƯ DÂN & CĂN CỨ', '#f39c12', 'Người được giải cứu (nhiệm vụ Giải Cứu, Nhà Khoa Học ở Lab Z) sẽ về căn cứ. Mỗi <b class="text-white">ụ súng cần 1 cư dân vận hành</b> — thiếu người thì ụ không bắn. Người còn lại làm <b class="text-white">thợ</b>: mỗi chiến dịch chế tạo 2 🧱 Vật Liệu và sửa Nhà Chính khi bị tấn công. Nâng Nhà Chính cần đủ dân (2/4/6/9/12) và vật liệu; ụ súng lên cấp 4-5 cần vật liệu. <b class="text-white">Lò Rèn</b> ở Xưởng: +12% sát thương mỗi cấp cho loại vũ khí đang cầm (tối đa 5).<br>Mỗi map chỉ có 1-4 loại quái (xem ở thẻ giới thiệu map). Map ngẫu nhiên không lặp lại liên tục; Thị Trấn Cướp, Vườn Thực Vật, Thành Phố N chỉ xuất hiện ngẫu nhiên khi đã mua bản đồ.')
+        + sec('🏘 CƯ DÂN & CĂN CỨ', '#f39c12', 'Người được giải cứu (nhiệm vụ Giải Cứu, Nhà Khoa Học ở Lab Z) sẽ về căn cứ. Mỗi <b class="text-white">ụ súng cần 1 cư dân vận hành</b> — thiếu người thì ụ không bắn. Người còn lại làm <b class="text-white">thợ</b>: mỗi chiến dịch chế tạo 2 🧱 Vật Liệu. Khi căn cứ bị tấn công: số cổng mở bằng số người chơi (đi 1 người vẫn mở 2 cổng), có thể xây <b class="text-white">Cửa Chắn 5 cấp độ</b> chặn quái ở các cổng, và Nhà Chính chỉ tự hồi chậm khi <b class="text-white">không bị tấn công trong 5 giây</b>. Nâng Nhà Chính cần đủ dân (2/4/6/9/12) và vật liệu; ụ súng lên cấp 4-5 cần vật liệu. <b class="text-white">Lò Rèn</b> ở Xưởng: +12% sát thương mỗi cấp cho loại vũ khí đang cầm (tối đa 5).<br>Mỗi map chỉ có 1-4 loại quái (xem ở thẻ giới thiệu map). Map ngẫu nhiên không lặp lại liên tục; Thị Trấn Cướp, Vườn Thực Vật, Thành Phố N chỉ xuất hiện ngẫu nhiên khi đã mua bản đồ.')
         + sec('☣ BIẾN DỊ', '#e056fd', 'Cứ 3 map tăng 1 cấp biến dị: quái thường +12% máu, +3% tốc độ mỗi cấp. Có tỉ lệ (3.5% mỗi cấp, tối đa 30%) xuất hiện <b class="text-white">quái BIẾN DỊ</b> viền tím: to hơn, x1.8 máu, nhanh hơn 15%, đánh đau x1.4, khó bị đẩy lùi; hạ được +1 ⚙.');
 }
 

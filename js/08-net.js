@@ -5,7 +5,7 @@
 const NET_PREFIX = 'zsurv-coop-';
 const NET_DROP_T = ['FOOD', 'MEDKIT', 'BLINDBOX', 'SUPERBOX', 'SHARD', 'HEAVYBOX'];
 const NET_EB_T = ['acid', 'net', 'electric', 'rock', 'rocket', 'arrow', 'shotgun'];
-const NET_HZ_T = ['electric', 'slow', 'magnet', 'rock', 'slam', 'artillery', 'strike', 'collapse', 'emp', 'cage', 'beam', 'mine', 'quake', 'rockfall', 'acidbomb', 'quad', 'd_arc', 'd_scythe', 'd_moon', 'soul', 'rift', 'deadzone', 'firewall', 'lancefall', 'plunge', 'slashzone', 'hrock', 'hspin', 'hboulder', 'hsweep', 'hail'];
+const NET_HZ_T = ['electric', 'slow', 'magnet', 'rock', 'slam', 'artillery', 'strike', 'collapse', 'emp', 'cage', 'beam', 'mine', 'quake', 'rockfall', 'acidbomb', 'quad', 'd_arc', 'd_scythe', 'd_moon', 'soul', 'rift', 'deadzone', 'firewall', 'lancefall', 'plunge', 'slashzone', 'hrock', 'hspin', 'hboulder', 'hsweep', 'hail', 'zthrow', 'railbeam', 'venomring'];
 const NET_OB_T = ['wall', 'tree', 'rock', 'power', 'ruin', 'cave', 'plant_wall', 'building', 'rubble', 'rockwall'];
 const NET_ALLY_T = ['rifleman', 'medic', 'vanguard'];
 const NET_STATUS = ['burn', 'electric', 'overload', 'corrosion', 'fear'];
@@ -19,6 +19,55 @@ function netToast(msg, ms = 3500) {
     toastTimer = setTimeout(() => { el.style.display = 'none'; }, ms);
 }
 function netSetStatus(msg) { document.getElementById('netStatus').textContent = msg; }
+
+function netRemoteOf(pid) {
+    if (NET.peers && NET.peers.length) {
+        let pr = NET.peers.find(x => x.pid === pid);
+        if (pr) return pr.remote;
+    }
+    return NET.remote;
+}
+
+function netRenderRoster(slots, myPid) {
+    let box = document.getElementById('netRoster');
+    if (!box) return;
+    if (!slots || !slots.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = 'grid';
+    const names = ['Chủ phòng', 'Khách 2', 'Khách 3', 'Khách 4'];
+    let html = '';
+    for (let pid = 1; pid <= 4; pid++) {
+        let joined = slots.includes(pid);
+        let col = playerColorOf(pid);
+        let me = myPid === pid ? ' (BẠN)' : '';
+        html += `<div class="px-2.5 py-2 rounded-lg border ${joined ? 'bg-gray-900/90 border-cyan-500/60' : 'bg-gray-900/40 border-gray-700 opacity-60'} flex items-center gap-2">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:999px;background:${joined ? col : '#4b5563'}"></span>
+            <div class="text-left leading-tight">
+                <div class="font-bold" style="color:${joined ? col : '#9ca3af'}">P${pid}${me}</div>
+                <div class="text-[10px] text-gray-400">${joined ? '✅ ' + names[pid - 1] : '⏳ Đang chờ...'}</div>
+            </div>
+        </div>`;
+    }
+    box.innerHTML = html;
+}
+
+function netUpdateLobbyUI() {
+    if (NET.role !== 'host' || NET.locked) return;
+    let openPeers = (NET.peers || []).filter(p => p.conn && p.conn.open);
+    let slots = [1, ...openPeers.map(p => p.pid).sort((a, b) => a - b)];
+    netRenderRoster(slots, 1);
+    let btn = document.getElementById('netStartBtn');
+    let total = slots.length;
+    if (btn) {
+        btn.disabled = total < 2;
+        btn.textContent = total >= 2 ? `▶ BẮT ĐẦU TRẬN (${total}/4 NGƯỜI)` : '▶ BẮT ĐẦU TRẬN (CẦN ÍT NHẤT 2 NGƯỜI)';
+    }
+    if (total < 2) netSetStatus('Gửi mã phòng cho bạn bè (2–4 người). Đang chờ đồng đội vào...');
+    else if (total < 4) netSetStatus(`✅ Đã có ${total}/4 người! Có thể BẮT ĐẦU ngay hoặc chờ thêm bạn.`);
+    else netSetStatus('🔥 Đã đủ 4/4 người chơi! Bấm BẮT ĐẦU TRẬN ngay!');
+    for (let pr of openPeers) {
+        netSendTo(pr.conn, { t: 'lobby', slots, myPid: pr.pid });
+    }
+}
 
 function netLoadLib() {
     return new Promise((resolve, reject) => {
@@ -36,6 +85,8 @@ function netLobbyReset() {
     document.getElementById('netRoomBox').style.display = 'none';
     document.getElementById('netStartBtn').style.display = 'none';
     document.getElementById('netStartBtn').disabled = true;
+    document.getElementById('netStartBtn').textContent = '▶ BẮT ĐẦU TRẬN';
+    netRenderRoster(null, 0);
     netSetStatus('');
 }
 function netOpenLobby() {
@@ -54,19 +105,32 @@ function netCopyCode() {
 }
 
 function netTeardown() {
-    let c = NET.conn, p = NET.peer;
-    NET.conn = null; NET.peer = null; NET.mode = null; NET.localIdx = 0; NET.role = null;
+    let c = NET.conn, p = NET.peer, list = NET.peers ? NET.peers.slice() : [];
+    NET.conn = null; NET.peer = null; NET.peers = []; NET.mode = null; NET.localIdx = 0; NET.role = null;
+    NET.playerCount = 1; NET.locked = false;
     NET.ev = []; NET.remote = { ptr: false, ang: 0 };
+    for (let pr of list) { try { if (pr.conn) pr.conn.close(); } catch (e) { } }
     try { if (c) c.close(); } catch (e) { }
     try { if (p) p.destroy(); } catch (e) { }
-    UI.p2Stick.active = false; UI.p2Stick.dx = 0; UI.p2Stick.dy = 0;
-    for (let n of ['A', 'B', 'C', 'D']) { let b = UI['p2Btn' + n]; b.pressed = false; b.justPressed = false; b.justReleased = false; }
+    for (let pid = 2; pid <= 4; pid++) {
+        if (typeof clearPlayerUiSlot === 'function') clearPlayerUiSlot(pid);
+    }
+}
+
+function netSendTo(c, obj) {
+    if (!c || !c.open) return false;
+    try { c.send(obj); return true; } catch (e) { return false; }
 }
 
 function netSend(obj) {
-    let c = NET.conn;
-    if (!c || !c.open) return false;
-    try { c.send(obj); return true; } catch (e) { return false; }
+    if (NET.role === 'host' || NET.mode === 'host') {
+        let ok = false;
+        for (let pr of (NET.peers || [])) {
+            if (netSendTo(pr.conn, obj)) ok = true;
+        }
+        return ok;
+    }
+    return netSendTo(NET.conn, obj);
 }
 
 function netPeerError(err) {
@@ -109,45 +173,124 @@ async function netHost() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = ''; for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
     let peer = new Peer(NET_PREFIX + code, { debug: 0, config: NET_ICE });
-    NET.peer = peer; NET.role = 'host';
+    NET.peer = peer; NET.role = 'host'; NET.peers = []; NET.locked = false;
 
     peer.on('open', () => {
         if (NET.peer !== peer) return;
         document.getElementById('netRoomCode').textContent = code;
         document.getElementById('netRoomBox').style.display = 'block';
         document.getElementById('netStartBtn').style.display = 'block';
-        netSetStatus('Gửi mã cho bạn của bạn. Đang chờ người chơi 2...');
+        netUpdateLobbyUI();
     });
     peer.on('connection', (c) => {
         if (NET.peer !== peer) return;
-        if (NET.conn) { c.on('open', () => { try { c.send({ t: 'full' }); } catch (e) { } setTimeout(() => { try { c.close(); } catch (e) { } }, 400); }); return; }
-        NET.conn = c;
+        let usedPids = new Set(NET.peers.map(x => x.pid));
+        let freePid = [2, 3, 4].find(id => !usedPids.has(id));
+        if (NET.locked || !freePid || NET.peers.length >= 3) {
+            c.on('open', () => {
+                try { c.send({ t: 'full', reason: NET.locked ? 'started' : 'max' }); } catch (e) { }
+                setTimeout(() => { try { c.close(); } catch (e) { } }, 400);
+            });
+            return;
+        }
+        let entry = { conn: c, pid: freePid, remote: { ptr: false, ang: 0 }, lastPt: 0, lastPtAt: 0 };
+        NET.peers.push(entry);
+        NET.conn = NET.peers[0] ? NET.peers[0].conn : c;
         c.on('open', () => {
-            if (NET.conn !== c) return;
-            netSetStatus('✅ Người chơi 2 đã vào phòng! Bấm BẮT ĐẦU TRẬN.');
-            document.getElementById('netStartBtn').disabled = false;
+            if (!NET.peers.includes(entry)) return;
             Sound.play('level');
+            netUpdateLobbyUI();
         });
-        c.on('data', (d) => { if (NET.conn === c) netOnData(d); });
-        c.on('close', () => { if (NET.conn === c) netOnPeerLost(); });
-        c.on('error', () => { if (NET.conn === c) netOnPeerLost(); });
+        c.on('data', (d) => { if (NET.peers.includes(entry)) netOnData(d, entry); });
+        c.on('close', () => { if (NET.peers.includes(entry)) netOnGuestLost(entry); });
+        c.on('error', () => { if (NET.peers.includes(entry)) netOnGuestLost(entry); });
     });
     peer.on('disconnected', () => { try { if (NET.peer === peer && !peer.destroyed) peer.reconnect(); } catch (e) { } });
     peer.on('error', (err) => { if (NET.peer === peer) netPeerError(err); });
 }
 
 function netStartGame() {
-    if (NET.role !== 'host' || !NET.conn || !NET.conn.open) return;
+    if (NET.role !== 'host') return;
+    let openPeers = (NET.peers || []).filter(p => p.conn && p.conn.open);
+    if (!openPeers.length) return;
+    // Dồn lại thứ tự P2..P(N) liên tiếp để mảng players[0..N-1] khớp tuyệt đối
+    openPeers.sort((a, b) => a.pid - b.pid);
+    openPeers.forEach((pr, i) => { pr.pid = i + 2; pr.remote = { ptr: false, ang: 0 }; });
+    NET.peers = openPeers;
+    NET.conn = openPeers[0].conn;
+    NET.locked = true;
+    NET.playerCount = 1 + openPeers.length;
     NET.mode = 'host'; NET.localIdx = 0; NET.seq = 0; NET.ev = []; NET.sendAcc = 0; NET.slowAcc = 0;
     NET.remote = { ptr: false, ang: 0 };
     document.getElementById('onlineModal').style.display = 'none';
-    netSend({ t: 'start' });
+    for (let pr of openPeers) {
+        netSendTo(pr.conn, { t: 'start', count: NET.playerCount, idx: pr.pid - 1 });
+    }
     beginRun('online');
 }
 
-// Khách rời phòng giữa trận: chủ phòng chơi tiếp một mình
+function netOnGuestLost(entry) {
+    let idx = NET.peers.indexOf(entry);
+    if (idx >= 0) NET.peers.splice(idx, 1);
+    try { if (entry && entry.conn) entry.conn.close(); } catch (e) { }
+    if (entry && typeof clearPlayerUiSlot === 'function') clearPlayerUiSlot(entry.pid);
+    NET.conn = NET.peers[0] ? NET.peers[0].conn : null;
+
+    if (NET.mode === 'host' && gameState === 'GAMEOVER') {
+        if (!NET.peers.length) netTeardown();
+        return;
+    }
+    if (!NET.mode) {
+        // Đang ở sảnh chờ
+        netUpdateLobbyUI();
+        return;
+    }
+
+    // Giữa trận: đánh dấu người chơi này đã rời trận
+    let pid = entry ? entry.pid : 2;
+    let pLeft = players[pid - 1];
+    let p1 = players[0];
+    if (pLeft && pLeft !== p1) {
+        pLeft.netLeft = true;
+        pLeft.isDowned = true;
+        pLeft.hp = 0;
+        drones = drones.filter(d => d.owner !== pid);
+        slashes = slashes.filter(s => s.source !== pLeft);
+        for (let a of allies) if (a.owner === pLeft) a.owner = p1;
+        if (tank.active && Array.isArray(tank.crew)) {
+            tank.crew = tank.crew.filter(id => id !== pid);
+        }
+    }
+    let openPeers = NET.peers.filter(p => p.conn && p.conn.open);
+    if (openPeers.length > 0) {
+        netToast(`⚠ Người chơi ${pid} đã rời trận (${1 + openPeers.length} người tiếp tục).`);
+        if (gameState === 'UPGRADE') {
+            if (typeof setUpgConfirmed === 'function') setUpgConfirmed(pid, true);
+            if (typeof refreshOnlineUpgradeStatus === 'function') refreshOnlineUpgradeStatus();
+            netSendSync();
+        }
+        return;
+    }
+    // Toàn bộ khách đã rời -> chủ phòng chuyển về chơi 1 mình
+    netTeardown();
+    netToast('Tất cả đồng đội đã rời trận. Bạn tiếp tục chơi một mình.');
+    if (players.length > 1 && (gameState === 'PLAYING' || gameState === 'UPGRADE' || gameState === 'SHOP')) {
+        players = [p1];
+        isSinglePlayer = true;
+        if (tank.active) tank.crew = [1];
+        drones = drones.filter(d => d.owner === 1);
+        slashes = slashes.filter(s => s.source === p1);
+        for (let a of allies) if (a.owner !== p1) a.owner = p1;
+        initControls();
+        if (gameState === 'UPGRADE') {
+            document.getElementById('p2Half').style.display = 'none';
+            if (typeof isUpgConfirmed === 'function' && isUpgConfirmed(1)) checkAndTriggerUpgrade();
+        }
+    }
+}
+
+// Khách mất kết nối với chủ phòng
 function netOnPeerLost() {
-    let wasHost = NET.mode === 'host';
     if (NET.mode === 'guest' || NET.role === 'guest') {
         let inGame = NET.mode === 'guest';
         netTeardown();
@@ -159,31 +302,6 @@ function netOnPeerLost() {
             Sound.music('theme');
             netToast('Mất kết nối với chủ phòng.');
         } else { netLobbyReset(); netSetStatus('❌ Mất kết nối với chủ phòng.'); }
-        return;
-    }
-    if (wasHost && gameState === 'GAMEOVER') { netTeardown(); return; } // trận đã kết thúc: đóng kết nối trong im lặng
-    if (!wasHost) {
-        // Đang ở sảnh: chờ người khác vào lại
-        NET.conn = null;
-        document.getElementById('netStartBtn').disabled = true;
-        netSetStatus('Người chơi 2 đã rời phòng. Đang chờ người chơi khác...');
-        return;
-    }
-    netTeardown();
-    netToast('Người chơi 2 đã rời trận. Bạn tiếp tục chơi một mình.');
-    if (players.length > 1 && (gameState === 'PLAYING' || gameState === 'UPGRADE' || gameState === 'SHOP')) {
-        let p1 = players[0];
-        players.length = 1;
-        isSinglePlayer = true;
-        drones = drones.filter(d => d.owner === 1);
-        slashes = slashes.filter(s => s.source === p1);
-        for (let a of allies) if (a.owner !== p1) a.owner = p1;
-        initControls();
-        if (gameState === 'UPGRADE') {
-            document.getElementById('p2Half').style.display = 'none';
-            p2Confirmed = true;
-            if (p1Confirmed) checkAndTriggerUpgrade();
-        }
     }
 }
 
@@ -210,7 +328,7 @@ async function netJoin() {
         let c = peer.connect(NET_PREFIX + code, { reliable: true, serialization: 'json' });
         NET.conn = c;
         c.on('open', () => { if (NET.conn !== c) return; opened = true; netSetStatus('✅ Đã vào phòng ' + code + '. Chờ chủ phòng bắt đầu...'); Sound.play('level'); });
-        c.on('data', (d) => { if (NET.conn === c) netOnData(d); });
+        c.on('data', (d) => { if (NET.conn === c) netOnData(d, null); });
         c.on('close', () => { if (NET.conn === c) netOnPeerLost(); });
         c.on('error', () => { if (NET.conn === c) netOnPeerLost(); });
         setTimeout(() => {
@@ -220,55 +338,88 @@ async function netJoin() {
     peer.on('error', (err) => { if (NET.peer === peer) netPeerError(err); });
 }
 
-function netGuestStart() {
-    NET.mode = 'guest'; NET.localIdx = 1; NET.lastSeq = 0; NET.zmap = new Map(); NET.inputAcc = 0; NET.lastRecv = performance.now(); NET.sig = {};
+function netGuestStart(d) {
+    let count = Math.max(2, Math.min(4, (d && d.count) | 0 || 2));
+    let myIdx = Math.max(1, Math.min(count - 1, (d && d.idx) | 0 || 1));
+    NET.mode = 'guest'; NET.localIdx = myIdx; NET.playerCount = count;
+    NET.lastSeq = 0; NET.zmap = new Map(); NET.inputAcc = 0; NET.lastRecv = performance.now(); NET.sig = {};
     Sound.startAmbience(); Sound.play('start');
     clearPcInputs();
     resetRunState();
     isSinglePlayer = false;
-    players = [new Player(1, MAP_SIZE.w / 2, MAP_SIZE.h / 2 + 60, '#3498db'), new Player(2, MAP_SIZE.w / 2, MAP_SIZE.h / 2 - 60, '#e74c3c')];
+    const offsets = [[0, 60], [0, -60], [-70, 0], [70, 0]];
+    players = [];
+    for (let i = 0; i < count; i++) {
+        let off = offsets[i] || [0, 0];
+        players.push(new Player(i + 1, MAP_SIZE.w / 2 + off[0], MAP_SIZE.h / 2 + off[1], playerColorOf(i + 1)));
+    }
     document.getElementById('onlineModal').style.display = 'none';
     document.getElementById('menu').style.display = 'none';
-    document.getElementById('netWaitText').textContent = 'Đang tải bản đồ...';
+    document.getElementById('netWaitText').textContent = `Đang tải bản đồ... (Bạn là Người Chơi ${myIdx + 1}/${count})`;
     document.getElementById('netWait').style.display = 'flex';
     gameState = 'NETWAIT';
 }
 
 // ---------------- NHẬN DỮ LIỆU ----------------
-function netOnData(d) {
+function netOnData(d, fromPeer) {
     if (!d || typeof d !== 'object') return;
     NET.lastRecv = performance.now();
     if (NET.mode === 'host') {
+        let pid = fromPeer ? fromPeer.pid : 2;
+        let pIdx = pid - 1;
         if (d.t === 'i') {
             const num = (v) => (typeof v === 'number' && isFinite(v)) ? v : 0;
-            let st = UI.p2Stick;
-            st.active = !!d.a; st.dx = Math.max(-1, Math.min(1, num(d.dx))); st.dy = Math.max(-1, Math.min(1, num(d.dy)));
+            let st = UI['p' + pid + 'Stick'];
+            if (st) { st.active = !!d.a; st.dx = Math.max(-1, Math.min(1, num(d.dx))); st.dy = Math.max(-1, Math.min(1, num(d.dy))); }
             let b = Array.isArray(d.b) ? d.b : [];
-            setButtonInput(UI.p2BtnA, !!b[0]); setButtonInput(UI.p2BtnB, !!b[1]); setButtonInput(UI.p2BtnC, !!b[2]); setButtonInput(UI.p2BtnD, !!b[3]);
-            NET.remote.ptr = !!d.ptr; NET.remote.ang = num(d.ang);
-            NET.lastPt = num(d.pt); NET.lastPtAt = performance.now();
+            setButtonInput(UI['p' + pid + 'BtnA'], !!b[0]);
+            setButtonInput(UI['p' + pid + 'BtnB'], !!b[1]);
+            setButtonInput(UI['p' + pid + 'BtnC'], !!b[2]);
+            setButtonInput(UI['p' + pid + 'BtnD'], !!b[3]);
+            if (fromPeer) {
+                fromPeer.remote.ptr = !!d.ptr; fromPeer.remote.ang = num(d.ang);
+                fromPeer.lastPt = num(d.pt); fromPeer.lastPtAt = performance.now();
+            }
         } else if (d.t === 'upg') {
-            if (gameState !== 'UPGRADE' || p2Confirmed || typeof d.id !== 'string' || !players[1]) return;
+            let pl = players[pIdx];
+            if (gameState !== 'UPGRADE' || !pl || pl.netLeft || isUpgConfirmed(pid) || typeof d.id !== 'string') return;
             let upg = UPGRADES.find(u => u.id === d.id);
-            if (!upg || !canOfferUpgrade(players[1], upg)) { netSendSync(true); return; }
-            p2SelectedUpg = d.id;
-            if (!confirmUpgrade(2)) netSendSync(true);
+            if (!upg || !canOfferUpgrade(pl, upg)) { netSendSync(pid); return; }
+            setSelectedUpg(pid, d.id);
+            if (!confirmUpgrade(pid)) netSendSync(pid);
+            else if (gameState === 'UPGRADE') netSendSync(0);
         } else if (d.t === 'pause') setPaused(!!d.on, true);
         else if (d.t === 'rr') {
-            // Khách xin đổi thẻ: chủ phòng trừ linh kiện rồi báo lại
-            if (gameState !== 'UPGRADE' || p2Confirmed || shopScrap < REROLL_COST) { netSend({ t: 'rrno', scrap: shopScrap }); return; }
-            shopScrap -= REROLL_COST; netSend({ t: 'rrok', scrap: shopScrap }); updateRerollButtons();
+            let replyConn = fromPeer ? fromPeer.conn : NET.conn;
+            if (gameState !== 'UPGRADE' || isUpgConfirmed(pid) || shopScrap < REROLL_COST) { netSendTo(replyConn, { t: 'rrno', scrap: shopScrap }); return; }
+            shopScrap -= REROLL_COST;
+            netSendTo(replyConn, { t: 'rrok', scrap: shopScrap });
+            netSend({ t: 'scrap', scrap: shopScrap });
+            updateRerollButtons();
         }
         return;
     }
     // --- phía khách ---
-    if (d.t === 'full') { netTeardown(); netLobbyReset(); netSetStatus('❌ Phòng đã đủ 2 người.'); return; }
-    if (d.t === 'start') { netGuestStart(); return; }
+    if (d.t === 'full') {
+        netTeardown(); netLobbyReset();
+        netSetStatus(d.reason === 'started' ? '❌ Trận đấu của phòng này đã bắt đầu.' : '❌ Phòng đã đủ tối đa 4 người.');
+        return;
+    }
+    if (d.t === 'lobby') {
+        let slots = Array.isArray(d.slots) ? d.slots : [1, 2];
+        netRenderRoster(slots, d.myPid | 0);
+        netSetStatus(`✅ Phòng hiện có ${slots.length}/4 người (Bạn là P${d.myPid || 2}). Chờ chủ phòng bấm Bắt đầu...`);
+        return;
+    }
+    if (d.t === 'start') { netGuestStart(d); return; }
     if (NET.mode !== 'guest') return;
     if (d.t === 'pause') { setPaused(!!d.on, true); return; }
+    if (d.t === 'scrap') { shopScrap = d.scrap | 0; updateRerollButtons(); return; }
     if (d.t === 'rrok' || d.t === 'rrno') {
+        let myPid = NET.localIdx + 1;
         shopScrap = d.scrap | 0;
-        if (d.t === 'rrok' && gameState === 'UPGRADE' && !p2Confirmed) doReroll(2); else { netToast('Không đủ linh kiện ⚙ để đổi thẻ!', 1500); updateRerollButtons(); }
+        if (d.t === 'rrok' && gameState === 'UPGRADE' && !isUpgConfirmed(myPid)) doReroll(myPid);
+        else { netToast('Không đủ linh kiện ⚙ để đổi thẻ!', 1500); updateRerollButtons(); }
         return;
     }
     if (d.t === 'map') netApplyMap(d);
@@ -292,33 +443,49 @@ function netSendMap() {
     NET.sig = {};
 }
 
-function netSendSync(reject = false) {
+function netSendSync(reject = 0) {
     if (NET.mode !== 'host') return;
+    let cf = players.map(p => (p.netLeft || (typeof isUpgConfirmed === 'function' && isUpgConfirmed(p.id))) ? 1 : 0);
     netSend({
         t: 'sync', gs: gameState, lvl: currentLevel, scrap: shopScrap, sh: breakthroughShards, ex: activeExclusiveTag,
-        cpf: currentPowerFloorCleared, rej: reject ? 1 : 0, p2c: p2Confirmed ? 1 : 0,
-        pl: players.map(p => ({ tags: p.tags, perks: p.perks, st: p.perkStacks, pend: p.pendingUpgrades, lvl: p.level }))
+        cpf: currentPowerFloorCleared, bgl: typeof base !== 'undefined' ? (base.gate | 0) : 0, rej: reject === true ? 2 : (reject | 0), cf,
+        pl: players.map(p => ({ tags: p.tags, perks: p.perks, st: p.perkStacks, pend: p.pendingUpgrades, lvl: p.level, left: p.netLeft ? 1 : 0 }))
     });
+    if (gameState === 'UPGRADE' && typeof refreshOnlineUpgradeStatus === 'function') refreshOnlineUpgradeStatus();
 }
 
 function netEncodePlayer(p) {
     const R = Math.round;
-    let flags = (p.isDowned ? 1 : 0) | (p.perks.invulnTimer > 0 ? 2 : 0) | (p.stunTimer > 0 ? 4 : 0);
+    let flags = (p.isDowned ? 1 : 0) | (p.perks.invulnTimer > 0 ? 2 : 0) | (p.stunTimer > 0 ? 4 : 0) | (p.netLeft ? 8 : 0);
     let st = [];
     if (p.status) for (let id in p.status) { let s = p.status[id]; if (s && s.timer > 0) st.push([NET_STATUS.indexOf(id), s.stacks || 1]); }
     return [R(p.x), R(p.y), +p.facingX.toFixed(2), +p.facingY.toFixed(2), +p.hp.toFixed(1), R(p.maxHp), R(p.hunger), flags,
     p.weapon ? p.weapon.key : 0, p.weapon ? p.weapon.ammo : 0, R((p.chargeTime || 0) * 100), p.pullingPin ? Math.max(1, p.pinTime - Date.now()) : 0,
     p.tempShield || 0, R(p.xp), p.level, R((p.reviveProgress || 0) * 100), p.reviveCount || 0, R(Math.max(0, p.skillC_CD || 0) * 10), p.dCharge || 0,
     p.perks.frenzyStacks || 0, p.perks.rainStacks || 0, st, R(p.curSpeed || 0), p.pendingUpgrades, R(Math.max(0, p.xpShowTimer || 0) * 10),
-    R(p.rage || 0), R(p.mgHeat || 0), p.jamT > 0 ? R(p.jamT * 10) : 0, R(Math.max(0, p.blinkCD || 0) * 10)];
+    R(p.rage || 0), R(p.mgHeat || 0), p.jamT > 0 ? R(p.jamT * 10) : 0, R(Math.max(0, p.blinkCD || 0) * 10), R(p.vHp || 0)];
 }
 
 function netBuildSnapshot(slow) {
     const R = Math.round;
-    const g = players[1] || players[0];
-    const gx = tank.active ? tank.x : g.x, gy = tank.active ? tank.y : g.y;
-    const near = (x, y, m = 0) => Math.abs(x - gx) < 1500 + m && Math.abs(y - gy) < 1150 + m;
-    let s = { t: 's', n: ++NET.seq, pt: NET.lastPt || 0, pd: NET.lastPtAt ? R(performance.now() - NET.lastPtAt) : 0 };
+    const views = [];
+    for (let pr of (NET.peers || [])) {
+        let gp = players[pr.pid - 1];
+        if (!gp || gp.netLeft) continue;
+        let useTk = typeof inTank === 'function' ? inTank(gp) : tank.active;
+        views.push([useTk ? tank.x : gp.x, useTk ? tank.y : gp.y]);
+    }
+    if (!views.length) {
+        let g = players[1] || players[0];
+        views.push([tank.active ? tank.x : g.x, tank.active ? tank.y : g.y]);
+    }
+    const near = (x, y, m = 0) => {
+        for (let i = 0; i < views.length; i++) {
+            if (Math.abs(x - views[i][0]) < 1550 + m && Math.abs(y - views[i][1]) < 1180 + m) return true;
+        }
+        return false;
+    };
+    let s = { t: 's', n: ++NET.seq, pt: 0, pd: 0 };
 
     s.g = [objState, R(evacTimer * 10), evacZone ? [R(evacZone.x), R(evacZone.y), R(evacZone.progress * 100)] : 0, R(fortressTimer), currentWeather,
         R(darknessBattery), R(flashAlpha * 100), R(cameraShake), shopScrap, breakthroughShards, killCount, powerCellsHeld, empStorm.active ? 1 : 0,
@@ -333,7 +500,10 @@ function netBuildSnapshot(slow) {
         for (let o of obstacles) if (o.type === 'rubble') s.rb.push([R(o.x), R(o.y), R(o.w), R(o.h), R(Math.max(0, o.hp) / o.maxHp * 100)]);
     }
     if (heliSupport.active) s.h = [R(heliSupport.x), R(heliSupport.y)];
-    if (tank.active) s.tk = [R(tank.x), R(tank.y), +(tank.hullAngle || 0).toFixed(2), +(tank.turretAngle || 0).toFixed(2), R(tank.hp), R(tank.maxHp), tank.p2InvulnTimer > 0 ? 1 : 0, R(Math.max(0, tank.cSkillCD) * 10), R(Math.max(0, tank.dashCooldown || 0) * 10), tank.dashTimer > 0 ? 1 : 0];
+    if (tank.active) {
+        let c0 = (tank.crew && tank.crew[0]) || 0, c1 = (tank.crew && tank.crew[1]) || 0;
+        s.tk = [R(tank.x), R(tank.y), +(tank.hullAngle || 0).toFixed(2), +(tank.turretAngle || 0).toFixed(2), R(tank.hp), R(tank.maxHp), tank.p2InvulnTimer > 0 ? 1 : 0, R(Math.max(0, tank.cSkillCD) * 10), R(Math.max(0, tank.dashCooldown || 0) * 10), tank.dashTimer > 0 ? 1 : 0, c0, c1];
+    }
     if (objState === 'DEFEND' && turretMode.active) s.tu = [R(turretMode.x), R(turretMode.y), R(turretMode.hp), R(turretMode.maxHp)];
 
     s.p = players.map(netEncodePlayer);
@@ -410,15 +580,25 @@ function netBuildSnapshot(slow) {
 }
 
 function netHostTick(dt) {
-    if (NET.mode !== 'host' || !NET.conn || !NET.conn.open) return;
+    if (NET.mode !== 'host' || !NET.peers || !NET.peers.length) return;
     NET.sendAcc += dt; NET.slowAcc += dt;
     if (NET.sendAcc < 1 / 15) return;
     NET.sendAcc = 0;
-    let dc = NET.conn.dataChannel;
-    if (dc && dc.bufferedAmount > 300000) return; // mạng nghẽn: bỏ bớt khung
+    let readyPeers = NET.peers.filter(pr => {
+        if (!pr.conn || !pr.conn.open) return false;
+        let dc = pr.conn.dataChannel;
+        return !(dc && dc.bufferedAmount > 300000);
+    });
+    if (!readyPeers.length) return;
     let slow = NET.slowAcc >= 1;
     if (slow) NET.slowAcc = 0;
-    netSend(netBuildSnapshot(slow));
+    let snap = netBuildSnapshot(slow);
+    let now = performance.now();
+    for (let pr of readyPeers) {
+        snap.pt = pr.lastPt || 0;
+        snap.pd = pr.lastPtAt ? Math.round(now - pr.lastPtAt) : 0;
+        netSendTo(pr.conn, snap);
+    }
 }
 
 // ---------------- KHÁCH: ÁP DỤNG TRẠNG THÁI ----------------
@@ -469,15 +649,19 @@ function netApplySync(m) {
     currentLevel = m.lvl | 0 || currentLevel; shopScrap = m.scrap | 0; breakthroughShards = m.sh | 0;
     activeExclusiveTag = (typeof m.ex === 'string' && TAG_RULES[m.ex]) ? m.ex : null;
     currentPowerFloorCleared = m.cpf | 0;
+    if (typeof base !== 'undefined' && m.bgl !== undefined) base.gate = m.bgl | 0;
     (m.pl || []).forEach((src, i) => {
         let p = players[i]; if (!p || !src) return;
-        // Chỉ nhận các khóa hợp lệ (tên Link/thẻ đã biết) với giá trị đúng kiểu
         for (let t in TAG_DEFS) p.tags[t] = (src.tags && typeof src.tags[t] === 'number') ? src.tags[t] : (p.tags[t] || 0);
         if (src.perks) for (let k in src.perks) { let v = src.perks[k]; if (/^[a-zA-Z_]\w{0,40}$/.test(k) && (typeof v === 'boolean' || typeof v === 'number')) p.perks[k] = v; }
         p.perkStacks = {};
         if (src.st) for (let k in STACKABLE_PERKS) if (typeof src.st[k] === 'number') p.perkStacks[k] = src.st[k];
         p.pendingUpgrades = src.pend | 0; p.level = src.lvl | 0 || 1;
+        p.netLeft = !!src.left;
     });
+    if (Array.isArray(m.cf)) {
+        m.cf.forEach((v, i) => { if (i + 1 !== NET.localIdx + 1 && typeof setUpgConfirmed === 'function') setUpgConfirmed(i + 1, !!v); });
+    }
 
     if (m.gs === 'SHOP') {
         gameState = 'NETWAIT';
@@ -485,24 +669,34 @@ function netApplySync(m) {
         document.getElementById('netWaitText').textContent = 'Chủ phòng đang chọn tuyến đường & mua tiếp tế...';
         document.getElementById('netWait').style.display = 'flex';
     } else if (m.gs === 'UPGRADE') {
-        if (m.rej) netToast('Thẻ vừa chọn không còn hợp lệ, hãy chọn lại.');
+        let myPid = NET.localIdx + 1;
+        let me = players[NET.localIdx];
+        let entering = gameState !== 'UPGRADE';
+        let myRej = m.rej === myPid;
+        if (myRej) netToast('Thẻ vừa chọn không còn hợp lệ, hãy chọn lại.');
         gameState = 'UPGRADE';
         document.getElementById('netWait').style.display = 'none';
         document.getElementById('upgradeScreen').style.display = 'flex';
         document.getElementById('p1Half').style.display = 'none';
         let half = document.getElementById('p2Half');
         half.style.display = 'flex'; half.style.transform = 'none';
-        p2SelectedUpg = null; p2Confirmed = false;
-        if (players[1].pendingUpgrades > 0) {
-            document.getElementById('p2Status').style.display = 'none';
-            document.getElementById('p2ConfirmBtn').disabled = true;
-            document.getElementById('p2ConfirmBtn').style.display = 'block';
-            document.getElementById('p2UpgCount').innerText = `LƯỢT CHỌN: ${players[1].pendingUpgrades}`;
-            updateTagBar(2); renderCards(2, 'p2Cards');
-        } else {
-            p2Confirmed = true;
-            setUpgradeHalfDone(2, 'HẾT LƯỢT CHỌN - CHỜ ĐỒNG ĐỘI...');
+        let titleEl = document.getElementById('p2Title');
+        if (titleEl) { titleEl.textContent = `NGƯỜI CHƠI ${myPid}`; titleEl.style.color = playerColorOf(myPid); }
+        if (entering || myRej) {
+            if (typeof setSelectedUpg === 'function') setSelectedUpg(myPid, null);
+            if (typeof setUpgConfirmed === 'function') setUpgConfirmed(myPid, false);
+            if (me && me.pendingUpgrades > 0) {
+                document.getElementById('p2Status').style.display = 'none';
+                document.getElementById('p2ConfirmBtn').disabled = true;
+                document.getElementById('p2ConfirmBtn').style.display = 'block';
+                document.getElementById('p2UpgCount').innerText = `LƯỢT CHỌN: ${me.pendingUpgrades}`;
+                updateTagBar(myPid); renderCards(myPid, 'p2Cards');
+            } else {
+                if (typeof setUpgConfirmed === 'function') setUpgConfirmed(myPid, true);
+                setUpgradeHalfDone(2, 'HẾT LƯỢT CHỌN - CHỜ ĐỒNG ĐỘI...');
+            }
         }
+        if (typeof refreshOnlineUpgradeStatus === 'function') refreshOnlineUpgradeStatus();
         updateRerollButtons();
     }
 }
@@ -515,7 +709,7 @@ function netDecodePlayer(p, e, isLocal) {
     p.hp = e[4]; p.maxHp = e[5]; p.hunger = e[6];
     if (p.hp < prevHp - 0.5) p.hurtFlash = Math.max(p.hurtFlash || 0, 0.25);
     let f = e[7];
-    p.isDowned = !!(f & 1); p.perks.invulnTimer = (f & 2) ? 1 : 0; p.stunTimer = (f & 4) ? 1 : 0;
+    p.isDowned = !!(f & 1); p.perks.invulnTimer = (f & 2) ? 1 : 0; p.stunTimer = (f & 4) ? 1 : 0; p.netLeft = !!(f & 8);
     if (e[8] && WEAPON_TYPES[e[8]]) {
         if (!p.weapon || p.weapon.key !== e[8]) p.weapon = { ...WEAPON_TYPES[e[8]] };
         p.weapon.ammo = e[9];
@@ -527,7 +721,7 @@ function netDecodePlayer(p, e, isLocal) {
     p.status = {};
     for (let st of (e[21] || [])) { let id = NET_STATUS[st[0]]; if (id) p.status[id] = { id, timer: 1, stacks: st[1] }; }
     p.spd = e[22]; p.pendingUpgrades = e[23]; p.xpShowTimer = e[24] / 10;
-    p.rage = e[25] || 0; p.mgHeat = e[26] || 0; p.jamT = (e[27] || 0) / 10; p.blinkCD = (e[28] || 0) / 10;
+    p.rage = e[25] || 0; p.mgHeat = e[26] || 0; p.jamT = (e[27] || 0) / 10; p.blinkCD = (e[28] || 0) / 10; p.vHp = e[29] || 0;
 }
 
 function netApplySnapshot(s) {
@@ -555,7 +749,8 @@ function netApplySnapshot(s) {
     if (s.tk) {
         let k = s.tk; tank.active = true; tank.x = k[0]; tank.y = k[1]; tank.hullAngle = k[2]; tank.turretAngle = k[3]; tank.hp = k[4]; tank.maxHp = k[5];
         tank.p2InvulnTimer = k[6] ? 1 : 0; tank.cSkillCD = k[7] / 10; tank.dashCooldown = k[8] / 10; tank.dashTimer = k[9] ? 0.1 : 0;
-    } else tank.active = false;
+        tank.crew = [k[10] | 0, k[11] | 0].filter(Boolean);
+    } else { tank.active = false; tank.crew = []; }
     if (s.tu) { turretMode.active = true; turretMode.x = s.tu[0]; turretMode.y = s.tu[1]; turretMode.hp = s.tu[2]; turretMode.maxHp = s.tu[3]; } else turretMode.active = false;
 
     s.p.forEach((e, i) => { if (players[i] && Array.isArray(e)) netDecodePlayer(players[i], e, i === NET.localIdx); });
@@ -623,17 +818,18 @@ function netApplySnapshot(s) {
             else if (ev[0] === 'sk') playKillSound(+ev[1] || 0, +ev[2] || 0, ev[3] ? 1 : 0);
             else if (ev[0] === 'd') addDecal(ev[1], ev[2], String(ev[3]), +ev[4] || 10, +ev[5] || 0.4);
             else if (ev[0] === 'r') radioDialogs.push({ text: String(ev[1]), life: 5, maxLife: 5 });
-            else if (ev[0] === 'sl') slashes.push(Object.assign(Object.create(Slash.prototype), { src: ev[1] === 2 ? 1 : 0, x: 0, y: 0, angle: +ev[2] || 0, range: +ev[3] || 80, spread: +ev[4] || 1, isSaber: !!ev[5], isFire: !!ev[6], life: 0.15 }));
+            else if (ev[0] === 'sl') slashes.push(Object.assign(Object.create(Slash.prototype), { src: Math.max(0, Math.min(players.length - 1, (ev[1] | 0) - 1)), x: 0, y: 0, angle: +ev[2] || 0, range: +ev[3] || 80, spread: +ev[4] || 1, isSaber: !!ev[5], isFire: !!ev[6], life: 0.15 }));
         }
         NET.applying = false;
     }
 }
 
 function netSendInput() {
-    let p = players[NET.localIdx];
+    let p = players[NET.localIdx] || players[0];
     const B = (n) => { let b = UI['p1Btn' + n]; let d = b.pressed || b.justPressed; b.justPressed = false; b.justReleased = false; return d ? 1 : 0; };
     let ptr = PC_INPUT.pointer.active;
-    let px = tank.active ? tank.x : p.x, py = tank.active ? tank.y : p.y;
+    let useTk = typeof inTank === 'function' ? inTank(p) : tank.active;
+    let px = useTk ? tank.x : p.x, py = useTk ? tank.y : p.y;
     netSend({
         t: 'i', a: UI.p1Stick.active ? 1 : 0, dx: +UI.p1Stick.dx.toFixed(2), dy: +UI.p1Stick.dy.toFixed(2),
         b: [B('A'), B('B'), B('C'), B('D')], ptr: ptr ? 1 : 0, ang: ptr ? +getPcAimAngle(px, py, 0).toFixed(3) : 0, pt: Math.round(performance.now())
@@ -647,8 +843,9 @@ function guestLoop(time) {
     const k = Math.min(1, dt * 14);
 
     players.forEach((p, i) => {
-        if (p.sx === undefined) return;
-        if (i === NET.localIdx && !tank.active && !p.isDowned) {
+        if (p.sx === undefined || p.netLeft) return;
+        let meInTank = typeof inTank === 'function' ? inTank(p) : tank.active;
+        if (i === NET.localIdx && !meInTank && !p.isDowned) {
             // Dự đoán chuyển động của chính mình để điều khiển không bị trễ
             let joy = UI.p1Stick;
             if (joy.active && p.spd > 0) { p.x += joy.dx * p.spd * dt; p.y += joy.dy * p.spd * dt; resolveCollision(p); }

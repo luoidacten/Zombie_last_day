@@ -41,7 +41,7 @@
             class="text-sm md:text-base text-gray-300 max-w-xl text-center mb-6 leading-relaxed border-b border-gray-700 pb-4">
             - Tiêu diệt Zombie để <span class="text-yellow-400 font-bold">Tăng Cấp</span> nhận lượt nâng cấp.<br>
             - <span class="text-red-400 font-bold">Hệ thống Chiến Xa</span> - Biến xe tăng thành cỗ máy bất tử!<br>
-            - <span class="text-cyan-400 font-bold">MỚI: Chơi Online Co-op 2 người</span> bằng mã phòng.<br>
+            - <span class="text-cyan-400 font-bold">MỚI: Chơi Online Co-op 2–4 người</span> bằng mã phòng.<br>
             <span class="text-xs text-gray-400">PC: WASD di chuyển · Chuột ngắm/bắn · Chuột phải/E: ném · Q: kỹ năng C · R: kỹ năng D</span>
         </p>
 
@@ -64,7 +64,7 @@
                 onclick="startCampaign(false)">👥 2 NGƯỜI (MOBILE - 1 MÁY)</button>
             <button
                 class="px-6 py-4 bg-cyan-600 hover:bg-cyan-500 font-bold text-base rounded-xl shadow-lg transition transform active:scale-95 border-b-4 border-cyan-800"
-                onclick="netOpenLobby()">🌐 ONLINE CO-OP (2 MÁY)</button>
+                onclick="netOpenLobby()">🌐 ONLINE CO-OP (2–4 MÁY)</button>
         </div>
 
         <button
@@ -110,14 +110,13 @@
     <!-- SẢNH ONLINE -->
     <div id="onlineModal" class="hidden absolute inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
         <div class="bg-gray-800 border-2 border-cyan-500 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <h2 class="text-2xl font-bold text-cyan-400 mb-2">🌐 ONLINE CO-OP</h2>
-            <p class="text-xs text-gray-300 leading-relaxed mb-4">Một người <b>TẠO PHÒNG</b> rồi gửi mã cho bạn. Người
-                còn lại nhập mã và bấm <b>VÀO PHÒNG</b>. Kết nối trực tiếp giữa 2 máy (P2P), cần có Internet.</p>
+            <h2 class="text-2xl font-bold text-cyan-400 mb-2">🌐 ONLINE CO-OP (2–4 NGƯỜI)</h2>
+            <p class="text-xs text-gray-300 leading-relaxed mb-4">Một người <b>TẠO PHÒNG</b> rồi gửi mã cho tối đa 3 người bạn. Bạn bè nhập mã và bấm <b>VÀO PHÒNG</b>. Khi đủ từ 2–4 người, chủ phòng bấm <b>BẮT ĐẦU TRẬN</b>.</p>
 
             <div id="netLobbyMain" class="space-y-3">
                 <button
                     class="w-full py-3 bg-cyan-600 hover:bg-cyan-500 font-bold rounded-xl transition active:scale-95 border-b-4 border-cyan-800"
-                    onclick="netHost()">TẠO PHÒNG</button>
+                    onclick="netHost()">TẠO PHÒNG (2–4 NGƯỜI)</button>
                 <div class="flex gap-2">
                     <input id="netCodeInput" maxlength="5" autocomplete="off" autocapitalize="characters"
                         spellcheck="false" placeholder="MÃ PHÒNG"
@@ -136,11 +135,13 @@
                     Sao chép mã</button>
             </div>
 
+            <div id="netRoster" class="hidden grid grid-cols-2 gap-2 my-3 text-xs"></div>
+
             <div id="netStatus" class="text-sm text-gray-300 text-center min-h-[2.5rem] my-3"></div>
 
             <button id="netStartBtn"
                 class="hidden w-full py-3 mb-2 bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold rounded-xl transition active:scale-95 disabled:bg-gray-700 disabled:text-gray-500"
-                onclick="netStartGame()" disabled>BẮT ĐẦU TRẬN</button>
+                onclick="netStartGame()" disabled>▶ BẮT ĐẦU TRẬN</button>
             <button class="w-full py-2 bg-gray-700 hover:bg-gray-600 font-bold text-sm rounded-xl transition"
                 onclick="netCloseLobby()">HỦY / ĐÓNG</button>
         </div>
@@ -189,7 +190,9 @@
                     <b>NÉM</b> 2/4: +25/60% sát thương ném, mốc 4 làm choáng mục tiêu lâu hơn.<br>
                     <b>ĐỘC TỐ</b> 2/4: Thiêu Đốt &amp; Ăn Mòn của bạn +30/60%, mốc 4 quái dính độc chậm 20%.<br>
                     <b>THỜI KHÔNG</b> 2/3: Nộ nạp nhanh +50%; vệt đạn Súng Ngắm tồn tại gấp đôi và tung Nộ làm đóng băng quái 1.5s.<br>
-                    <b>LIỀM</b> 2/3: +25% sát thương Liềm; chém trọn vòng 360°.<br>
+                    <b>LIỀM</b>: mặc định có hút máu cao và tạo Tế Phẩm cấp Máu Ảo; mốc 2/3: +25% ST Liềm, chém trọn vòng 360°.<br>
+                    <b>HÚT MÁU</b> 2/4/5: hút máu mọi đòn đánh, chuyển hút dư thành Máu Ảo, mốc 5 nổ huyết quang &amp; tăng ST khi có Máu Ảo.<br>
+                    <b>PHÒNG THỦ</b> 2/4/5: giảm 12/24/35% ST nhận, hồi Máu Ảo sau 5s không trúng đòn, mốc 5 phóng xung phản chấn.<br>
                     <b>ĐỒNG MINH</b> 1/2/3: lính có khiên; lính giảm 25% sát thương nhận; bạn giảm 15% khi đứng gần lính.<br>
                     <b>BẬC THẦY</b> 1: +10% sát thương, Nộ nạp nhanh +25%. <b>NHẤT KIẾM</b> 1: Lướt C hồi 2s. <b>TĂNG TIẾN</b> 3: mỗi map +4% sát thương.
                 </div>
@@ -204,9 +207,18 @@
                 </div>
                 <div id="wikiAuto" class="space-y-4"></div>
                 <div class="bg-gray-900 p-3 rounded-lg border border-cyan-500/30 text-xs">
-                    <span class="text-cyan-400 font-bold">🌐 ONLINE CO-OP:</span> Chủ phòng điều khiển cửa hàng &amp;
+                    <span class="text-cyan-400 font-bold">🛡 PHÒNG THỦ CĂN CỨ:</span> cứ 5 màn, bảo vệ Nhà Chính trước các đợt địch.<br>
+                    <b>1–2 người: 2 cổng · 3 người: 3 cổng · 4 người: 4 cổng.</b> Quân số được chốt khi bắt đầu trận.<br>
+                    Mua <b>Cửa Chắn</b> tại Xưởng: Gỗ → Bọc Sắt → Thép Gai → Hợp Kim → Từ Trường.
+                    Cửa chặn zombie mặt đất và đạn địch; người chơi, lính và đạn phe ta đi xuyên.
+                    Cửa cấp 3 phản gai, cấp 4 tự sửa sau 5 giây yên ổn, cấp 5 phóng điện. Cửa vỡ được sửa khi sang màn thủ tiếp theo.<br>
+                    <b>Nhà Chính chỉ tự hồi sau 5 giây không nhận sát thương</b>: 0,07% máu/giây, thêm 0,08% mỗi thợ (tối đa 8 thợ).
+                    Thành Lũy Kiên Cố tăng 25% máu Nhà Chính và cửa.
+                </div>
+                <div class="bg-gray-900 p-3 rounded-lg border border-cyan-500/30 text-xs">
+                    <span class="text-cyan-400 font-bold">🌐 ONLINE CO-OP (2–4 NGƯỜI):</span> Chủ phòng điều khiển cửa hàng &amp;
                     tuyến đường; mỗi người tự chọn thẻ nâng cấp trên máy của mình. Hồi sinh đồng đội bằng cách đứng
-                    sát bên. Trong xe tăng: Chủ phòng lái, người chơi 2 điều khiển pháo.
+                    sát bên. Khi kích hoạt Xe Tăng: <b>2 người còn sống đứng gần xe tăng nhất</b> sẽ lên xe (1 người lái, 1 người điều khiển pháo), các đồng đội còn lại tiếp tục chiến đấu bên ngoài!
                 </div>
             </div>
             <button class="mt-6 w-full py-3 bg-yellow-500 text-gray-900 font-bold rounded-xl transition active:scale-95"
@@ -222,7 +234,7 @@
             class="flex-1 bg-gradient-to-t from-red-950/95 to-black/90 flex flex-col justify-between items-center p-2 relative border-b border-gray-700">
             <div class="absolute top-2 left-4 text-yellow-400 font-bold text-xs" id="p2UpgCount"></div>
             <div class="text-center w-full max-h-[25%] overflow-hidden">
-                <div class="text-xs font-bold tracking-wide text-red-400">NGƯỜI CHƠI 2</div>
+                <div class="text-xs font-bold tracking-wide text-red-400" id="p2Title">NGƯỜI CHƠI 2</div>
                 <div class="text-[10px] text-gray-400 mt-0.5" id="p2Tags"></div>
             </div>
             <div class="flex gap-3 justify-center items-center w-full max-w-lg px-2 h-[50%]" id="p2Cards"></div>
@@ -240,7 +252,7 @@
             class="flex-1 bg-gradient-to-t from-black/90 to-blue-950/95 flex flex-col justify-between items-center p-2 relative">
             <div class="absolute top-2 right-4 text-yellow-400 font-bold text-xs" id="p1UpgCount"></div>
             <div class="text-center w-full max-h-[25%] overflow-hidden">
-                <div class="text-xs font-bold tracking-wide text-blue-400">NGƯỜI CHƠI 1</div>
+                <div class="text-xs font-bold tracking-wide text-blue-400" id="p1Title">NGƯỜI CHƠI 1</div>
                 <div class="text-[10px] text-gray-400 mt-0.5" id="p1Tags"></div>
             </div>
             <div class="flex gap-3 justify-center items-center w-full max-w-lg px-2 h-[50%]" id="p1Cards"></div>

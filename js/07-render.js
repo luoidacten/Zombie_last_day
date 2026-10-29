@@ -71,21 +71,21 @@ function updateFx(dt) {
 function updateCamera(dt, snap = false) {
     let tx = cam.x, ty = cam.y, tz = 0.9;
     const solo = soloControls();
-    if (tank.active) {
-        tx = tank.x; ty = tank.y;
-        if (!solo) tz = Math.min(1.3, Math.max(0.6, (Math.min(W, H) * 0.7) / 400));
-    } else if (solo) {
+    if (solo) {
         let p = localPlayer();
-        if (p) { tx = p.x; ty = p.y; }
+        if (tank.active && p && inTank(p)) { tx = tank.x; ty = tank.y; }
+        else if (p) { tx = p.x; ty = p.y; }
     } else if (players.length >= 2) {
         let a = players[0], b = players[1];
+        let ax = inTank(a) ? tank.x : a.x, ay = inTank(a) ? tank.y : a.y;
+        let bx = inTank(b) ? tank.x : b.x, by = inTank(b) ? tank.y : b.y;
         let aAlive = !a.isDowned, bAlive = !b.isDowned;
-        if (aAlive && !bAlive) { tx = a.x; ty = a.y; }
-        else if (!aAlive && bAlive) { tx = b.x; ty = b.y; }
-        else { tx = (a.x + b.x) / 2; ty = (a.y + b.y) / 2; }
+        if (aAlive && !bAlive) { tx = ax; ty = ay; }
+        else if (!aAlive && bAlive) { tx = bx; ty = by; }
+        else { tx = (ax + bx) / 2; ty = (ay + by) / 2; }
         // Một người gục: khóa khoảng cách về 0 để camera không bị kéo giãn
-        let pDist = (aAlive && bAlive) ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
-        tz = Math.min(1.3, Math.max(0.5, (Math.min(W, H) * 0.7) / (pDist + 300)));
+        let pDist = (aAlive && bAlive) ? Math.hypot(ax - bx, ay - by) : 0;
+        tz = Math.min(1.3, Math.max(0.5, (Math.min(W, H) * 0.7) / (pDist + (tank.active ? 400 : 300))));
     }
     if (solo && Math.min(W, H) < 480) tz = 0.78; // màn hình điện thoại nhỏ: lùi camera một chút
     // Kết thúc trận trên tàu: lia về đuôi tàu để thấy vụ nổ C4 thổi bay The Hucker
@@ -500,8 +500,18 @@ function drawPlayerEntity(p, idx, T) {
         let showAmmo = p.weapon.type === 'gun' || p.weapon.type === 'melee' || p.weapon.type === 'charge' || p.weapon.type === 'explosive';
         outlinedText(`${p.weapon.name}${showAmmo ? ` (${p.weapon.ammo})` : ''}`, p.x, p.y - 40, '#ecf0f1', 'bold 11px Arial');
     }
-    if (NET.mode) outlinedText(idx === 0 ? 'P1' : 'P2', p.x, p.y - 53, idx === 0 ? '#74b9ff' : '#ff7675', 'bold 10px Arial');
+    if (NET.mode) {
+        const badgeCols = ['#74b9ff', '#ff7675', '#55efc4', '#ffeaa7'];
+        outlinedText(`P${idx + 1}`, p.x, p.y - 53, badgeCols[idx] || '#ffffff', 'bold 10px Arial');
+    }
     drawMiniBar(p.x, p.y - 30, 40, 5, p.hp, p.maxHp, '#e74c3c');
+    if ((p.vHp || 0) >= 1 && !p.isDowned) {
+        let vPct = Math.min(1, p.vHp / Math.max(1, p.maxHp));
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(p.x - 20, p.y - 35, 40, 3.5);
+        ctx.fillStyle = '#48dbfb'; ctx.fillRect(p.x - 20, p.y - 35, 40 * vPct, 3.5);
+        ctx.strokeStyle = 'rgba(72, 219, 251, 0.45)'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius + 4, 0, Math.PI * 2); ctx.stroke();
+    }
     drawMiniBar(p.x, p.y - 24, 40, 3, p.hunger, 100, '#f39c12');
     if (p.chargeTime > 0) drawMiniBar(p.x, p.y + 22, 40, 4, p.chargeTime, 1.5, '#9b59b6');
     if (p.stunTimer > 0) outlinedText('💫', p.x, p.y - 2, '#fff', '16px Arial', 1);
@@ -702,7 +712,11 @@ function drawTankEntity(T) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     drawMiniBar(tank.x, tank.y - 50, 60, 6, tank.hp, tank.maxHp, '#e67e22');
     outlinedText(thietXaUnlocked ? 'THIẾT XA' : 'XE TĂNG', tank.x, tank.y - 62, '#fff', 'bold 14px Arial');
-    if (tankExitTimer > 0.35) drawMiniBar(tank.x, tank.y - 78, 50, 5, tankExitTimer, 1.0, '#3498db');
+    if (Array.isArray(tank.crew) && tank.crew.length && !isSinglePlayer) {
+        let crewTxt = tank.crew.length > 1 ? `P${tank.crew[0]} LÁI · P${tank.crew[1]} PHÁO` : `P${tank.crew[0]} LÁI`;
+        outlinedText(crewTxt, tank.x, tank.y - 76, '#74b9ff', 'bold 10px Arial');
+    }
+    if (tankExitTimer > 0.35) drawMiniBar(tank.x, tank.y - 88, 50, 5, tankExitTimer, 1.0, '#3498db');
     let info = [];
     if (hasTeamPerk('t_canQuet')) info.push(`[B] HÚC: ${tank.dashCooldown > 0 ? tank.dashCooldown.toFixed(1) : 'OK'}`);
     if (thietXaUnlocked) info.push(`[C]: ${tank.cSkillCD > 0 ? tank.cSkillCD.toFixed(1) : 'OK'}`);
@@ -1060,14 +1074,15 @@ function draw() {
     }
 
     // --- ZOMBIE ---
-    let aimTargets = tank.active ? [tank] : players.filter(p => !p.isDowned);
+    let aimTargets = players.filter(p => !p.isDowned && !p.netLeft && !inTank(p));
+    if (tank.active) aimTargets.unshift(tank);
     if (!aimTargets.length) aimTargets = players;
     for (let z of zombies) {
         if (z.hidden || !vis(z.x, z.y, z.radius + 34)) continue;
         let alpha = 1;
         let inBush = pointInBush(z.x, z.y);
         if (inBush) {
-            if (!players.some(p => !p.isDowned && Math.hypot(p.x - z.x, p.y - z.y) < 95)) continue;
+            if (!players.some(p => !p.netLeft && !p.isDowned && Math.hypot((inTank(p) ? tank.x : p.x) - z.x, (inTank(p) ? tank.y : p.y) - z.y) < 95)) continue;
             alpha = 0.4;
         }
         let boss = isBossType(z.type);
@@ -1079,8 +1094,11 @@ function draw() {
             ctx.beginPath(); ctx.arc(z.x, z.y, z.radius + 12 + Math.sin(T * 4) * 5, 0, Math.PI * 2); ctx.strokeStyle = z.color; ctx.lineWidth = 7; ctx.stroke();
             ctx.globalAlpha = alpha;
         }
-        let tg = aimTargets[0];
-        if (aimTargets.length > 1 && Math.hypot(aimTargets[1].x - z.x, aimTargets[1].y - z.y) < Math.hypot(tg.x - z.x, tg.y - z.y)) tg = aimTargets[1];
+        let tg = aimTargets[0], tgDist = Math.hypot(tg.x - z.x, tg.y - z.y);
+        for (let ti = 1; ti < aimTargets.length; ti++) {
+            let td = Math.hypot(aimTargets[ti].x - z.x, aimTargets[ti].y - z.y);
+            if (td < tgDist) { tgDist = td; tg = aimTargets[ti]; }
+        }
         if (z.mutant) drawMutantAura(z, T);
         drawZombieBody(z, T, Math.atan2(tg.y - z.y, tg.x - z.x), rage, boss, inBush);
         if (z.hp < z.maxHp) drawMiniBar(z.x, z.y - z.radius - 12, boss ? 80 : 30, boss ? 7 : 4, z.hp, z.maxHp, '#e74c3c');
@@ -1184,8 +1202,8 @@ function draw() {
     for (let s of slashes) s.draw(ctx);
 
     // --- NGƯỜI CHƠI / XE TĂNG ---
-    if (!tank.active) players.forEach((p, idx) => drawPlayerEntity(p, idx, T));
-    else drawTankEntity(T);
+    players.forEach((p, idx) => { if (!p.netLeft && !inTank(p)) drawPlayerEntity(p, idx, T); });
+    if (tank.active) drawTankEntity(T);
 
     // Trực thăng bay phía trên
     if (heliSupport.active) {
@@ -1311,7 +1329,8 @@ function draw() {
             lightCtx.restore();
         };
         if (tank.active) { hole(tank.x, tank.y, lightRadius, 0.95); cone(tank.x, tank.y, tank.turretAngle || 0); }
-        else for (let p of players) {
+        for (let p of players) {
+            if (p.netLeft || inTank(p)) continue;
             if (p.isDowned) { hole(p.x, p.y, 90, 0.5); continue; }
             hole(p.x, p.y, lightRadius, 0.95);
             cone(p.x, p.y, Math.atan2(p.facingY || 0, p.facingX || 1));
@@ -1400,8 +1419,14 @@ function draw() {
         for (let m of airdropMarkers) drawPointer(m.x, m.y, '#e74c3c');
         for (let d of drops) if (d.type === 'SUPERBOX') drawPointer(d.x, d.y, '#2ecc71');
     }
-    // Mũi tên chỉ đồng đội (online)
-    if (NET.mode && players.length > 1 && !tank.active) { let mate = players[1 - NET.localIdx]; if (mate) drawPointer(mate.x, mate.y, mate.isDowned ? '#ff7675' : mate.color); }
+    // Mũi tên chỉ đồng đội (online 2–4 người)
+    if (NET.mode && players.length > 1) {
+        players.forEach((mate, idx) => {
+            if (idx === NET.localIdx || mate.netLeft) return;
+            let mx = inTank(mate) ? tank.x : mate.x, my = inTank(mate) ? tank.y : mate.y;
+            drawPointer(mx, my, mate.isDowned ? '#ff7675' : mate.color);
+        });
+    }
 
     drawHud(T);
     drawControlsLayer();
@@ -1432,8 +1457,14 @@ function drawHud(T) {
         const bar = (bx, by, bw, bh, pct, col) => { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by, bw, bh); ctx.fillStyle = col; ctx.fillRect(bx, by, bw * Math.max(0, Math.min(1, pct)), bh); };
         let lowHp = p.hp < p.maxHp * 0.3;
         bar(x + 8, y + 22, w - 16, 13, p.hp / p.maxHp, lowHp ? (Math.floor(T * 6) % 2 ? '#ff4757' : '#c0392b') : '#e74c3c');
+        if ((p.vHp || 0) >= 1 && !p.isDowned) {
+            let vw = (w - 16) * Math.min(1, p.vHp / Math.max(1, p.maxHp));
+            ctx.fillStyle = 'rgba(72, 219, 251, 0.72)'; ctx.fillRect(x + 8, y + 22, vw, 4);
+            ctx.strokeStyle = '#48dbfb'; ctx.lineWidth = 1; ctx.strokeRect(x + 8.5, y + 22.5, w - 17, 12);
+        }
         ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
-        ctx.fillText(p.isDowned ? 'GỤC NGÃ' : `${Math.max(0, Math.ceil(p.hp))} / ${Math.round(p.maxHp)}`, x + w / 2, y + 29);
+        let vTxt = (p.vHp || 0) >= 1 && !p.isDowned ? ` (+${Math.ceil(p.vHp)})` : '';
+        ctx.fillText(p.isDowned ? 'GỤC NGÃ' : `${Math.max(0, Math.ceil(p.hp))} / ${Math.round(p.maxHp)}${vTxt}`, x + w / 2, y + 29);
         bar(x + 8, y + 38, w - 16, 5, p.hunger / 100, '#f39c12');
         bar(x + 8, y + 46, w - 16, 5, p.xp / getXpRequired(p.level), '#f1c40f');
         ctx.textAlign = 'left'; ctx.font = 'bold 11px Arial';
@@ -1441,16 +1472,31 @@ function drawHud(T) {
         ctx.fillStyle = '#cbd5e1'; ctx.fillText(`⚙ ${shopScrap}  ◆ ${breakthroughShards}  ☠ ${killCount}`, x + 50, y + 63);
         if (p.pendingUpgrades > 0) { ctx.textAlign = 'right'; ctx.fillStyle = '#2ecc71'; ctx.fillText(`+${p.pendingUpgrades} thẻ`, x + w - 8, y + 63); }
 
+        let mateRows = 0;
         if (NET.mode && players.length > 1) {
-            let mate = players[1 - NET.localIdx];
-            ctx.fillStyle = 'rgba(8,12,18,0.62)'; ctx.fillRect(x, y + h + 4, w, 20);
-            ctx.textAlign = 'left'; ctx.fillStyle = mate.color; ctx.font = 'bold 10px Arial';
-            ctx.fillText(NET.localIdx === 0 ? 'P2' : 'P1', x + 8, y + h + 14);
-            bar(x + 28, y + h + 10, w - 96, 8, mate.isDowned ? 0 : mate.hp / mate.maxHp, '#2ecc71');
-            ctx.textAlign = 'right'; ctx.fillStyle = '#94a3b8'; ctx.fillText(`${NET.ping | 0} ms`, x + w - 8, y + h + 14);
-            if (mate.isDowned) { ctx.textAlign = 'center'; ctx.fillStyle = '#ff7675'; ctx.fillText('GỤC!', x + 28 + (w - 96) / 2, y + h + 14); }
+            players.forEach((mate, idx) => {
+                if (idx === NET.localIdx) return;
+                let ry = y + h + 4 + mateRows * 20;
+                ctx.fillStyle = 'rgba(8,12,18,0.62)'; ctx.fillRect(x, ry, w, 18);
+                ctx.textAlign = 'left'; ctx.fillStyle = mate.netLeft ? '#64748b' : mate.color; ctx.font = 'bold 10px Arial';
+                ctx.fillText(`P${idx + 1}`, x + 8, ry + 10);
+                if (mate.netLeft) {
+                    ctx.fillStyle = '#94a3b8'; ctx.fillText('RỜI TRẬN', x + 32, ry + 10);
+                } else {
+                    let inTk = inTank(mate);
+                    bar(x + 28, ry + 5, w - 96, 8, mate.isDowned ? 0 : (inTk ? tank.hp / Math.max(1, tank.maxHp) : mate.hp / Math.max(1, mate.maxHp)), inTk ? '#e67e22' : '#2ecc71');
+                    if (!inTk && !mate.isDowned && (mate.vHp || 0) >= 1) {
+                        ctx.fillStyle = '#48dbfb';
+                        ctx.fillRect(x + 28, ry + 5, (w - 96) * Math.min(1, mate.vHp / Math.max(1, mate.maxHp)), 3);
+                    }
+                    if (mate.isDowned) { ctx.textAlign = 'center'; ctx.fillStyle = '#ff7675'; ctx.fillText('GỤC!', x + 28 + (w - 96) / 2, ry + 10); }
+                    else if (inTk) { ctx.textAlign = 'center'; ctx.fillStyle = '#ffeaa7'; ctx.fillText('XE TĂNG', x + 28 + (w - 96) / 2, ry + 10); }
+                }
+                if (mateRows === 0) { ctx.textAlign = 'right'; ctx.fillStyle = '#94a3b8'; ctx.fillText(`${NET.ping | 0} ms`, x + w - 8, ry + 10); }
+                mateRows++;
+            });
         }
-        if (small) bannerY = y + h + (NET.mode ? 32 : 8);
+        if (small) bannerY = y + h + (mateRows ? mateRows * 20 + 10 : 8);
         drawMinimap(small ? 84 : 128);
     } else if (!solo) {
         // 2 người chung máy: thanh XP dọc ở 2 mép
@@ -1553,7 +1599,8 @@ function drawMinimap(S) {
     if (evacZone) { ctx.strokeStyle = objState === 'EVAC' ? '#2ecc71' : '#f1c40f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(mx + evacZone.x * sc, my + evacZone.y * sc, 5, 0, Math.PI * 2); ctx.stroke(); }
     if (hasTeamPerk('p_tinHieu')) for (let d of drops) if (d.type === 'SUPERBOX') dot(d.x, d.y, 2, '#f39c12');
     players.forEach((p, i) => {
-        let px = tank.active ? tank.x : p.x, py = tank.active ? tank.y : p.y;
+        if (p.netLeft) return;
+        let px = inTank(p) ? tank.x : p.x, py = inTank(p) ? tank.y : p.y;
         ctx.beginPath(); ctx.arc(mx + px * sc, my + py * sc, 3.2, 0, Math.PI * 2); ctx.fillStyle = p.isDowned ? '#7f8c8d' : p.color; ctx.fill();
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
     });

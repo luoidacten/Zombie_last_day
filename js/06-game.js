@@ -33,9 +33,9 @@ function resetRunState() {
     ashZones = []; decals = [];
     radioDialogs = []; radioDialogTimer = 40;
     allyDropTimer = 38;
-    tank.active = false; turretMode.active = false;
+    tank.active = false; tank.crew = []; turretMode.active = false;
     window.armySniperTimer = 0;
-    showTagsP1 = false; showTagsP2 = false;
+    showTagsArr = [false, false, false, false];
 }
 
 // mode: 'pc' | 'mobile' | 'local2' | 'online'
@@ -57,10 +57,14 @@ function beginRun(mode) {
 
     players = [];
     if (isSinglePlayer) {
-        players.push(new Player(1, MAP_SIZE.w / 2, MAP_SIZE.h / 2 + 60, '#3498db'));
+        players.push(new Player(1, MAP_SIZE.w / 2, MAP_SIZE.h / 2 + 60, playerColorOf(1)));
     } else {
-        players.push(new Player(1, MAP_SIZE.w / 2, MAP_SIZE.h / 2 + 140, '#3498db'));
-        players.push(new Player(2, MAP_SIZE.w / 2, MAP_SIZE.h / 2 - 140, '#e74c3c'));
+        let count = mode === 'online' ? Math.max(2, Math.min(4, NET.playerCount || 2)) : 2;
+        const offsets = [[0, 120], [0, -120], [-120, 0], [120, 0]];
+        for (let i = 0; i < count; i++) {
+            let off = offsets[i] || [0, 0];
+            players.push(new Player(i + 1, MAP_SIZE.w / 2 + off[0], MAP_SIZE.h / 2 + off[1], playerColorOf(i + 1)));
+        }
     }
 
     if (thietXaUnlocked) {
@@ -93,6 +97,7 @@ function showGameOver(level, seconds) {
 function spawnSquad() {
     let bonus = (getTeamTagLevel('TRIEU_HOI') >= 5 ? 1 : 0) + (getTeamTagLevel('QUAN_DOI') >= 5 ? 1 : 0);
     for (let p of players) {
+        if (p.netLeft) continue;
         if (p.perks.a_call_rifleman) for (let i = 0; i < 1 + bonus; i++) summonAlly('rifleman', p);
         if (p.perks.a_call_vanguard) for (let i = 0; i < 1 + bonus; i++) summonAlly('vanguard', p);
         if (p.perks.a_call_medic) summonAlly('medic', p);
@@ -107,7 +112,7 @@ function startLevel() {
     zombies = []; bullets = []; enemyBullets = []; slashes = []; thrownItems = []; drops = []; particles = []; vfxList = []; airdropMarkers = []; fireZones = [];
     decals = []; ashZones = []; rescueNPCs = [];
     lastFocusedTarget = null;
-    tank.active = false; heliSupport.active = false;
+    tank.active = false; tank.crew = []; heliSupport.active = false;
     score = 0; survivalTime = 0; cameraShake = 0; airdropTimer = 30; zombieTimer = 0; itemTimer = 0; objState = 'TOWERS'; evacTimer = 0; evacZone = null; drones = []; raiBoomTimer = 0; missionItems = []; bossSpawned = false; hazards = []; powerCoils = []; lightFlowers = []; darknessBattery = 100; darknessFlash = 0; cityCollapseTimer = 8.0;
     allies = []; outposts = []; fortressTimer = 120.0;
     airstrikeTimer = 15.0;
@@ -116,11 +121,14 @@ function startLevel() {
     flashAlpha = 0; thunderTimer = 3; empStorm = { cd: 20, timer: 0, active: false };
     turretMode.active = false;
 
+    const startOffsets = [[0, 60], [0, -60], [-65, 0], [65, 0]];
     for (let p of players) {
+        if (p.netLeft) { p.isDowned = true; p.hp = 0; p.pendingUpgrades = 0; continue; }
         let wasDowned = p.isDowned;
+        let off = isSinglePlayer ? [0, 0] : (startOffsets[(p.id - 1) % 4] || [0, 0]);
         p.stunHitCount = 0; p.lastStunTime = 0; p.stunTimer = 0; p.silenceTimer = 0; p.netTimer = 0; p.markedTimer = 0; p.status = {};
         p.pullingPin = false; p.chargeTime = 0; p.reviveProgress = 0; p.hurtFlash = 0;
-        p.x = MAP_SIZE.w / 2; p.y = MAP_SIZE.h / 2 + (p.id === 1 ? 60 : -60); p.isDowned = false;
+        p.x = MAP_SIZE.w / 2 + off[0]; p.y = MAP_SIZE.h / 2 + off[1]; p.isDowned = false;
         if (currentLevel === 1) p.hp = p.maxHp;
         else if (wasDowned) p.hp = Math.max(1, p.maxHp * 0.3);   // Đồng đội gục được cứu khi qua map
         else p.hp = Math.max(1, Math.min(p.hp, p.maxHp));
@@ -191,7 +199,7 @@ function setPaused(on, fromNet = false) {
         if (gameState !== 'PLAYING') return;
         gameState = 'PAUSED'; loopToken++; pauseStartedAt = Date.now();
         clearPcInputs();
-        document.getElementById('pauseWho').textContent = fromNet ? 'Đồng đội đã tạm dừng trận đấu.' : (NET.mode ? 'Cả hai máy đều đang dừng.' : '');
+        document.getElementById('pauseWho').textContent = fromNet ? 'Đồng đội đã tạm dừng trận đấu.' : (NET.mode ? 'Tất cả máy trong phòng đều đang dừng.' : '');
         ov.style.display = 'flex';
     } else {
         if (gameState !== 'PAUSED') return;
@@ -232,7 +240,8 @@ function gameLoop(time) {
     dt *= bossTimeScale(dt);        // chậm hình khi hạ boss (17-bosses.js)
     survivalTime += dt; score += dt * 10;
 
-    let allDead = players.every(p => p.isDowned);
+    let activeP = activePlayers();
+    let allDead = activeP.length > 0 && activeP.every(p => p.isDowned);
     if (allDead && !tank.active && objState !== 'TRAIN') {   // trên nóc tàu: gục hết thì nhiệm vụ thất bại chứ không game over
         if (NET.mode === 'host') netHostGameOver();
         showGameOver(currentLevel, survivalTime);
@@ -241,7 +250,10 @@ function gameLoop(time) {
 
     frameElectricals = zombies.filter(z => z.type === 28 && z.hp > 0);
     syncPcControls();
-    if (tank.active) updateTank(dt); else for (let p of players) p.update(dt);
+    if (tank.active) updateTank(dt);
+    for (let p of players) {
+        if (!p.netLeft && !inTank(p)) p.update(dt);
+    }
     if (objState === 'DEFEND' && turretMode.active) updateDefendTurret(dt);
     updateBushFire(dt);
     updateRadioDialogs(dt);
@@ -250,14 +262,20 @@ function gameLoop(time) {
     let droneTag = getTeamTagLevel('DRONE');
     let heliTag = getTeamTagLevel('TRỰC THĂNG');
     let isPermaHeli = (droneTag >= 5 && heliTag >= 5); // Hiệu ứng yểm trợ cả trận
+    const teamCenter = () => {
+        let alive = activeP.filter(p => !p.isDowned);
+        let list = alive.length ? alive : (activeP.length ? activeP : players);
+        let sx = 0, sy = 0;
+        for (let p of list) { sx += inTank(p) ? tank.x : p.x; sy += inTank(p) ? tank.y : p.y; }
+        return { x: sx / Math.max(1, list.length), y: sy / Math.max(1, list.length) };
+    };
 
     // Tách logic hoạt động của Trực thăng ra ngoài để bám theo ngay lập tức
     if (isPermaHeli && objState !== 'WAITING' && objState !== 'EVAC') {
         heliSupport.active = true;
-        let tx = isSinglePlayer ? players[0].x : (players[0].x + players[1].x) / 2;
-        let ty = isSinglePlayer ? players[0].y : (players[0].y + players[1].y) / 2;
-        heliSupport.x += (tx - heliSupport.x) * dt * 1.5;
-        heliSupport.y += (ty - heliSupport.y) * dt * 1.5;
+        let tc = teamCenter();
+        heliSupport.x += (tc.x - heliSupport.x) * dt * 1.5;
+        heliSupport.y += (tc.y - heliSupport.y) * dt * 1.5;
 
         heliSupport.fireTimer -= dt;
         if (heliSupport.fireTimer <= 0) {
@@ -292,8 +310,8 @@ function gameLoop(time) {
     }
 
     else if (objState === 'ROOFTOP') {
-        let allIn = true; for (let p of players) { if (!p.isDowned && Math.hypot(p.x - evacZone.x, p.y - evacZone.y) > 180) allIn = false; }
-        if (allIn && !tank.active && players.some(p => !p.isDowned) && !storyBusy()) {
+        let allIn = true; for (let p of activeP) { if (!p.isDowned && Math.hypot(p.x - evacZone.x, p.y - evacZone.y) > 180) allIn = false; }
+        if (allIn && !tank.active && activeP.some(p => !p.isDowned) && !storyBusy()) {
             evacZone.progress += dt;
             if (evacZone.progress >= 3.0) {
                 currentPowerFloorCleared++; // tính cả tầng Boss cuối -> đủ 3 tầng để mở thẻ hệ ĐIỆN
@@ -320,8 +338,9 @@ function gameLoop(time) {
             if (t.active) { activeCount++; continue; }
 
             let playersInZone = 0;
-            for (let p of players) {
-                if (!p.isDowned && Math.hypot(p.x - t.x, p.y - t.y) < 150) playersInZone++;
+            for (let p of activeP) {
+                let px = inTank(p) ? tank.x : p.x, py = inTank(p) ? tank.y : p.y;
+                if (!p.isDowned && Math.hypot(px - t.x, py - t.y) < 150) playersInZone++;
             }
 
             // Kiểm tra xem có Drone Do Thám nào đang đứng giữ tháp không
@@ -331,9 +350,9 @@ function gameLoop(time) {
                 // Tốc độ chiếm tháp mặc định
                 let captureSpeed = 1.0;
 
-                // LOGIC CO-OP: 2 người mới nhanh, 1 người thì tốc độ chỉ còn một nửa
-                if (!isSinglePlayer) {
-                    captureSpeed = (playersInZone === 1) ? 0.5 : 1.0;
+                // LOGIC CO-OP: 1 người chậm hơn, 2 người tốc độ chuẩn, 3-4 người chiếm nhanh hơn nữa
+                if (!isSinglePlayer && activeP.length > 1) {
+                    captureSpeed = (playersInZone === 1) ? 0.5 : Math.min(1.5, 1.0 + (playersInZone - 2) * 0.25);
                 }
 
                 t.progress += dt * captureSpeed;
@@ -363,12 +382,11 @@ function gameLoop(time) {
         if (heliCondition) {
             heliSupport.active = true; heliSupport.fireTimer -= dt;
 
-            let hasFollow = isPermaHeli || droneTag >= 2 || players.some(p => p.perks.heliFollow);
+            let hasFollow = isPermaHeli || droneTag >= 2 || activeP.some(p => p.perks.heliFollow);
             if (hasFollow) {
-                let tx = isSinglePlayer ? players[0].x : (players[0].x + players[1].x) / 2;
-                let ty = isSinglePlayer ? players[0].y : (players[0].y + players[1].y) / 2;
-                heliSupport.x += (tx - heliSupport.x) * dt * 1.5;
-                heliSupport.y += (ty - heliSupport.y) * dt * 1.5;
+                let tc = teamCenter();
+                heliSupport.x += (tc.x - heliSupport.x) * dt * 1.5;
+                heliSupport.y += (tc.y - heliSupport.y) * dt * 1.5;
             } else {
                 heliSupport.x += (evacZone.x - heliSupport.x) * dt * 2;
                 heliSupport.y += (evacZone.y - heliSupport.y) * dt * 2;
@@ -401,15 +419,15 @@ function gameLoop(time) {
             if (!isPermaHeli && heliTag < 3) heliSupport.active = false;
         }
     } else if (objState === 'EVAC') {
-        let allIn = true; for (let p of players) { if (!p.isDowned && Math.hypot(p.x - evacZone.x, p.y - evacZone.y) > 200) allIn = false; }
-        let anyoneAlive = players.some(p => !p.isDowned);
+        let allIn = true; for (let p of activeP) { if (!p.isDowned && Math.hypot(p.x - evacZone.x, p.y - evacZone.y) > 200) allIn = false; }
+        let anyoneAlive = activeP.some(p => !p.isDowned);
 
         if (allIn && !tank.active && anyoneAlive) {
             let evacSpeed = heliTag >= 5 ? 3.0 : (heliTag >= 3 ? 2.0 : 1.0); // Link 3/5 Evac x2/x3
             evacZone.progress += dt * evacSpeed * heliWeatherMult();
             if (evacZone.progress >= 3.0) {
                 // Xử lý Lên Cấp thưởng
-                for (let p of players) {
+                for (let p of activeP) {
                     if (heliTag >= 5) { p.level += 2; p.pendingUpgrades += 2; }
                     else if (p.perks.p_thoatHiem) { p.level += 1; p.pendingUpgrades += 1; }
                 }
@@ -457,13 +475,16 @@ function gameLoop(time) {
                     spawnRate = 1.0;
                     zCount = 5;
                 } else if (currentLevel <= 8) {
-                    // Map 6+: Tốc độ bàn thờ, bầy đàn cực đông (Như code cũ của bạn)
-                    spawnRate = 1;
-                    zCount = (1 + Math.floor((currentLevel - 5) * 1.5)) * swarmMult;
-                }
-                else {
-                    spawnRate = 0.5
-                    zCount = (3 + Math.floor((currentLevel - 10) * 1.5)) * swarmMult;
+                    // Map 6-8: Bầy đàn đông dần
+                    spawnRate = 1.0;
+                    zCount = (1 + Math.floor((currentLevel - 5) * 1.2)) * swarmMult;
+                } else if (currentLevel <= 12) {
+                    // Map 9-12: Giữ nhịp căng thẳng nhưng không quá tải trước khi có Mảnh Bức Phá mốc 12
+                    spawnRate = 0.72;
+                    zCount = (2 + Math.floor((currentLevel - 7) * 0.8)) * swarmMult;
+                } else {
+                    spawnRate = 0.55;
+                    zCount = (3 + Math.floor((currentLevel - 11) * 1.05)) * swarmMult;
                 }
             }
             else {
@@ -489,10 +510,11 @@ function gameLoop(time) {
                     // Cơ bản là 2 con, cứ mỗi 90 giây sinh tồn sẽ đẻ thêm 1 con mỗi đợt
                     zCount = 2 + Math.floor(survivalTime / 90);
                 } else {
-                    // Map 6+: Nhịp độ tử thần, ép sân cực mạnh
-                    spawnRate = Math.max(0.2, 1.2 - ((currentLevel - 5) * 0.1) - timePressure);
-                    // Số lượng cao, tăng liên tục mỗi 60 giây và nhân với hệ số bầy đàn (swarmMult)
-                    zCount = (2 + Math.floor((currentLevel - 5) / 2) + Math.floor(survivalTime / 60)) * swarmMult;
+                    // Map 6+: Nhịp độ mượt dần, tránh tăng vọt quá gắt ở Map 10-12
+                    let lvlStep = currentLevel <= 12 ? (currentLevel - 5) * 0.065 : (0.455 + (currentLevel - 12) * 0.045);
+                    spawnRate = Math.max(0.38, 1.25 - lvlStep - timePressure);
+                    let baseCnt = 2 + Math.floor((currentLevel - 5) * (currentLevel <= 12 ? 0.35 : 0.48)) + Math.floor(survivalTime / 75);
+                    zCount = baseCnt * swarmMult;
                 }
 
             }
@@ -500,8 +522,8 @@ function gameLoop(time) {
         }
         let isHeavyMission = ['DEFEND', 'COLLECT', 'KILL', 'POWER_LOCKS', 'POWER_KILL', 'ZAP_HOLD', 'STATION_HOLD', 'LAST_STAND', 'RAID'].includes(objState);
         if (isHeavyMission) {
-            zCount = Math.ceil(zCount * 2.0); // Đông hơn đáng kể
-            spawnRate *= 0.8; // Đẻ nhanh hơn 20%
+            zCount = Math.ceil(zCount * (currentLevel >= 10 && currentLevel <= 13 ? 1.65 : 2.0));
+            spawnRate *= (currentLevel >= 10 && currentLevel <= 13 ? 0.88 : 0.8);
         }
         else if (currentMapType === 4) {
             // --- CHẾ ĐỘ TỬ THỦ ---
@@ -518,8 +540,11 @@ function gameLoop(time) {
             zCount = 1 * swarmMult;
         }
         if (!['WAITING', 'EVAC', 'DEFEND'].includes(objState)) {
-            zCount = Math.ceil(zCount * 1.18);
-            spawnRate *= 0.92;
+            zCount = Math.ceil(zCount * 1.15);
+            spawnRate *= 0.94;
+        }
+        if (activeP.length >= 3) {
+            zCount = Math.ceil(zCount * (1 + (activeP.length - 2) * 0.18));
         }
 
         // Giới hạn tổng số quái để giữ khung hình ổn định
@@ -528,15 +553,16 @@ function gameLoop(time) {
         if (isCaveMap()) zCount = caveSpawnCount(zCount);
         for (let i = 0; i < zCount; i++) {
             // Sinh quanh MỘT người chơi còn sống bất kỳ (không chỉ người chơi 1), ngoài tầm an toàn
-            let anchor = tank.active ? tank : pickAlivePlayer();
+            let anchorP = pickAlivePlayer();
+            let anchor = (tank.active && inTank(anchorP)) ? tank : anchorP;
             let angle = Math.random() * Math.PI * 2;
             let distance = 450 + Math.random() * 250;
             let spawnX = Math.max(20, Math.min(MAP_SIZE.w - 20, anchor.x + Math.cos(angle) * distance));
             let spawnY = Math.max(20, Math.min(MAP_SIZE.h - 20, anchor.y + Math.sin(angle) * distance));
             if (isCaveMap()) { let cp = caveSpawnPoint(); if (!cp) continue; spawnX = cp.x; spawnY = cp.y; } // trong hang: sinh ở ngách khuất, đi được tới người chơi
             else { let ni = navOpenIdx(spawnX, spawnY); if (ni < 0 || NAV.field[ni] < 0) continue; } // không sinh quái trong ô bị bịt kín / trong nhà
-            // Không sinh sát mặt người chơi còn lại
-            if (players.some(p => !p.isDowned && Math.hypot(p.x - spawnX, p.y - spawnY) < 380)) continue;
+            // Không sinh sát mặt bất kỳ người chơi nào còn sống
+            if (activeP.some(p => { let px = inTank(p) ? tank.x : p.x, py = inTank(p) ? tank.y : p.y; return !p.isDowned && Math.hypot(px - spawnX, py - spawnY) < 380; })) continue;
             zombies.push(new Zombie(spawnX, spawnY));
         }
 
@@ -545,13 +571,21 @@ function gameLoop(time) {
 
     for (let i = drops.length - 1; i >= 0; i--) { if (drops[i].lifeTime > 0) { drops[i].lifeTime -= dt; if (drops[i].lifeTime <= 0) drops.splice(i, 1); } }
 
-    let itemSpd = players.some(p => p.perks.fastSupply) ? 1.5 : 2.0;
-    // BUFF VẬT PHẨM (Cấp 2): Spawn nhanh hơn
+    let itemSpd = activeP.some(p => p.perks.fastSupply) ? 1.5 : 2.0;
+    // BUFF VẬT PHẨM (Cấp 2): Spawn nhanh hơn + đông người rơi thêm tiếp tế
     if (getTeamTagLevel('VẬT PHẨM') >= 2) itemSpd *= 0.7;
-    itemTimer -= dt; if (itemTimer <= 0) { itemTimer = itemSpd; let dp = caveRandomOpenPoint(); spawnDrop(dp.x, dp.y); } // luôn rơi ở chỗ đi tới được
+    if (activeP.length > 1) itemSpd /= (1 + (activeP.length - 1) * 0.18);
+    const pickDropSpot = () => {
+        if (objState === 'TRAIN' && typeof ROOF !== 'undefined') {
+            return { x: ROOF.x0 + 28 + Math.random() * (ROOF.x1 - ROOF.x0 - 56), y: ROOF.y0 + 50 + Math.random() * (ROOF.y1 - ROOF.y0 - 110) };
+        }
+        return caveRandomOpenPoint();
+    };
+    itemTimer -= dt; if (itemTimer <= 0) { itemTimer = itemSpd; let dp = pickDropSpot(); spawnDrop(dp.x, dp.y); } // luôn rơi ở chỗ đi tới được
 
-    let airSpd = players.some(p => p.perks.fastSupply) ? 20 : 30;
-    airdropTimer -= dt; if (airdropTimer <= 0) { airdropTimer = airSpd; let ap = caveRandomOpenPoint(); airdropMarkers.push({ x: ap.x, y: ap.y, time: 3.0, maxTime: 3.0 }); }
+    let airSpd = activeP.some(p => p.perks.fastSupply) ? 20 : 30;
+    if (activeP.length > 2) airSpd *= Math.max(0.7, 1 - (activeP.length - 2) * 0.12);
+    airdropTimer -= dt; if (airdropTimer <= 0) { airdropTimer = airSpd; let ap = pickDropSpot(); airdropMarkers.push({ x: ap.x, y: ap.y, time: 3.0, maxTime: 3.0 }); }
 
     for (let i = airdropMarkers.length - 1; i >= 0; i--) { airdropMarkers[i].time -= dt; if (airdropMarkers[i].time <= 0) { spawnDrop(airdropMarkers[i].x, airdropMarkers[i].y, true); createParticles(airdropMarkers[i].x, airdropMarkers[i].y, '#ecf0f1', 30, 300); spawnRing(airdropMarkers[i].x, airdropMarkers[i].y, '#f1c40f', 90, 0.4); addScreenShake(8); airdropMarkers.splice(i, 1); } }
 
@@ -588,10 +622,10 @@ function gameLoop(time) {
                 if (z.hp <= 0) zombieDown(z, fz.source);
             }
         }
-        // Vũng lửa/acid của QUÁI (source = null) gây hại cho người chơi đứng trong đó
-        if (!fz.source && !tank.active) {
+        // Vũng lửa/acid của QUÁI (source = null) gây hại cho người chơi đứng ngoài xe tăng
+        if (!fz.source) {
             for (let pl of players) {
-                if (pl.isDowned || Math.hypot(pl.x - fz.x, pl.y - fz.y) > fz.radius) continue;
+                if (pl.netLeft || pl.isDowned || inTank(pl) || Math.hypot(pl.x - fz.x, pl.y - fz.y) > fz.radius) continue;
                 if (fz.kind === 'acid') acidHurt(pl, (fz.dmg || 10) * 0.5 * dt); else pl.takeDot((fz.dmg || 10) * 0.5 * dt);
                 if (fz.kind === 'acid') { fz.tick = (fz.tick || 0) - dt; if (fz.tick <= 0) { fz.tick = 0.8; applyPlayerStatus(pl, STATUS.CORROSION, { duration: 2.5, stacks: 1, dpsPercent: 0.0015, maxStacks: 3 }); } }
             }
@@ -834,20 +868,22 @@ function gameLoop(time) {
                 }
             }
             if (d.type === 'heal' && d.cd <= 0) {
-                if (p.hp < p.maxHp) p.applyHeal((isDroneBuffed ? 10 : 5) * (isDroneSuper ? 2 : 1)); // Mốc 5 hồi mạnh
+                if (!inTank(p) && p.hp < p.maxHp) p.applyHeal((isDroneBuffed ? 10 : 5) * (isDroneSuper ? 2 : 1)); // Mốc 5 hồi mạnh
                 d.cd = isDroneSuper ? 1.0 : 2.0; // Hồi liên tục
-                let partner = isSinglePlayer ? null : players[1 - (p.id - 1)];
-                if (partner) {
-                    if (isDroneSuper && !partner.isDowned && partner.hp < partner.maxHp && Math.hypot(d.x - partner.x, d.y - partner.y) < 200) {
-                        partner.applyHeal(10); // Hồi diện rộng
-                    }
-                    if (partner.isDowned && Math.hypot(d.x - partner.x, d.y - partner.y) < 150) {
-                        let reqTime = 2.0 + partner.reviveCount * 1.5;
-                        partner.reviveProgress += (isDroneBuffed ? 1.5 : 0.8) * (isDroneSuper ? 1.5 : 1);
-                        createParticles(partner.x, partner.y, '#2ecc71', 5, 100);
-                        if (partner.reviveProgress >= reqTime) {
-                            partner.isDowned = false; partner.hp = partner.maxHp * 0.3; partner.reviveCount++; partner.reviveProgress = 0;
-                            createParticles(partner.x, partner.y, '#2ecc71', 50, 200);
+                if (!isSinglePlayer) {
+                    for (let partner of players) {
+                        if (partner === p || partner.netLeft || inTank(partner)) continue;
+                        if (isDroneSuper && !partner.isDowned && partner.hp < partner.maxHp && Math.hypot(d.x - partner.x, d.y - partner.y) < 200) {
+                            partner.applyHeal(10); // Hồi diện rộng
+                        }
+                        if (partner.isDowned && Math.hypot(d.x - partner.x, d.y - partner.y) < 150) {
+                            let reqTime = 2.0 + partner.reviveCount * 1.5;
+                            partner.reviveProgress += (isDroneBuffed ? 1.5 : 0.8) * (isDroneSuper ? 1.5 : 1);
+                            createParticles(partner.x, partner.y, '#2ecc71', 5, 100);
+                            if (partner.reviveProgress >= reqTime) {
+                                partner.isDowned = false; partner.hp = partner.maxHp * 0.3; partner.reviveCount++; partner.reviveProgress = 0;
+                                createParticles(partner.x, partner.y, '#2ecc71', 50, 200);
+                            }
                         }
                     }
                 }
@@ -922,7 +958,11 @@ function gameLoop(time) {
                 spawnRing(z.x, z.y, z.color, 420, 0.8, 10);
                 vfxList.push({ type: 'flash', x: z.x, y: z.y, r: 300, life: 0.4, max: 0.4 });
                 addScreenShake(22);
-                for (let s = 0; s < 3; s++) drops.push({ type: 'SUPERBOX', x: z.x + (s - 1) * 60, y: z.y + 40, radius: 16, lifeTime: 900.0 });
+                let sbCount = Math.max(3, activePlayerCount() + 1);
+                for (let s = 0; s < sbCount; s++) {
+                    let ox = (s - (sbCount - 1) / 2) * 56;
+                    drops.push({ type: 'SUPERBOX', x: z.x + ox, y: z.y + 40, radius: 16, lifeTime: 900.0 });
+                }
             }
 
             score += 50;
@@ -992,7 +1032,14 @@ function gameLoop(time) {
     netHostTick(dt);
 }
 
-let p1SelectedUpg = null, p2SelectedUpg = null; let p1Confirmed = false, p2Confirmed = false;
+let upgSelected = [null, null, null, null];
+let upgConfirmed = [false, false, false, false];
+let upgAdvancing = false;
+function upgDomSlot(pid) { return NET.mode === 'guest' ? 2 : pid; }
+function getSelectedUpg(pid) { return upgSelected[(pid | 0) - 1] || null; }
+function setSelectedUpg(pid, val) { let i = (pid | 0) - 1; if (i >= 0 && i < 4) upgSelected[i] = val; }
+function isUpgConfirmed(pid) { let i = (pid | 0) - 1; return i >= 0 && i < 4 ? !!upgConfirmed[i] : true; }
+function setUpgConfirmed(pid, val) { let i = (pid | 0) - 1; if (i >= 0 && i < 4) upgConfirmed[i] = !!val; }
 
 // Hàm tính toán mốc nhận mảnh: 4, 12, 22, 34, 48...
 function isShardLevel(level) {
@@ -1215,49 +1262,88 @@ function checkAndTriggerUpgrade() {
         netToast('◆ +1 MẢNH BỨC PHÁ!', 2500);
     }
 
-    let p1HasUpg = players[0].pendingUpgrades > 0;
-    let p2HasUpg = players.length > 1 && players[1].pendingUpgrades > 0;
-
-    if (p1HasUpg || p2HasUpg) {
-        triggerUpgradeScreen(p1HasUpg, p2HasUpg);
+    let anyHasUpg = players.some(p => !p.netLeft && p.pendingUpgrades > 0);
+    if (anyHasUpg) {
+        triggerUpgradeScreen();
     } else {
         currentLevel++;
         startLevel();
     }
 }
 
-function triggerUpgradeScreen(p1HasUpg, p2HasUpg) {
+function formatTeamWaitText(baseText, myPid) {
+    if (!NET.mode) return baseText;
+    let parts = [];
+    for (let p of players) {
+        if (p.id === myPid || p.netLeft) continue;
+        parts.push(`P${p.id} ${isUpgConfirmed(p.id) ? '✔' : '⏳'}`);
+    }
+    return parts.length ? `${baseText} (${parts.join(' · ')})` : baseText;
+}
+
+function refreshOnlineUpgradeStatus() {
+    if (gameState !== 'UPGRADE') return;
+    if (NET.mode === 'guest') {
+        let myPid = NET.localIdx + 1;
+        if (isUpgConfirmed(myPid)) {
+            let st = document.getElementById('p2Status');
+            if (st) st.innerText = formatTeamWaitText('ĐÃ SẴN SÀNG!', myPid);
+        }
+        return;
+    }
+    if (NET.mode === 'host' && isUpgConfirmed(1)) {
+        let st = document.getElementById('p1Status');
+        let hadUpg = (players[0] && players[0]._hadUpgRound);
+        if (st) st.innerText = formatTeamWaitText(hadUpg ? 'ĐÃ SẴN SÀNG!' : 'HẾT LƯỢT CHỌN', 1);
+    }
+    let allReady = players.every(p => p.netLeft || isUpgConfirmed(p.id));
+    if (allReady && !upgAdvancing) {
+        upgAdvancing = true;
+        setTimeout(() => { upgAdvancing = false; if (gameState === 'UPGRADE') checkAndTriggerUpgrade(); }, 500);
+    }
+}
+
+function triggerUpgradeScreen() {
     gameState = 'UPGRADE';
     clearPcInputs();
-    p1SelectedUpg = null; p2SelectedUpg = null;
-    p1Confirmed = false; p2Confirmed = false;
+    upgSelected = [null, null, null, null];
+    upgConfirmed = [true, true, true, true];
+    upgAdvancing = false;
+    for (let i = 0; i < players.length; i++) {
+        let p = players[i];
+        p._hadUpgRound = !p.netLeft && p.pendingUpgrades > 0;
+        upgConfirmed[i] = !p._hadUpgRound;
+    }
 
     document.getElementById('upgradeScreen').style.display = 'flex';
     document.getElementById('p1Half').style.display = 'flex';
+    let t1 = document.getElementById('p1Title');
+    if (t1) { t1.textContent = 'NGƯỜI CHƠI 1'; t1.style.color = playerColorOf(1); }
+    let t2 = document.getElementById('p2Title');
+    if (t2) { t2.textContent = 'NGƯỜI CHƠI 2'; t2.style.color = playerColorOf(2); }
 
-    if (p1HasUpg) {
+    if (players[0] && players[0]._hadUpgRound) {
         document.getElementById('p1Status').style.display = 'none'; document.getElementById('p1ConfirmBtn').disabled = true; document.getElementById('p1ConfirmBtn').style.display = 'block'; document.getElementById('p1UpgCount').innerText = `LƯỢT CHỌN: ${players[0].pendingUpgrades}`;
         updateTagBar(1); renderCards(1, 'p1Cards');
     } else {
-        p1Confirmed = true;
-        setUpgradeHalfDone(1, NET.mode === 'host' ? 'HẾT LƯỢT CHỌN (chờ đồng đội...)' : 'HẾT LƯỢT CHỌN');
+        setUpgConfirmed(1, true);
+        setUpgradeHalfDone(1, NET.mode === 'host' ? formatTeamWaitText('HẾT LƯỢT CHỌN', 1) : 'HẾT LƯỢT CHỌN');
     }
 
     let p2Half = document.getElementById('p2Half');
     if (players.length < 2) {
-        p2Half.style.display = 'none'; p2Confirmed = true;
-    } else if (NET.mode === 'host') {
-        // Online: người chơi 2 tự chọn thẻ trên máy của họ
         p2Half.style.display = 'none';
-        p2Confirmed = !p2HasUpg;
+    } else if (NET.mode === 'host') {
+        // Online: người chơi 2..4 tự chọn thẻ trên máy của họ
+        p2Half.style.display = 'none';
     } else {
         p2Half.style.display = 'flex';
         p2Half.style.transform = 'rotate(180deg)'; // chung 1 máy: xoay ngược cho người ngồi đối diện
-        if (p2HasUpg) {
+        if (players[1] && players[1]._hadUpgRound) {
             document.getElementById('p2Status').style.display = 'none'; document.getElementById('p2ConfirmBtn').disabled = true; document.getElementById('p2ConfirmBtn').style.display = 'block'; document.getElementById('p2UpgCount').innerText = `LƯỢT CHỌN: ${players[1].pendingUpgrades}`;
             updateTagBar(2); renderCards(2, 'p2Cards');
         } else {
-            p2Confirmed = true;
+            setUpgConfirmed(2, true);
             setUpgradeHalfDone(2, 'HẾT LƯỢT CHỌN');
         }
     }
@@ -1265,25 +1351,27 @@ function triggerUpgradeScreen(p1HasUpg, p2HasUpg) {
     netSendSync();
 }
 
-// Biến lưu trạng thái bật/tắt tag của 2 người chơi (Mặc định ẩn)
-let showTagsP1 = false;
-let showTagsP2 = false;
+// Biến lưu trạng thái bật/tắt tag của tối đa 4 người chơi (Mặc định ẩn)
+let showTagsArr = [false, false, false, false];
 
 function toggleTags(pid) {
-    if (pid === 1) showTagsP1 = !showTagsP1;
-    if (pid === 2) showTagsP2 = !showTagsP2;
+    if (NET.mode === 'guest') pid = NET.localIdx + 1;
+    let idx = Math.max(0, Math.min(3, (pid | 0) - 1));
+    showTagsArr[idx] = !showTagsArr[idx];
     updateTagBar(pid); // Load lại giao diện ngay lập tức
 }
 
 function updateTagBar(pid) {
+    if (NET.mode === 'host' && pid >= 2) return;
     let p = players[pid - 1];
-    let container = document.getElementById(`p${pid}Tags`);
+    let slot = upgDomSlot(pid);
+    let container = document.getElementById(`p${slot}Tags`);
 
-    if (!p) return;
+    if (!p || !container) return;
     let exclusiveText = activeExclusiveTag ? ` <span style="color:#e74c3c">(Độc Tôn: ${tagLabel(activeExclusiveTag)})</span>` : '';
 
     // Kiểm tra xem người chơi này đang bật hay tắt xem Tag
-    let isShowing = (pid === 1) ? showTagsP1 : showTagsP2;
+    let isShowing = !!showTagsArr[Math.max(0, Math.min(3, pid - 1))];
     let toggleText = isShowing ? "▲ Ẩn" : "▼ Xem Link";
 
     // 1. Render Dòng thông tin Mảnh Bức Phá + Nút Bật/Tắt
@@ -1383,13 +1471,14 @@ function renderCards(pid, containerId, reroll = false) {
         weightedPool = weightedPool.filter(u => u.id !== pick.id);
     }
 
+    let slot = upgDomSlot(pid);
     choices.forEach((upg, index) => {
         let sc = getShardCost(upg);
         let isExclusiveBreak = sc.exclusiveBreak; // Thẻ sắp đột phá Độc Tôn (Mốc tím bậc 5)
 
         let card = document.createElement('div');
         card.className = `upg-card animate-card-open flex-1 h-full max-w-[32%]bg-gray-800 rounded-xl p-2 text-center flex flex-col justify-between border-2 shadow-lg cursor-pointer transition transform active:scale-95 ${isExclusiveBreak ? 'border-purple-600 bg-purple-950/30' : (sc.cost > 0 ? 'border-amber-500' : 'border-gray-700')}`;
-        card.id = `p${pid}Card${index}`;
+        card.id = `p${slot}Card${index}`;
 
         let tagsHtml = '';
         if (upg.tags.length > 0) {
@@ -1423,19 +1512,17 @@ function renderCards(pid, containerId, reroll = false) {
 }
 
 function selectCard(pid, upgId, index, isExclusiveBreak) {
-    if (pid === 1 && p1Confirmed) return;
-    if (pid === 2 && p2Confirmed) return;
+    if (isUpgConfirmed(pid)) return;
     Sound.play('select');
+    setSelectedUpg(pid, upgId);
 
-    if (pid === 1) p1SelectedUpg = upgId;
-    if (pid === 2) p2SelectedUpg = upgId;
-
+    let slot = upgDomSlot(pid);
     // Đổi màu viền thẻ khi chọn
-    let activeClasses = (pid === 1) ? ['!border-emerald-400', 'ring-4', 'ring-emerald-500/50'] : ['!border-red-400', 'ring-4', 'ring-red-500/50'];
+    let activeClasses = (slot === 1) ? ['!border-emerald-400', 'ring-4', 'ring-emerald-500/50'] : ['!border-red-400', 'ring-4', 'ring-red-500/50'];
     const allActive = ['!border-emerald-400', '!border-red-400', 'ring-4', 'ring-emerald-500/50', 'ring-red-500/50'];
 
     for (let i = 0; i < 3; i++) {
-        let el = document.getElementById(`p${pid}Card${i}`);
+        let el = document.getElementById(`p${slot}Card${i}`);
         if (el) {
             // Gỡ highlight cũ rồi mới tô thẻ đang chọn -> đổi lựa chọn bao nhiêu lần cũng hiển thị đúng
             el.classList.remove(...allActive);
@@ -1443,7 +1530,8 @@ function selectCard(pid, upgId, index, isExclusiveBreak) {
             if (i === index) { el.classList.add(...activeClasses); el.style.transform = 'scale(1.04)'; }
         }
     }
-    document.getElementById(`p${pid}ConfirmBtn`).disabled = false;
+    let btn = document.getElementById(`p${slot}ConfirmBtn`);
+    if (btn) btn.disabled = false;
 
     // Nếu chạm trúng thẻ sắp Bức Phá hệ Độc Tôn -> Bung cảnh báo
     if (isExclusiveBreak) {
@@ -1476,6 +1564,9 @@ function applyUpgrade(p, upgId) {
         if (p.weapon && p.weapon.name === 'Lục') { p.weapon.maxAmmo *= 3; p.weapon.ammo = p.weapon.maxAmmo; }
     }
     else if (upgId === 'a_elite_squad') { for (let a of allies) if (!a.elite) a.promoteElite(); }
+    else if (upgId === 'df_plate') { p.maxHp += 60; p.hp = Math.min(p.maxHp, p.hp + 60); }
+    else if (upgId === 'ls_overheal') { p.perks.ls_overheal = true; p.addVirtualHp(p.maxHp * 0.25); }
+    else if (upgId === 'df_aegis') { p.perks.df_aegis = true; p.addVirtualHp(p.maxHp * 0.2); }
 
     if (PERK_FLAG_ALIASES[upgId]) p.perks[PERK_FLAG_ALIASES[upgId]] = true;
     p.perks[upgId] = true;
@@ -1483,37 +1574,47 @@ function applyUpgrade(p, upgId) {
 }
 
 function setUpgradeHalfDone(pid, text) {
-    document.getElementById(`p${pid}Cards`).innerHTML = '';
-    document.getElementById(`p${pid}ConfirmBtn`).style.display = 'none';
-    document.getElementById(`p${pid}Status`).innerText = text;
-    document.getElementById(`p${pid}Status`).style.display = 'block';
-    document.getElementById(`p${pid}UpgCount`).innerText = '';
-    updateTagBar(pid);
+    if (NET.mode === 'host' && pid >= 2) { updateRerollButtons(); return; }
+    let slot = upgDomSlot(pid);
+    let cardsEl = document.getElementById(`p${slot}Cards`);
+    if (cardsEl) cardsEl.innerHTML = '';
+    let btnEl = document.getElementById(`p${slot}ConfirmBtn`);
+    if (btnEl) btnEl.style.display = 'none';
+    let stEl = document.getElementById(`p${slot}Status`);
+    if (stEl) { stEl.innerText = text; stEl.style.display = 'block'; }
+    let cntEl = document.getElementById(`p${slot}UpgCount`);
+    if (cntEl) cntEl.innerText = '';
+    updateTagBar(NET.mode === 'guest' ? (NET.localIdx + 1) : pid);
     updateRerollButtons();
 }
 
 function confirmUpgrade(pid) {
-    let upgId = pid === 1 ? p1SelectedUpg : p2SelectedUpg; if (!upgId) return false;
+    if (NET.mode === 'guest') pid = NET.localIdx + 1;
+    let upgId = getSelectedUpg(pid);
+    if (!upgId) return false;
 
     // KHÁCH ONLINE: chỉ gửi lựa chọn, chủ phòng mới là nơi áp dụng
     if (NET.mode === 'guest') {
-        if (p2Confirmed) return false;
-        p2Confirmed = true;
+        if (isUpgConfirmed(pid)) return false;
+        setUpgConfirmed(pid, true);
         netSend({ t: 'upg', id: upgId });
         Sound.play('upgrade');
-        setUpgradeHalfDone(2, 'ĐÃ GỬI - CHỜ ĐỒNG ĐỘI...');
+        setUpgradeHalfDone(pid, formatTeamWaitText('ĐÃ GỬI!', pid));
         return true;
     }
 
-    if ((pid === 1 && p1Confirmed) || (pid === 2 && p2Confirmed)) return false;
+    if (isUpgConfirmed(pid)) return false;
     let p = players[pid - 1]; let upgData = UPGRADES.find(u => u.id === upgId);
 
     // Kiểm tra lại (vd: đồng đội vừa dùng mất Mảnh Bức Phá / vừa khóa Độc Tôn)
     if (!p || !upgData || !canOfferUpgrade(p, upgData)) {
         Sound.play('hit');
-        if (pid === 1) p1SelectedUpg = null; else p2SelectedUpg = null;
-        document.getElementById(`p${pid}ConfirmBtn`).disabled = true;
-        updateTagBar(pid); renderCards(pid, `p${pid}Cards`);
+        setSelectedUpg(pid, null);
+        if (!(NET.mode === 'host' && pid >= 2)) {
+            let slot = upgDomSlot(pid);
+            let cb = document.getElementById(`p${slot}ConfirmBtn`); if (cb) cb.disabled = true;
+            updateTagBar(pid); renderCards(pid, `p${slot}Cards`);
+        }
         return false;
     }
 
@@ -1530,6 +1631,9 @@ function confirmUpgrade(pid) {
         }
 
         p.tags[t] = (p.tags[t] || 0) + 1;
+        if (t === 'PHÒNG THỦ' && p.tags[t] === 2) {
+            p.maxHp += 25; p.hp = Math.min(p.maxHp, p.hp + 25);
+        }
         // Mốc 10 Kiếm Sư khởi đầu với Huyền thoại
         if (t === 'KIẾM SƯ' && p.tags[t] === 10) {
             p.weapon = { ...WEAPON_TYPES[p.perks.m_songKiem ? 'DUAL_LEGEND' : 'LEGENDARY_KATANA'] };
@@ -1539,12 +1643,12 @@ function confirmUpgrade(pid) {
     breakthroughShards = Math.max(0, breakthroughShards - sc.cost);
     p.pendingUpgrades--;
 
-    let waiting = NET.mode === 'host' && !(pid === 1 ? p2Confirmed : p1Confirmed);
-    if (pid === 1) p1Confirmed = true; else p2Confirmed = true;
-    setUpgradeHalfDone(pid, waiting ? 'ĐÃ SẴN SÀNG! (chờ đồng đội...)' : 'ĐÃ SẴN SÀNG!');
-    // Mảnh/Độc Tôn có thể vừa đổi -> làm mới thanh Link của người còn lại
-    if (!isSinglePlayer) updateTagBar(pid === 1 ? 2 : 1);
+    setUpgConfirmed(pid, true);
+    setUpgradeHalfDone(pid, NET.mode === 'host' ? formatTeamWaitText('ĐÃ SẴN SÀNG!', pid) : 'ĐÃ SẴN SÀNG!');
+    // Mảnh/Độc Tôn có thể vừa đổi -> làm mới thanh Link trên máy hiện tại
+    updateTagBar(1);
+    if (!isSinglePlayer && !NET.mode) updateTagBar(2);
 
-    if (p1Confirmed && p2Confirmed) { setTimeout(() => { if (gameState === 'UPGRADE') checkAndTriggerUpgrade(); }, 500); }
+    refreshOnlineUpgradeStatus();
     return true;
 }
