@@ -381,6 +381,7 @@ function netOnData(d, fromPeer) {
                 fromPeer.lastPt = num(d.pt); fromPeer.lastPtAt = performance.now();
             }
         } else if (d.t === 'upg') {
+            if (d.round !== undefined && d.round !== upgradeRound) return;
             let pl = players[pIdx];
             if (gameState !== 'UPGRADE' || !pl || pl.netLeft || isUpgConfirmed(pid) || typeof d.id !== 'string') return;
             let upg = UPGRADES.find(u => u.id === d.id);
@@ -388,6 +389,18 @@ function netOnData(d, fromPeer) {
             setSelectedUpg(pid, d.id);
             if (!confirmUpgrade(pid)) netSendSync(pid);
             else if (gameState === 'UPGRADE') netSendSync(0);
+        } else if (d.t === 'upg_none') {
+            if (gameState !== 'UPGRADE') return;
+            let pl = players[pIdx];
+            if (pl) pl.pendingUpgrades = 0;
+            setUpgConfirmed(pid, true);
+            if (typeof refreshOnlineUpgradeStatus === 'function') refreshOnlineUpgradeStatus();
+            if (gameState === 'UPGRADE') netSendSync(0);
+            return;
+        } else if (d.t === 'force_ready') {
+            if (gameState !== 'UPGRADE' || (d.round !== undefined && d.round !== upgradeRound)) return;
+            if (typeof forceReadyAllUpgrades === 'function') forceReadyAllUpgrades();
+            return;
         } else if (d.t === 'pause') setPaused(!!d.on, true);
         else if (d.t === 'rr') {
             let replyConn = fromPeer ? fromPeer.conn : NET.conn;
@@ -422,6 +435,13 @@ function netOnData(d, fromPeer) {
         else { netToast('Không đủ linh kiện ⚙ để đổi thẻ!', 1500); updateRerollButtons(); }
         return;
     }
+    if (d.t === 'force_ready_ok') {
+        netToast('⚡ Chủ phòng đã kích hoạt Fix Nhanh, đang vào game...', 2000);
+        let scr = document.getElementById('upgradeScreen');
+        if (scr) scr.style.display = 'none';
+        upgConfirmed = [true, true, true, true];
+        return;
+    }
     if (d.t === 'map') netApplyMap(d);
     else if (d.t === 'sync') netApplySync(d);
     else if (d.t === 's') { if (gameState === 'PLAYING') netApplySnapshot(d); }
@@ -447,7 +467,7 @@ function netSendSync(reject = 0) {
     if (NET.mode !== 'host') return;
     let cf = players.map(p => (p.netLeft || (typeof isUpgConfirmed === 'function' && isUpgConfirmed(p.id))) ? 1 : 0);
     netSend({
-        t: 'sync', gs: gameState, lvl: currentLevel, scrap: shopScrap, sh: breakthroughShards, ex: activeExclusiveTag,
+        t: 'sync', gs: gameState, round: upgradeRound, lvl: currentLevel, scrap: shopScrap, sh: breakthroughShards, ex: activeExclusiveTag,
         cpf: currentPowerFloorCleared, bgl: typeof base !== 'undefined' ? (base.gate | 0) : 0, rej: reject === true ? 2 : (reject | 0), cf,
         pl: players.map(p => ({ tags: p.tags, perks: p.perks, st: p.perkStacks, pend: p.pendingUpgrades, lvl: p.level, left: p.netLeft ? 1 : 0 }))
     });
@@ -646,6 +666,8 @@ function netApplyMap(m) {
 }
 
 function netApplySync(m) {
+    let newRound = m.gs === 'UPGRADE' && m.round !== undefined && m.round !== NET.upgradeRound;
+    if (m.round !== undefined) NET.upgradeRound = m.round;
     currentLevel = m.lvl | 0 || currentLevel; shopScrap = m.scrap | 0; breakthroughShards = m.sh | 0;
     activeExclusiveTag = (typeof m.ex === 'string' && TAG_RULES[m.ex]) ? m.ex : null;
     currentPowerFloorCleared = m.cpf | 0;
@@ -682,7 +704,7 @@ function netApplySync(m) {
         half.style.display = 'flex'; half.style.transform = 'none';
         let titleEl = document.getElementById('p2Title');
         if (titleEl) { titleEl.textContent = `NGƯỜI CHƠI ${myPid}`; titleEl.style.color = playerColorOf(myPid); }
-        if (entering || myRej) {
+        if (entering || myRej || newRound) {
             if (typeof setSelectedUpg === 'function') setSelectedUpg(myPid, null);
             if (typeof setUpgConfirmed === 'function') setUpgConfirmed(myPid, false);
             if (me && me.pendingUpgrades > 0) {
@@ -693,7 +715,7 @@ function netApplySync(m) {
                 updateTagBar(myPid); renderCards(myPid, 'p2Cards');
             } else {
                 if (typeof setUpgConfirmed === 'function') setUpgConfirmed(myPid, true);
-                setUpgradeHalfDone(2, 'HẾT LƯỢT CHỌN - CHỜ ĐỒNG ĐỘI...');
+                setUpgradeHalfDone(myPid, 'HẾT LƯỢT CHỌN - CHỜ ĐỒNG ĐỘI...');
             }
         }
         if (typeof refreshOnlineUpgradeStatus === 'function') refreshOnlineUpgradeStatus();

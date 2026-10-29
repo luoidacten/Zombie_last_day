@@ -1035,11 +1035,21 @@ function gameLoop(time) {
 let upgSelected = [null, null, null, null];
 let upgConfirmed = [false, false, false, false];
 let upgAdvancing = false;
+let upgradeRound = 0;
 function upgDomSlot(pid) { return NET.mode === 'guest' ? 2 : pid; }
 function getSelectedUpg(pid) { return upgSelected[(pid | 0) - 1] || null; }
 function setSelectedUpg(pid, val) { let i = (pid | 0) - 1; if (i >= 0 && i < 4) upgSelected[i] = val; }
-function isUpgConfirmed(pid) { let i = (pid | 0) - 1; return i >= 0 && i < 4 ? !!upgConfirmed[i] : true; }
-function setUpgConfirmed(pid, val) { let i = (pid | 0) - 1; if (i >= 0 && i < 4) upgConfirmed[i] = !!val; }
+function isUpgConfirmed(pid) {
+    let i = (pid | 0) - 1;
+    if (i < 0 || i >= 4) return true;
+    let p = players[i];
+    if (p && (p.netLeft || p.pendingUpgrades <= 0)) return true;
+    return !!upgConfirmed[i];
+}
+function setUpgConfirmed(pid, val) {
+    let i = (pid | 0) - 1;
+    if (i >= 0 && i < 4) upgConfirmed[i] = !!val;
+}
 
 // Hàm tính toán mốc nhận mảnh: 4, 12, 22, 34, 48...
 function isShardLevel(level) {
@@ -1283,6 +1293,11 @@ function formatTeamWaitText(baseText, myPid) {
 
 function refreshOnlineUpgradeStatus() {
     if (gameState !== 'UPGRADE') return;
+    for (let p of players) {
+        if (p.netLeft || p.pendingUpgrades <= 0) {
+            setUpgConfirmed(p.id, true);
+        }
+    }
     if (NET.mode === 'guest') {
         let myPid = NET.localIdx + 1;
         if (isUpgConfirmed(myPid)) {
@@ -1303,8 +1318,44 @@ function refreshOnlineUpgradeStatus() {
     }
 }
 
+function forceReadyAllUpgrades() {
+    if (gameState !== 'UPGRADE') return;
+    Sound.play('start');
+    if (NET.mode === 'guest') {
+        netToast('⚡ Đã gửi yêu cầu Fix Nhanh tới chủ phòng...', 2000);
+        netSend({ t: 'force_ready', round: NET.upgradeRound });
+        let myPid = NET.localIdx + 1;
+        setUpgConfirmed(myPid, true);
+        setUpgradeHalfDone(myPid, 'ĐÃ YÊU CẦU FIX NHANH - ĐANG TIẾP TỤC...');
+        return;
+    }
+
+    // Phía Chủ Phòng (Host) hoặc chơi offline / chung máy
+    netToast('⚡ Đã kích hoạt Fix Nhanh: Sẵn sàng tất cả người chơi!', 2000);
+    upgConfirmed = [true, true, true, true];
+    upgSelected = [null, null, null, null];
+    players.forEach(p => {
+        setUpgConfirmed(p.id, true);
+        if (p.pendingUpgrades > 0) p.pendingUpgrades = 0;
+    });
+    upgAdvancing = true;
+
+    if (NET.mode === 'host') {
+        netSend({ t: 'force_ready_ok' });
+    }
+
+    let scr = document.getElementById('upgradeScreen');
+    if (scr) scr.style.display = 'none';
+    if (gameState === 'UPGRADE') {
+        currentLevel++;
+        startLevel();
+    }
+}
+window.forceReadyAllUpgrades = forceReadyAllUpgrades;
+
 function triggerUpgradeScreen() {
     gameState = 'UPGRADE';
+    upgradeRound++;
     clearPcInputs();
     upgSelected = [null, null, null, null];
     upgConfirmed = [true, true, true, true];
@@ -1506,8 +1557,14 @@ function renderCards(pid, containerId, reroll = false) {
 
     if (choices.length === 0) {
         container.innerHTML = '<div class="text-xs text-gray-400">Không còn thẻ phù hợp.</div>';
-        // Không còn gì để chọn: bỏ qua lượt để không kẹt màn hình
         p.pendingUpgrades = 0;
+        setUpgConfirmed(pid, true);
+        if (typeof setUpgradeHalfDone === 'function') setUpgradeHalfDone(pid, 'HẾT THẺ PHÙ HỢP - ĐÃ SẴN SÀNG');
+        if (NET.mode === 'guest') {
+            netSend({ t: 'upg_none' });
+        } else {
+            refreshOnlineUpgradeStatus();
+        }
     }
 }
 
@@ -1597,7 +1654,7 @@ function confirmUpgrade(pid) {
     if (NET.mode === 'guest') {
         if (isUpgConfirmed(pid)) return false;
         setUpgConfirmed(pid, true);
-        netSend({ t: 'upg', id: upgId });
+        netSend({ t: 'upg', id: upgId, round: NET.upgradeRound });
         Sound.play('upgrade');
         setUpgradeHalfDone(pid, formatTeamWaitText('ĐÃ GỬI!', pid));
         return true;

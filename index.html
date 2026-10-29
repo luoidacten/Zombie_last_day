@@ -229,6 +229,16 @@
     <!-- MÀN HÌNH NÂNG CẤP -->
     <div id="upgradeScreen"
         class="absolute inset-0 z-30 hidden flex-col w-full h-full select-none bg-black/40 backdrop-blur-sm">
+
+        <!-- Nút Fix Nhanh: Bỏ qua chờ & Sẵn sàng tất cả người chơi để tiếp tục -->
+        <div class="absolute top-2.5 right-2.5 z-50 flex items-center gap-2">
+            <button id="btnQuickFixUpg" onclick="forceReadyAllUpgrades()"
+                title="Bỏ qua kẹt màn hình chọn thẻ, sẵn sàng tất cả người chơi và tiếp tục game ngay"
+                class="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-black text-xs rounded-lg shadow-xl border border-amber-300 flex items-center gap-1.5 transition transform active:scale-95 cursor-pointer animate-pulse">
+                ⚡ FIX NHANH (TIẾP TỤC NGAY)
+            </button>
+        </div>
+
         <!-- Người chơi 2 (Phía trên - Xoay ngược nếu chơi chung 1 máy) -->
         <div id="p2Half"
             class="flex-1 bg-gradient-to-t from-red-950/95 to-black/90 flex flex-col justify-between items-center p-2 relative border-b border-gray-700">
@@ -244,6 +254,7 @@
                     id="p2ConfirmBtn" onclick="confirmUpgrade(2)" disabled>XÁC NHẬN</button>
                 <button id="p2RerollBtn" class="reroll-btn" style="display:none" onclick="rerollCards(2)">🎲 ĐỔI THẺ</button>
                 <div class="text-green-400 font-bold text-sm hidden animate-pulse" id="p2Status">ĐÃ SẴN SÀNG!</div>
+                <button onclick="forceReadyAllUpgrades()" class="text-[10px] text-amber-400/80 hover:text-amber-300 underline mt-0.5 cursor-pointer">Bị kẹt chờ? Bấm để Fix Nhanh</button>
             </div>
         </div>
 
@@ -262,6 +273,7 @@
                     id="p1ConfirmBtn" onclick="confirmUpgrade(1)" disabled>XÁC NHẬN</button>
                 <button id="p1RerollBtn" class="reroll-btn" style="display:none" onclick="rerollCards(1)">🎲 ĐỔI THẺ</button>
                 <div class="text-green-400 font-bold text-sm hidden animate-pulse" id="p1Status">ĐÃ SẴN SÀNG!</div>
+                <button onclick="forceReadyAllUpgrades()" class="text-[10px] text-amber-400/80 hover:text-amber-300 underline mt-0.5 cursor-pointer">Bị kẹt chờ? Bấm để Fix Nhanh</button>
             </div>
         </div>
     </div>
