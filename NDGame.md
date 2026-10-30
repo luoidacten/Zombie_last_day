@@ -1,6 +1,6 @@
 # NDGame — Tổng quan nội dung và cấu trúc game
 
-Cập nhật: **30/10/2026**, đối chiếu mã nguồn hiện có.
+Cập nhật: **31/10/2026**, đối chiếu mã nguồn hiện có.
 
 Tài liệu dành cho người mới tiếp nhận dự án, người muốn chỉnh sửa game hoặc AI cần hiểu nhanh game đang có gì. Thông số cân bằng chi tiết nằm trong mã nguồn; thiết kế chi tiết của đợt làm lại Phòng Thí Nghiệm Z (Lab Z Rework) nằm ở `THIẾT KẾ.md`.
 
@@ -95,7 +95,7 @@ Thẻ có ID, tên, mô tả, loại và danh sách tag. Chọn thẻ vừa cấ
 ### Hai nhánh đang được hoàn thiện gần đây
 
 - **Hút Máu:** Nanh Huyết, Huyết Giáp, Khát Máu, Huyết Tế, Huyết Ma Thức Tỉnh. Tag mốc 2/4/5 hỗ trợ hút máu, chuyển hút dư thành Máu Ảo và thưởng khi có Máu Ảo/hạ địch.
-- **Phòng Thủ:** Giáp Hợp Kim, Giáp Gai Phản Chấn, Thành Lũy Kiên Cố, Lá Chắn Tái Tạo, Pháo Đài Bất Khuất. Tag mốc 2/4/5 giảm sát thương 12%/24%/35%, có tăng máu, kháng choáng, tái tạo Máu Ảo và phản chấn theo mốc.
+- **Phòng Thủ:** Giáp Hợp Kim, Giáp Gai Phản Chấn, Thành Lũy Kiên Cố, Lá Chắn Tái Tạo, Pháo Đài Bất Khuất. Tag mốc 2/4/5 giảm sát thương 8%/16%/22%, có tăng máu, kháng choáng, tái tạo Máu Ảo và phản chấn theo mốc.
 
 ## 6. Bản đồ, nhiệm vụ và cốt truyện
 
@@ -122,7 +122,7 @@ Các chuỗi nội dung lớn:
 
 - **Chớp và Sét:** Lõi Quá Tải → Tiến sĩ Aegis → Rừng Sét và Tàn Vết Chớp → trở lại Nhà Máy Điện → ZAP-1624 “Kình Lôi”.
 - **Hang Z:** nhiều tầng, hộ tống Tiến Sĩ đặt C4 và chạy thoát; có mở khóa Hầm Mỏ.
-- **Hầm Mỏ:** tổ kiến, TNT, lõi tổ và Kiến Chúa. Khi boss còn 22% máu, chuyển sang xe goòng 3 làn: 1–2 người dùng một xe, 3–4 người chia hai xe. Người lái né bẫy bằng A/D; người dẫn đường dùng radar, Q/W/E báo làn, Space bắn kiến và B kích TNT. Chơi một người có cả hai vai. Đường chạy dài 52 giây khi không bị chậm; xe có máu, choáng, giảm tốc và khoảng cách với boss. Thoát thành công kích nổ chôn boss, nhận phần thưởng/mở khóa.
+- **Hầm Mỏ:** đẩy xe bom theo đường dài hoặc nhánh Acid → phá mạch phụ (không bắt buộc) → vào đấu trường hạ Kiến Chúa → nhặt lõi → chạy qua hành lang sập → lên xe goòng 3 làn. 1–2 người một xe, 3–4 người hai xe. Người lái A/D né bẫy, Shift/C tăng tốc; người dẫn đường Q/W/E báo làn, Space bắn kiến, B dùng TNT. Chơi một người có cả hai vai. Đá/vật rơi được báo trước, luôn chừa làn thoát. Khoảng cách bị rút liên tục; né đúng tích nhiên liệu, TNT có giới hạn. Chạy thẳng bỏ mặc bẫy sẽ mất xe và gọi cứu hộ. Không tạo thêm Kiến Chúa hoặc thưởng hạ boss lần hai khi lên xe.
 - **Phòng Thí Nghiệm Z:** bảo vệ C4 25 giây, tập trung người còn sống tại cửa rồi xuống khu nghiên cứu. Mỗi lượt sinh mạng 9 phòng kết nối với hành lang và cửa hỏng/cửa thường/cửa bảo mật. Hack có ba dạng: nối mạch, căn nhịp và mã Hex; người hack bất động, bị quái đánh hoặc giải sai phải dọn phục kích rồi tiếp tục từ bước cũ. Có thẻ từ mở cửa, phòng phục kích thưởng đồ, 2 tài liệu, 2 nhà khoa học trong boongke và 3 máy khử độc. Sau 180 giây khí độc rút 1,2% máu tối đa mỗi giây, giảm tốc/sát thương 15%; bật đủ máy sẽ khử khí. Scientist gây độc, Acider để lại axit 6 giây, Chemist bắn axit và nổ lớn khi chết. Hoàn thành mục tiêu gây báo động; về sảnh giữ cạnh bảng điều khiển 3 giây để đến nhà ga, cầm cự The Hucker 50 giây rồi lên tàu theo cơ chế cũ.
 - **Nhà Ga X / tàu hỏa:** tử thủ trước The Hucker rồi chiến đấu trên nóc tàu; phá móc xích, ra lệnh pháo, tăng tốc và chuyển ray.
 - **The Dead:** boss ẩn có điều kiện xuất hiện, kỹ năng hiến tế/hút Tế Phẩm và phần thưởng mở Liềm.
@@ -190,7 +190,7 @@ Các dạng bậc 4 gồm Gatling Plasma / Pháo 30mm / Bão Đạn 360°, Railg
 
 ## 11. Kiến trúc và bản đồ mã nguồn
 
-Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `package.json` hoặc bước build ứng dụng trong thư mục hiện tại. `index.html` tải 37 file JavaScript theo thứ tự; chúng dùng chung phạm vi toàn cục, không phải ES modules.
+Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `package.json` hoặc bước build ứng dụng trong thư mục hiện tại. `index.html` tải 39 file JavaScript theo thứ tự; chúng dùng chung phạm vi toàn cục, không phải ES modules.
 
 | File / thư mục | Trách nhiệm chính |
 | --- | --- |
@@ -235,6 +235,8 @@ Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `packag
 | `js/35-coop-save.js` | Tên/UUID, checkpoint co-op, kho hồ sơ, nối lại phòng và cho mượn nhân vật |
 | `js/36-recovery.js` | Cứu hộ khẩn cấp, hình phạt, màn chờ, hồi sinh thủ nhà và True Game Over |
 | `js/37-turret-paths.js` | 60 bậc nâng ụ, luật 4–2–0, nhân lực, chiến đấu, hình Canvas và đồng bộ hiệu ứng |
+| `js/38-cave-reliability.js` | Va chạm đường đi hang, cache dẫn đường, chỉ dẫn mục tiêu, thời gian thoát theo tuyến, hành lang sập và cột chống |
+| `js/39-sustain-balance.js` | Giới hạn hồi phục chung, suy giảm hồi sau trúng đòn, ngữ cảnh sát thương boss, trần Máu Ảo, mô tả và migration |
 | `docs/update-implementation.md` | Hành vi thực tế, thông số và giới hạn đợt cập nhật 30/10/2026 |
 | `Audio-SoundEffect/` | Nhạc và hiệu ứng âm thanh chia theo nhóm |
 | `tests/defense-lifesteal.test.cjs` | Kiểm thử hồi quy cơ chế phòng thủ và hút máu |
@@ -273,7 +275,7 @@ Bộ kiểm thử logic tải cả 32 script theo thứ tự HTML, giả lập D
 
 **Cưa Máy:** có hiệu ứng cắt riêng, mạt/bụi máu khi chạm địch, tia lửa khi chạm giáp/kim loại, mạt gỗ khi phá vật thể, vệt lao và vòng quá tải. Xích/răng cưa chạy theo trạng thái, thân máy rung; hiệu ứng và trạng thái vòng tua/Nộ/đang lao gửi tới máy khách.
 
-**Bổ sung cân bằng:** 6 perk mới: Huyết Nang (+35% trần Máu Ảo), Thu Gom Sinh Lực (+2% Máu Ảo khi hạ địch, hồi 0,4s), Màng Máu Tái Sinh (đợi 5s, hồi 3%/s tới 25%), Da Kết Huyết (có Máu Ảo giảm 12% sát thương), Cầm Cự (máu ≤35% giảm 20%), Dư Chấn Huyết Giáp (vỡ Máu Ảo giảm 20% trong 4s, hồi 12s). Lục/Tiểu Liên/AR/Súng Săn/Ngắm/Phóng Lựu tăng sát thương thành 175/28/80/240/440/155 và tổng đạn thành 84/360/200/72/35/14. Băng giữ 12/30/25/6/5/1; sức chứa trong bản lưu cũ được nâng một lần, giữ số viên hiện có và hệ số perk.
+**Cân bằng hiện tại (31/10):** Huyết Nang +15% trần Máu Ảo; Thu Gom Sinh Lực +1% mỗi mạng, hồi 1s; Màng Máu Tái Sinh đợi 6s, hồi 1%/s tới 15%; Da Kết Huyết giảm 6%; Cầm Cự giảm 10%; Dư Chấn Huyết Giáp giảm 10% trong 4s, hồi 12s. Máu Ảo nền 25%, tối đa 80% máu tối đa khi đủ toàn bộ nhánh. Hồi phục lặp lại dùng chung ngân sách 6% máu tối đa/giây (hút máu riêng tối đa 4%); trúng đòn giảm tốc hồi 75% trong 4s. Đợi 6s an toàn mới tự hồi, chỉ dùng nguồn tái tạo Máu Ảo mạnh nhất. Tổng giảm sát thương tối đa 60%, với boss 45%, chiêu nặng 30%; chiêu nặng xuyên 40% lớp Máu Ảo và không bị phản đòn/né ngẫu nhiên. Vật phẩm tiêu hao vẫn có thể hồi ngay. Lục/Tiểu Liên/AR/Súng Săn/Ngắm/Phóng Lựu giữ sát thương 175/28/80/240/440/155, tổng đạn 84/360/200/72/35/14 và băng 12/30/25/6/5/1.
 
 **30/10/2026 — làm mới hình ảnh và UI/UX:** dùng tông than đen, xám ngà và điểm nhấn đỏ sẫm; giảm màu cạnh tranh trong thẻ/wiki. Hình cũ được bỏ ở tháp tín hiệu, NPC, nhà dân, máy Lab, tổ kiến và xe mỏ. Zombie đánh xa có dáng phun axit, cung, súng và điện riêng, thêm chuyển động thở/đi/tấn công; người chơi có động tác nạp, vật thể có quạt, đèn, sóng, cây/ruộng đung đưa và khói. Người chơi có giáp/mũ/ba lô và dấu màu đội; zombie, boss, kiến, xúc tu, thương điện và các lớp cướp có hình dáng/trang bị riêng. Cập nhật nền 16 map theo nhóm biome, cây/đá/nhà/tường, Lab, tàu/xe goòng, xe tăng, quầy căn cứ, nhà dân/nông trại/tháp canh, NPC và cư dân. Menu có minh họa riêng, lựa chọn chế độ rõ ràng, cài đặt thu gọn. HUD, hội thoại, cửa hàng và thẻ nâng cấp cùng phong cách; thẻ/tuyến hỗ trợ Enter/Space, hộp thoại hỗ trợ focus và bàn phím. Có tùy chọn chi tiết **Tự động / Cao / Thấp** lưu theo trình duyệt; Tự động giảm mật độ nền/tán cây dưới 900px. Chi tiết này không đổi chỉ số hoặc va chạm. Bản hiện tại nạp **32 script**; xem `tests/presentation-browser.cjs`.
 
@@ -285,10 +287,17 @@ Bộ kiểm thử logic tải cả 32 script theo thứ tự HTML, giả lập D
 
 Các đoạn bên dưới ghi lịch sử đợt trước; luồng Kiến Chúa mới ở module 27 thay thế việc lên xe khi boss còn 22% máu.
 
-Đợt mới nhất: triển khai **Lab Z và Xe Goòng** theo `THIẾT KẾ.md` cập nhật 29/10/2026. Hai module mới nạp sau module 20 và bọc hàm cũ; giữ màn tàu hỏa trước đó. Logic và lệnh tương tác do chủ phòng xử lý, máy khách nhận trạng thái.
+Lịch sử đợt 29/10: triển khai **Lab Z và Xe Goòng** theo `THIẾT KẾ.md` cập nhật 29/10/2026. Hai module mới nạp sau module 20 và bọc hàm cũ; giữ màn tàu hỏa trước đó. Logic và lệnh tương tác do chủ phòng xử lý, máy khách nhận trạng thái.
 
 Đã sửa lỗi khách P3/P4 giữ trạng thái chọn thẻ của vòng trước bằng mã vòng nâng cấp. Nút **Fix Nhanh** ở màn nâng cấp/chờ cho phép bỏ các lựa chọn còn thiếu, đánh dấu cả đội sẵn sàng và chuyển tiếp một lần; lệnh thuộc vòng cũ bị từ chối. Bản sửa đã đẩy lên `origin/main`, commit `d3b1091`.
 
 Sau khi hoàn thành tài liệu, đã tiếp tục kiểm tra trực tiếp trên Edge: khởi động game, vào màn phòng thủ 2 cổng, mô phỏng 15 giây chiến đấu, vẽ cửa/nhà/HUD, mua đủ 5 cấp cửa và mở hướng dẫn đều qua kiểm tra, không ghi nhận lỗi JavaScript vòng lặp. Hướng dẫn đã bổ sung danh sách thẻ Liềm, Hút Máu và Phòng Thủ lấy trực tiếp từ dữ liệu game. Kiểm thử logic 12/12 nhóm vẫn đạt.
 
 Kiểm thử trình duyệt tùy chọn: cài/định vị module `playwright`, có Microsoft Edge, rồi chạy `node tests/browser-smoke.cjs` và `node tests/expeditions-browser.cjs`. Bộ thứ hai kiểm tra chuyển từ C4 sang Lab, hack, nhà ga, chuyển hầm sang xe goòng 4 người và vẽ ở kích thước desktop/điện thoại. Chưa kiểm tra kết nối online thực tế trên nhiều máy; kiểm thử hiện tại mới xác minh dữ liệu/lệnh đồng bộ của các cơ chế mới. Mic trong thiết kế là giao tiếp thoại bên ngoài; game có Quick Ping, chưa tích hợp voice chat.
+
+
+### 31/10/2026 — sửa hang/hầm và giảm khả năng đứng chịu đòn boss
+
+- Tiến Sĩ và kiến dùng phép kiểm tra đường đi có bán kính, không cắt góc tường; dựng lại bản đồ/vách đá làm mới cache dẫn đường. C4 chỉ được gài khi còn người hộ tống gần. Đồng hồ chạy thoát dựa trên độ dài tuyến tới cửa; chỉ dẫn xe bom/lõi thưởng/cổng/đường thoát theo đúng giai đoạn. Bỏ cầu đá/cầu gỗ trang trí gây nguy hiểm trên nền hang không có vực tương ứng.
+- Xe bom đường dài tăng tốc, giới hạn lợi ích đẩy nhiều người. Kiến Chúa pha tối vẫn thả Acid khi máy phát tắt; TNT chạm được boss đang bay và chỉ tiêu thụ một lần. Hành lang cuối có vách đổ xen kẽ nhưng còn đường đi, đá rơi báo 1,4s, đàn kiến và mép sập đuổi sát; bắn cột làm chậm mép sập. Xe goòng có tăng tốc hữu hạn, TNT hữu hạn, bẫy 1–2 làn luôn có lối né, bạn trở lại được nhận lại vai radar. HUD/điều khiển xe hỗ trợ màn ngang điện thoại, không chồng nút nạp đạn; bỏ bảng giới thiệu/chiến thắng boss cũ lúc bắt đầu chạy thoát.
+- Xem `docs/cave-sustain-balance.md` cho luật cân bằng chính xác. `tests/cave-balance.test.cjs` kiểm tra đường đi Tiến Sĩ trên 8 seed, áp lực chạy thoát, lái xe có/không phản ứng ở bốn độ khó, giới hạn hồi phục, chiêu nặng/Acid boss, đồng bộ và bản lưu cũ. `tests/cave-browser.cjs` kiểm tra chuỗi màn và bấm bàn phím/cảm ứng trên Edge. Co-op kiểm thử qua transport PeerJS mô phỏng, chưa kiểm tra mạng Internet nhiều máy thật.

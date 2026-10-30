@@ -178,7 +178,7 @@ function updateSpin(h, dt) {
     for (let p of players) {
         if (p.netLeft || p.isDowned || inTank(p) || (p._spinHit || 0) > survivalTime || !onChain(p, 22)) continue;
         p._spinHit = survivalTime + 0.55;   // đứng yên sẽ bị xích bắt kịp và quất liên tục
-        p.takeDamage(h.dmg); stunPlayer(p, 0.35);
+        p.takeDamage(h.dmg,{boss:true,heavy:true}); stunPlayer(p, 0.35);
         for (let s = 0; s < 10; s++) { p.x += Math.cos(tang) * 10; p.y += Math.sin(tang) * 10; resolveCollision(p); }
         vfxList.push({ type: 'text', text: 'DÍNH XÍCH XOAY!', x: p.x, y: p.y - 40, life: 1.0, color: '#ff7675' });
     }
@@ -367,7 +367,7 @@ function updateRailBeam(h, dt) {
         if (p.netLeft || p.isDowned || (p._beamHit || 0) > survivalTime) continue;
         if (Math.abs(p.x - h.x) <= hw + p.radius * 0.7 && Math.abs(p.y - h.y) <= 32 + p.radius) {
             p._beamHit = survivalTime + 0.9;
-            p.takeDamage(h.dmg || 52); stunPlayer(p, 0.45);
+            p.takeDamage(h.dmg || 52,{boss:true,heavy:true}); stunPlayer(p, 0.45);
             p.y = Math.min(ROOF.y1 - p.radius, p.y + 42);
             vfxList.push({ type: 'text', text: 'VA DẦM THÉP!', x: p.x, y: p.y - 40, life: 1.1, color: '#f1c40f' });
         }
@@ -465,7 +465,7 @@ function updateBossExtras(dt) {
         if (h.done || !(h.timer <= 0)) continue;
         if (h.type === 'hrock') {
             h.done = true; h.life = 0;
-            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 50, { stun: 0.35 });
+            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 50, { stun: 0.35,boss:true,heavy:true });
             bossHitZombies(h.x, h.y, h.radius, 420, 300);
             for (let a of allies) if (a.hp > 0 && Math.hypot(a.x - h.x, a.y - h.y) < h.radius) a.takeDamage((h.dmg || 50) * 0.5);
             for (let n of rescueNPCs) if (n.hp > 0 && Math.hypot(n.x - h.x, n.y - h.y) < h.radius) n.takeDamage((h.dmg || 50) * 0.4);
@@ -476,7 +476,7 @@ function updateBossExtras(dt) {
             addScreenShake(8); Sound.play('tank');
         } else if (h.type === 'zthrow') {
             h.done = true; h.life = 0;
-            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 32, { stun: 0.25 });
+            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 32, { stun: 0.25,boss:true,heavy:true });
             let zType = Math.max(0, Math.round(h.angle || 0));
             let nz = new Zombie(h.x, h.y, zType);
             zombies.push(nz);
@@ -493,7 +493,7 @@ function updateBossExtras(dt) {
             let xa = ROOF.x0 - 40, xb = ROOF.x1 + 40;
             for (let p of players) {
                 if (p.netLeft || p.isDowned || inTank(p) || Math.abs(p.y - h.y) > h.radius + p.radius) continue;
-                p.takeDamage(h.dmg); stunPlayer(p, 0.5);
+                p.takeDamage(h.dmg,{boss:true,heavy:true}); stunPlayer(p, 0.5);
                 vfxList.push({ type: 'text', text: 'BỊ XÍCH QUÉT!', x: p.x, y: p.y - 40, life: 1.0, color: '#ff7675' });
             }
             for (let a of allies) if (a.hp > 0 && Math.abs(a.y - h.y) < h.radius + a.radius) a.takeDamage(h.dmg * 0.6);

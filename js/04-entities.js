@@ -144,42 +144,11 @@ class Player {
 
 
     getMaxVHp() {
-        let capMult = 0.6;
-        if (this.perks.ls_overheal) capMult += 0.4;
-        if ((this.tags['HÚT MÁU'] || 0) >= 5) capMult += 0.5;
-        if ((this.tags['PHÒNG THỦ'] || 0) >= 4) capMult += 0.25;
-        if (this.perks.vh_reservoir) capMult += 0.35;
-        return Math.round(this.maxHp * capMult);
+        let cap=.25+(this.perks.ls_overheal?.15:0)+((this.tags['HÚT MÁU']||0)>=5?.15:0)+((this.tags['PHÒNG THỦ']||0)>=4?.1:0)+(this.perks.vh_reservoir?.15:0);
+        return Math.round(this.maxHp*cap);
     }
-
-    addVirtualHp(amount) {
-        if (this.isDowned || !(amount > 0)) return 0;
-        let cap = this.getMaxVHp(), prev = this.vHp || 0;
-        this.vHp = Math.min(cap, prev + amount);
-        return this.vHp - prev;
-    }
-
-    applyLifesteal(rawHeal) {
-        if (this.isDowned || !(rawHeal > 0)) return 0;
-        let hm = this.tags['HÚT MÁU'] || 0;
-        let mult = 1.0;
-        if (hm >= 2) mult *= 1.25;
-        if (hm >= 4 && this.hp < this.maxHp * 0.5) mult *= 1.5;
-        if (this.perks.ls_thirst) mult *= (1 + 0.35 * Math.max(0, 1 - this.hp / Math.max(1, this.maxHp)));
-        if ((this.tags['HỒI MÁU'] || 0) >= 2) mult *= 1.3;
-        let total = rawHeal * mult;
-        let need = Math.max(0, this.maxHp - this.hp);
-        let toHp = Math.min(need, total);
-        if (toHp > 0) this.hp += toHp;
-        let excess = total - toHp;
-        let conv = this.perks.ls_overheal ? 0.65 : (hm >= 4 ? 0.5 : 0);
-        if (excess > 0 && conv > 0) this.addVirtualHp(excess * conv);
-        if (toHp >= 0.8 && !(this._lsFxT > survivalTime)) {
-            this._lsFxT = survivalTime + 0.18;
-            createParticles(this.x, this.y, '#ff4757', 4, 90);
-        }
-        return toHp;
-    }
+    addVirtualHp(amount,opts={}) { return gainVirtualHp(this,amount,opts); }
+    applyLifesteal(amount) { return gainLifesteal(this,amount); }
 
     isNearBastion() {
         if (currentMapType === 16 && this.x > 1220 && this.x < 2780 && this.y > 1370 && this.y < 2630) return true;
@@ -190,37 +159,25 @@ class Player {
         return false;
     }
 
-    applyHeal(amount) {
-        let healMult = (this.tags['HỒI MÁU'] >= 2) ? 1.5 : 1.0; let finalHeal = amount * healMult * HEALING_MULT;
-        this.hp = Math.min(this.maxHp, this.hp + finalHeal); createParticles(this.x, this.y, '#2ecc71', 5, 100);
-        Sound.play('heal');
-        if (this.tags['TRỢ GIÚP'] >= 3 && !isSinglePlayer) {
-            for (let partner of players) {
-                if (partner && partner !== this && !partner.isDowned && !partner.netLeft) {
-                    partner.hp = Math.min(partner.maxHp, partner.hp + finalHeal * 0.5);
-                    createParticles(partner.x, partner.y, '#2ecc71', 5, 100);
-                }
-            }
-        }
-    }
+    applyHeal(amount,opts={}) { return gainHealing(this,amount,opts); }
 
     getDefenseMult() {
         let m = this.armorMult;
-        if (this.tags['ĐẶC BIỆT'] >= 2) m *= 0.8;
-        if (this.tags['CHỈ SỐ'] >= 4) m *= 0.9;
+        if (this.tags['ĐẶC BIỆT'] >= 2) m *= 0.9;
+        if (this.tags['CHỈ SỐ'] >= 4) m *= 0.94;
         // Link PHÒNG THỦ (mốc 2 / 4 / 5)
         let defLvl = this.tags['PHÒNG THỦ'] || 0;
-        if (defLvl >= 5) m *= 0.65;
-        else if (defLvl >= 4) m *= 0.76;
-        else if (defLvl >= 2) m *= 0.88;
-        if (this.perks.df_plate) m *= 0.85;
-        if (this.perks.df_bastion && this.isNearBastion()) m *= 0.8;
-        if (this.perks.dr_veil && this.vHp > 0) m *= 0.88;
-        if (this.perks.dr_laststand && this.hp <= this.maxHp * 0.35) m *= 0.8;
-        if (this.perks.dr_aftershock && this.perks.rhBreakT > 0) m *= 0.8;
+        if (defLvl >= 5) m *= 0.78;
+        else if (defLvl >= 4) m *= 0.84;
+        else if (defLvl >= 2) m *= 0.92;
+        if (this.perks.df_plate) m *= 0.9;
+        if (this.perks.df_bastion && this.isNearBastion()) m *= 0.9;
+        if (this.perks.dr_veil && this.vHp > 0) m *= 0.94;
+        if (this.perks.dr_laststand && this.hp <= this.maxHp * 0.35) m *= 0.9;
+        if (this.perks.dr_aftershock && this.perks.rhBreakT > 0) m *= 0.9;
         // Link ĐỒNG MINH mốc 3: có lính còn sống đứng gần thì giảm 15% sát thương nhận
-        if ((this.tags['DONG_MINH'] || 0) >= 3 && allies.some(a => a.hp > 0 && Math.hypot(a.x - this.x, a.y - this.y) < 320)) m *= 0.85;
-        return m;
+        if ((this.tags['DONG_MINH'] || 0) >= 3 && allies.some(a => a.hp > 0 && Math.hypot(a.x - this.x, a.y - this.y) < 320)) m *= 0.92;
+        return Math.max(.4,Math.min(1,m));
     }
 
     goDown() {
@@ -240,13 +197,15 @@ class Player {
     }
 
     // Sát thương rỉ theo thời gian (đói, acid, vùng điện, tia...): không kích hoạt né / phản đòn / khiên
-    takeDot(amount) {
+    takeDot(amount,opts={}) {
+        let hit=incomingContext(opts);
         if (this.isDowned || this.perks.invulnTimer > 0 || !(amount > 0)) return;
         this.noHitT = 0;
-        let finalDmg = amount * this.getDefenseMult();
+        this.woundT=4;
+        let finalDmg = amount * Math.max(this.getDefenseMult(),hit.heavy?.7:hit.boss?.55:.4);
         let hadVHp = this.vHp > 0;
         if (this.vHp > 0) {
-            let ab = Math.min(this.vHp, finalDmg);
+            let ab = Math.min(this.vHp, finalDmg*(hit.heavy?.6:1));
             this.vHp -= ab; finalDmg -= ab;
         }
         this.hp -= finalDmg;
@@ -255,7 +214,8 @@ class Player {
         if (this.hp <= 0) this.goDown();
     }
 
-    takeDamage(amount) {
+    takeDamage(amount,opts={}) {
+        let hit=incomingContext(opts);
         if (this.isDowned || this.perks.invulnTimer > 0 || !(amount > 0)) return;
         // LOGIC PHẢN ĐÒN & MIỄN ST (KIẾM SƯ)
         let isMelee = this.weapon && this.weapon.type === 'melee';
@@ -265,6 +225,7 @@ class Player {
         else if (kLvl >= 8) parryChance = 0.5;
         else if (this.perks.m_kyThuat) parryChance = 0.3;
 
+        parryChance=hit.heavy?0:hit.boss?Math.min(.15,parryChance):Math.min(.55,parryChance);
         if (isMelee && Math.random() < parryChance) {
             vfxList.push({ type: 'text', text: 'PHẢN ĐÒN!', x: this.x, y: this.y - 40, life: 1.0, color: '#00ffff' });
             Sound.play('melee');
@@ -273,14 +234,16 @@ class Player {
             if (z) { z.hp -= Math.min(amount, 200) * 2; z.lastHitBy = this; createParticles(z.x, z.y, '#00ffff', 10, 200); zombieDown(z, this); }
             return; // Chặn sát thương
         }
-        if (this.tags['MAY MẮN'] >= 4 && Math.random() < 0.3) {
+        if (!hit.heavy && this.tags['MAY MẮN'] >= 4 && Math.random() < (hit.boss?.08:.2)) {
             vfxList.push({ type: 'text', text: 'NÉ!', x: this.x, y: this.y - 30, life: 1.0, color: '#ffe359' });
             return;
         }
-        if (this.tempShield > 0) { this.tempShield--; createParticles(this.x, this.y, '#3498db', 10, 150); spawnRing(this.x, this.y, '#3498db', 55, 0.25); return; }
+        if (!hit.heavy && this.tempShield > 0) { this.noHitT=0;this.woundT=4;this.tempShield--; createParticles(this.x, this.y, '#3498db', 10, 150); spawnRing(this.x, this.y, '#3498db', 55, 0.25); return; }
 
         this.noHitT = 0;
-        let finalDmg = amount * this.getDefenseMult() * enemyDmgScale(); // map đầu đỡ đau, map sau đau dần
+        this.woundT=4;
+        let rawDmg=(hit.heavy?Math.max(amount,this.maxHp*.28):amount)*enemyDmgScale();
+        let finalDmg = rawDmg * this.getDefenseMult(); // map đầu đỡ đau, map sau đau dần
 
         // Giáp Gai Phản Chấn: giảm thêm sát thương cận chiến & phản lực lên quái áp sát
         if (this.perks.df_thorns) {
@@ -296,15 +259,15 @@ class Player {
                 }
             }
             if (nearZ) {
-                finalDmg *= 0.85;
+                finalDmg *= 0.9;
                 spawnRing(this.x, this.y, '#54a0ff', 105, 0.22, 3);
             }
         }
 
-        // Pháo Đài Bất Khuất: giới hạn sát thương mỗi đòn không vượt quá 35% Máu tối đa
-        if (this.perks.df_unbreakable) finalDmg = Math.min(finalDmg, this.maxHp * 0.35);
+        // Pháo Đài Bất Khuất only caps ordinary non-boss hits below.
 
-        // San Sẻ Sát Thương: chuyển 20% sang lính Tiên Phong gần nhất
+
+        // San Sẻ Sát Thương: chuyển 10% sang lính Tiên Phong gần nhất
         if (this.perks.a_share_pain) {
             let guard = null, best = 520;
             for (let a of allies) {
@@ -312,13 +275,16 @@ class Player {
                 let d = Math.hypot(a.x - this.x, a.y - this.y);
                 if (d < best) { best = d; guard = a; }
             }
-            if (guard) { guard.takeDamage(finalDmg * 0.2); finalDmg *= 0.8; }
+            if (guard) { guard.takeDamage(finalDmg * 0.1); finalDmg *= 0.9; }
         }
 
+        finalDmg=Math.max(finalDmg,rawDmg*(hit.heavy?.7:hit.boss?.55:.4));
+        if(this.perks.df_unbreakable&&!hit.boss)finalDmg=Math.min(finalDmg,this.maxHp*.45);
+        if(hit.heavy&&this.tempShield>0){this.tempShield--;finalDmg*=.6;}
         // Hấp thụ bằng Máu Ảo trước khi trừ Máu thật
         let hadVHp = (this.vHp || 0) > 0;
         if (hadVHp) {
-            let ab = Math.min(this.vHp, finalDmg);
+            let ab = Math.min(this.vHp, finalDmg*(hit.heavy?.6:1));
             this.vHp -= ab;
             finalDmg -= ab;
             createParticles(this.x, this.y, '#48dbfb', 6, 120);
@@ -353,7 +319,7 @@ class Player {
     onKill(zombieType, zObj = null) {
         killCount++;
         if (this.perks.vh_harvest && !this.isDowned && zombieType !== 51 && !(this.perks.rhHarvestCD > 0)) {
-            this.addVirtualHp(this.maxHp * 0.02); this.perks.rhHarvestCD = 0.4;
+            this.addVirtualHp(this.maxHp * 0.01); this.perks.rhHarvestCD = 1;
         }
         recordMissionKill(zombieType);
         arsenalAddRage(this, isBossType(zombieType) ? 40 : 4); // Nộ [D] của vũ khí
@@ -365,26 +331,26 @@ class Player {
             }
         }
         if (this.perks.frenzy) { this.perks.frenzyStacks = Math.min(10, this.perks.frenzyStacks + 1); this.perks.frenzyTimer = 5.0; }
-        if (this.perks.lifesteal) this.applyHeal(2);
-        if (this.perks.ls_thirst) this.applyLifesteal(3);
+        if (this.perks.lifesteal) this.applyHeal(1);
+        if (this.perks.ls_thirst) this.applyLifesteal(1);
         // Huyết Tế: hạ quái đặc biệt / biến dị / Boss hồi máu & cấp Máu Ảo cho bản thân và đồng đội gần đó
         if (this.perks.ls_feast && ((zObj && zObj.mutant) || (zombieType !== 0 && zombieType !== 7 && zombieType !== 8))) {
-            this.applyLifesteal(8);
-            this.addVirtualHp(22);
+            this.applyLifesteal(3);
+            this.addVirtualHp(5);
             for (let partner of players) {
                 if (partner && partner !== this && !partner.isDowned && !partner.netLeft && Math.hypot(partner.x - this.x, partner.y - this.y) < 320) {
-                    partner.applyLifesteal(5);
-                    partner.addVirtualHp(22);
+                    partner.applyLifesteal(2);
+                    partner.addVirtualHp(5);
                 }
             }
             spawnRing(this.x, this.y, '#ff3838', 110, 0.28, 3);
         }
         // Bức Phá HÚT MÁU (mốc 5): hạ quái phát nổ huyết quang hồi máu & cấp Máu Ảo
         if ((this.tags['HÚT MÁU'] || 0) >= 5 && !(this.lsNovaCD > 0)) {
-            this.lsNovaCD = 0.65;
+            this.lsNovaCD = 2;
             let gx = zObj ? zObj.x : this.x, gy = zObj ? zObj.y : this.y;
-            this.applyLifesteal(4);
-            this.addVirtualHp(7);
+            this.applyLifesteal(2);
+            this.addVirtualHp(3);
             damageZombiesInRadius(gx, gy, 125, 65 * this.getTotalDamageMult(), false, { source: this });
             spawnRing(gx, gy, '#ff3838', 120, 0.25, 3);
         }
@@ -439,19 +405,19 @@ class Player {
         if (this.perks.rain) { this.perks.rainStacks = Math.min(50, this.perks.rainStacks + 2); this.perks.rainTimer = 2.0; }
         // LIỀM MẶC ĐỊNH: nội tại hút máu cao trên từng đòn chém trúng địch
         if (isScytheHit && dmgDealt > 0) {
-            let scBonus = this.perks.ls_fang ? 1.25 : 1.0;
-            let raw = Math.min(11, dmgDealt * 0.045) * scBonus;
-            if (this._scHealTick === survivalTime) raw *= 0.38; // chém nhiều con cùng nhát giảm dần hợp lý
+            let scBonus = this.perks.ls_fang ? 1.15 : 1.0;
+            let raw = Math.min(6, dmgDealt * 0.025) * scBonus;
+            if (this._scHealTick === survivalTime) raw *= 0.25; // chém nhiều con cùng nhát giảm dần hợp lý
             this._scHealTick = survivalTime;
             this.applyLifesteal(raw);
         }
         // Nanh Huyết / Link HÚT MÁU mốc 2+: hút máu trên mọi đòn đánh
         let hm = this.tags['HÚT MÁU'] || 0;
         if ((this.perks.ls_fang || hm >= 2) && dmgDealt > 0 && !(this.lsIcd > 0)) {
-            let ratio = isMeleeHit ? (this.perks.ls_fang && hm >= 2 ? 0.04 : 0.026) : (this.perks.ls_fang && hm >= 2 ? 0.02 : 0.012);
-            let raw = Math.min(isMeleeHit ? 7 : 3.5, dmgDealt * ratio);
+            let ratio = isMeleeHit ? (this.perks.ls_fang && hm >= 2 ? 0.018 : 0.012) : (this.perks.ls_fang && hm >= 2 ? 0.009 : 0.006);
+            let raw = Math.min(isMeleeHit ? 3 : 1.5, dmgDealt * ratio);
             this.applyLifesteal(raw);
-            if (!isMeleeHit) this.lsIcd = 0.06;
+            this.lsIcd=isMeleeHit?.15:.18;
         }
         // Huyết Ma Thức Tỉnh: mỗi 8 đòn trúng đích phóng xung huyết kiếm hút máu & làm chậm quái quanh mình
         if (this.perks.ls_crimson) {
@@ -525,12 +491,12 @@ class Player {
         if (this.unbreakCD > 0) this.unbreakCD -= dt;
         if (!this.isDowned) {
             this.noHitT = (this.noHitT || 0) + dt;
-            // Lá Chắn Tái Tạo / Link PHÒNG THỦ 4+: sau 5 giây không bị tấn công, tự nạp dần Máu Ảo
+            // After six safe seconds, only the strongest shield regeneration source applies.
             let defLvl = this.tags['PHÒNG THỦ'] || 0;
-            if (this.noHitT >= 5.0 && (this.perks.df_aegis || this.perks.vh_recovery || defLvl >= 4)) {
-                let regenLim = this.maxHp * ((this.perks.df_aegis ? 0.35 : 0) + (this.perks.vh_recovery ? 0.25 : 0) + (defLvl >= 4 ? 0.20 : 0));
-                let rate = this.maxHp * ((this.perks.df_aegis ? 0.045 : 0) + (this.perks.vh_recovery ? 0.03 : 0) + (defLvl >= 4 ? 0.025 : 0));
-                if ((this.vHp || 0) < regenLim) this.vHp = Math.min(Math.min(this.getMaxVHp(), regenLim), (this.vHp || 0) + rate * dt);
+            if (this.noHitT >= 6.0 && (this.perks.df_aegis || this.perks.vh_recovery || defLvl >= 4)) {
+                let regenLim = this.maxHp * Math.max(this.perks.df_aegis?.2:0,this.perks.vh_recovery?.15:0,defLvl>=4?.1:0);
+                let rate = this.maxHp * Math.max(this.perks.df_aegis?.015:0,this.perks.vh_recovery?.01:0,defLvl>=4?.006:0);
+                if ((this.vHp || 0) < regenLim) this.addVirtualHp(Math.min(regenLim-(this.vHp||0),rate*dt));
             }
             // Bức Phá PHÒNG THỦ (mốc 5): định kỳ phóng xung phản chấn đẩy lùi & làm chậm quái áp sát
             if (defLvl >= 5) {
@@ -554,7 +520,7 @@ class Player {
             }
         }
         if (!this.isDowned) updateStatusEffects(this, dt, true);
-        if (this.tags['HỒI MÁU'] >= 4 && !this.isDowned && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.01 * HEALING_MULT * dt);
+        if (this.tags['HỒI MÁU'] >= 4 && !this.isDowned && this.hp < this.maxHp && this.noHitT>=6) this.applyHeal(this.maxHp*.004*dt);
 
         if (this.perks.heartSword && !this.isDowned && this.weapon && isKatanaW(this.weapon)) {
             for (let b of enemyBullets) { if (b.active && Math.hypot(b.x - this.x, b.y - this.y) < this.radius + 30) { b.active = false; createParticles(b.x, b.y, '#00ffff', 5, 100); } }
@@ -617,12 +583,12 @@ class Player {
 
                 if (d.type === 'FOOD') {
                     this.hunger = Math.min(100, this.hunger + 40);
-                    this.applyHeal(20);
+                    this.applyHeal(20,{consumable:true});
                     Sound.play('pickup');
                     drops.splice(i, 1);
                 }
                 else if (d.type === 'MEDKIT') {
-                    this.applyHeal(this.maxHp * 0.5);
+                    this.applyHeal(this.maxHp * 0.5,{consumable:true});
                     Sound.play('pickup');
                     drops.splice(i, 1);
                     vfxList.push({ type: 'text', text: '+Cứu Thương', x: this.x, y: this.y - 30, life: 1.0, color: '#2ecc71' });
@@ -869,7 +835,7 @@ class Player {
             this.reviveProgress += dt * bestMod * multiBonus;
             if (this.reviveProgress >= reqTime) {
                 this.isDowned = false; this.hp = this.maxHp * 0.3; this.reviveCount++; this.reviveProgress = 0;
-                if (revivers.some(m => (m.tags['TRỢ GIÚP'] || 0) >= 2)) this.tempShield = 3;
+                if (revivers.some(m => (m.tags['TRỢ GIÚP'] || 0) >= 2)) this.tempShield = 2;
                 createParticles(this.x, this.y, '#2ecc71', 30, 200);
             }
         } else {
@@ -1966,7 +1932,7 @@ function updateTank(dt) {
 
 class EnemyBullet {
     constructor(x, y, tx, ty, type) {
-        this.x = x; this.y = y; this.type = type;
+        this.x = x; this.y = y; this.type = type;this.bossContext={...(combatDamageContext||{}),ranged:true};
         let ang = Math.atan2(ty - y, tx - x);
         // Đã Nerf tốc độ đạn: Độc 250, Lưới 200, Nỏ/Đạn 450 (Cũ là 400/300/700)
         let speed = type === 'acid' ? 250 : (type === 'net' ? 200 : (type === 'electric' ? 520 : (type === 'rock' ? 650 : (type === 'rocket' ? 420 : 450))));
@@ -2085,7 +2051,8 @@ class Ally {
             // Cứu thương: 5 giây hồi một lần cho người yếu nhất trong tầm, lượng hồi theo % máu tối đa
             let hurt = [...players, ...allies, ...rescueNPCs].filter(e => e && !e.isDowned && e.hp > 0 && e.hp < e.maxHp && Math.hypot(e.x - this.x, e.y - this.y) < 300).sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
             if (hurt && this.skillCD <= 0) {
-                hurt.hp = Math.min(hurt.maxHp, hurt.hp + Math.max(15, hurt.maxHp * 0.08));
+                if(hurt instanceof Player)hurt.applyHeal(Math.max(15,hurt.maxHp*.08));
+                else hurt.hp = Math.min(hurt.maxHp, hurt.hp + Math.max(15, hurt.maxHp * 0.08));
                 createParticles(hurt.x, hurt.y, '#2ecc71', 12, 100);
                 vfxList.push({ type: 'laser_beam', x: this.x, y: this.y, tx: hurt.x, ty: hurt.y, life: 0.15 });
                 this.skillCD = 5;
@@ -2634,7 +2601,7 @@ function updateZombieCharge(z, dt, cfg) {
     }
     for (let p of players) {
         if (p.isDowned || p.netLeft || inTank(p) || Math.hypot(z.x - p.x, z.y - p.y) > z.radius + p.radius + 10) continue;
-        p.takeDamage(cfg.dmg); stunPlayer(p, cfg.stun);
+        p.takeDamage(cfg.dmg,{boss:isBossType(z.type),heavy:true}); stunPlayer(p, cfg.stun);
         for (let s = 0; s < 10; s++) { p.x += ca * cfg.push / 10; p.y += sa * cfg.push / 10; resolveCollision(p); }
         hit = true;
     }

@@ -46,7 +46,7 @@ const NAV_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-
 function navRebuild() {
     for (let cy = 0; cy < NAV.n; cy++) for (let cx = 0; cx < NAV.n; cx++)
         NAV.blocked[cy * NAV.n + cx] = isBlockedPoint(cx * NAV.cs + NAV.cs / 2, cy * NAV.cs + NAV.cs / 2, 18) ? 1 : 0;
-    NAV.dirty = false; NAV.t = 0;
+    NAV.dirty = false; NAV.t = 0; NAV.epoch=(NAV.epoch||0)+1;
 }
 function navOpenIdx(x, y) {
     let cx = Math.floor(x / NAV.cs), cy = Math.floor(y / NAV.cs);
@@ -90,9 +90,9 @@ function navNext(field, x, y, radius=18) {
     let step={x:(bi%n)*NAV.cs+NAV.cs/2,y:Math.floor(bi/n)*NAV.cs+NAV.cs/2};
     // Crossing a grid cell boundary is not enough to clear a bridge rail: first
     // reach the current cell's safe center before turning onto the riverbank.
-    if((fieldWorld||riverWorld)&&!fieldWalkClear(x,y,step.x,step.y,radius)){
+    if((fieldWorld||riverWorld||isCaveMap())&&!navigationWalkClear(x,y,step.x,step.y,radius)){
         let center={x:cx*NAV.cs+NAV.cs/2,y:cy*NAV.cs+NAV.cs/2};
-        if(fieldWalkClear(x,y,center.x,center.y,radius))return center;
+        if(navigationWalkClear(x,y,center.x,center.y,radius))return center;
     }
     return step;
 }
@@ -125,8 +125,8 @@ function caveRandomOpenPoint() {
 }
 // Móc trong Zombie.update: không thấy mục tiêu thì đi theo lưới dẫn đường
 function caveSteer(z, target, ang, dist) {
-    if (z.flying || z.airborne || dist < 110) return ang;
-    if (hasLineOfSight(z.x, z.y, target.x, target.y)&&fieldWalkClear(z.x,z.y,target.x,target.y,z.radius)) return ang;
+    if (z.flying || z.airborne) return ang;
+    if (navigationWalkClear(z.x,z.y,target.x,target.y,z.radius)) return ang;
     let nx = navNext(NAV.field, z.x, z.y,z.radius);
     return nx ? Math.atan2(nx.y - z.y, nx.x - z.x) : ang;
 }
@@ -134,9 +134,9 @@ function caveSteer(z, target, ang, dist) {
 function navMoveTo(e, gx, gy, spd, dt) {
     let key = Math.round(gx / 40) + ':' + Math.round(gy / 40);
     e._ft = (e._ft || 0) - dt;
-    if (!e._f || e._f.length!==NAV.n*NAV.n || e._fg !== key || e._ft <= 0) { if(!e._f||e._f.length!==NAV.n*NAV.n)e._f=new Int16Array(NAV.n*NAV.n); navFlood([{ x: gx, y: gy }], e._f); e._fg = key; e._ft = 2.0; }
+    if (!e._f || e._f.length!==NAV.n*NAV.n || e._fg !== key || e._ft <= 0 || e._navEpoch!==NAV.epoch) { if(!e._f||e._f.length!==NAV.n*NAV.n)e._f=new Int16Array(NAV.n*NAV.n); navFlood([{ x: gx, y: gy }], e._f); e._fg = key; e._ft = 2.0;e._navEpoch=NAV.epoch; }
     let a = Math.atan2(gy - e.y, gx - e.x);
-    if (Math.hypot(gx - e.x, gy - e.y) > 90 && (!hasLineOfSight(e.x, e.y, gx, gy)||!fieldWalkClear(e.x,e.y,gx,gy,e.radius))) { let nx = navNext(e._f, e.x, e.y,e.radius); if (nx) a = Math.atan2(nx.y - e.y, nx.x - e.x); }
+    if (!navigationWalkClear(e.x,e.y,gx,gy,e.radius)) { let nx = navNext(e._f, e.x, e.y,e.radius); if (nx) a = Math.atan2(nx.y - e.y, nx.x - e.x); }
     e.x += (Math.cos(a) * spd + (e.kbX || 0)) * dt; e.y += (Math.sin(a) * spd + (e.kbY || 0)) * dt;
     resolveCollision(e);
     return a;
@@ -380,7 +380,7 @@ class Doctor {
         if (this.hurt > 0) this.hurt -= dt;
         this.state = 'wait';
         if (caveRun.stage === 'run') {
-            if (Math.hypot(caveRun.exit.x - this.x, caveRun.exit.y - this.y) > 30) { navMoveTo(this, caveRun.exit.x, caveRun.exit.y, 170, dt); this.state = 'move'; }
+            if (Math.hypot(caveRun.exit.x - this.x, caveRun.exit.y - this.y) > 30) { navMoveTo(this, caveRun.exit.x, caveRun.exit.y, 200, dt); this.state = 'move'; }
             return;
         }
         if (caveRun.stage !== 'escort') return;
@@ -388,7 +388,7 @@ class Doctor {
         if (!site) return;
         if (Math.hypot(site.x - this.x, site.y - this.y) < 34) { this.state = 'plant'; return; }
         // Chỉ tiến lên khi có người hộ tống ở gần
-        if (players.some(p => !p.netLeft && !p.isDowned && Math.hypot(p.x - this.x, p.y - this.y) < 460) || tank.active) { navMoveTo(this, site.x, site.y, 135, dt); this.state = 'move'; }
+        if (players.some(p => !p.netLeft && !p.isDowned && Math.hypot(p.x - this.x, p.y - this.y) < 460) || tank.active) { navMoveTo(this, site.x, site.y, 145, dt); this.state = 'move'; }
     }
     draw(ctx) {
         if (this.hp <= 0) return;
@@ -439,7 +439,7 @@ function updateCaveWorld(dt) {
             return false;
         }
         let site = caveRun.sites[caveRun.siteIdx];
-        if (d.state === 'plant' && site) {
+        if (d.state === 'plant' && site && act.some(p=>!p.isDowned&&Math.hypot(p.x-d.x,p.y-d.y)<460)) {
             site.state = 1;
             caveRun.plant = Math.min(1, caveRun.plant + dt / 10);
             // Quái tràn ra quấy phá suốt lúc đặt bom
@@ -453,9 +453,9 @@ function updateCaveWorld(dt) {
                 Sound.play('level'); spawnRing(site.x, site.y, '#f1c40f', 140, 0.5);
                 vfxList.push({ type: 'text', text: `C4 ${caveRun.siteIdx}/3 ĐÃ GÀI!`, x: site.x, y: site.y - 50, life: 1.8, color: '#f1c40f' });
                 if (caveRun.siteIdx >= 3) {
-                    caveRun.stage = 'run'; caveRun.timer = 30; objState = 'CAVE_RUN'; mission.type = 'CAVE_RUN';
+                    caveRun.stage = 'run'; caveRun.timer = caveEscapeTime(d,caveRun.exit); objState = 'CAVE_RUN'; mission.type = 'CAVE_RUN';
                     hangZRun.stairs = caveRun.exit;
-                    queueRadio('Tiến Sĩ: Kíp nổ đã kích hoạt! 30 GIÂY — CHẠY RA CỬA HẦM!', null, 5);
+                    queueRadio(`Tiến Sĩ: Kíp nổ đã kích hoạt! ${Math.ceil(caveRun.timer)} GIÂY — CHẠY RA CỬA HẦM!`, null, 5);
                     Sound.play('roar');
                 }
             }
@@ -763,7 +763,7 @@ function updateCaveHazards(dt) {
         if (h.done) continue;
         if (h.type === 'rockfall' && h.timer <= 0) {
             h.done = true; h.life = 0;
-            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 50, { stun: 0.35 });
+            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 50, { stun: 0.35,boss:!!h.boss,heavy:true });
             for (let z of zombies) if (z.hp > 0 && !z.flying && z.type < 45 && Math.hypot(z.x - h.x, z.y - h.y) < h.radius + z.radius) { z.hp -= 180; z.stunTimer = Math.max(z.stunTimer || 0, 0.6); }
             for (let n of rescueNPCs) if (n.hp > 0 && Math.hypot(n.x - h.x, n.y - h.y) < h.radius) n.takeDamage(25);
             if (tank.active && tank.p2InvulnTimer <= 0 && Math.hypot(tank.x - h.x, tank.y - h.y) < h.radius + tank.radius) tank.hp -= (h.dmg || 50) * 0.5;
@@ -776,9 +776,9 @@ function updateCaveHazards(dt) {
             }
         } else if (h.type === 'acidbomb' && h.timer <= 0) {
             h.done = true; h.life = 0;
-            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 26);
-            for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p) && Math.hypot(p.x - h.x, p.y - h.y) < h.radius) applyPlayerStatus(p, STATUS.CORROSION, { duration: 3, stacks: 1, dpsPercent: 0.003, maxStacks: 6 });
-            fireZones.push({ kind: 'acid', x: h.x, y: h.y, life: h.pool || 2.5, dmg: 12, source: null, radius: h.radius * 0.9 });
+            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 26,{boss:true,heavy:true});
+            for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p) && Math.hypot(p.x - h.x, p.y - h.y) < h.radius) applyPlayerStatus(p, STATUS.CORROSION, { duration: 3, stacks: 1, dpsPercent: 0.003, maxStacks: 6,boss:true });
+            fireZones.push({ kind: 'acid', x: h.x, y: h.y, life: h.pool || 2.5, dmg: 12, source: null,boss:true, radius: h.radius * 0.9 });
             bossHitZombies(h.x, h.y, h.radius, 90, 0);   // axit của boss ăn mòn cả bầy quái
             createParticles(h.x, h.y, '#2ecc71', 26, 260); spawnRing(h.x, h.y, '#2ecc71', h.radius, 0.3);
             Sound.play('hit');
@@ -787,7 +787,7 @@ function updateCaveHazards(dt) {
             for (let p of players) {
                 if (p.netLeft || p.isDowned || inTank(p)) continue;
                 let d = Math.hypot(p.x - h.x, p.y - h.y), a = Math.atan2(p.y - h.y, p.x - h.x);
-                if (d < h.radius && d > 90 && Math.abs(Math.atan2(Math.sin(a - h.angle), Math.cos(a - h.angle))) < Math.PI / 4) p.takeDot((h.dmg || 110) * dt);
+                if (d < h.radius && d > 90 && Math.abs(Math.atan2(Math.sin(a - h.angle), Math.cos(a - h.angle))) < Math.PI / 4) p.takeDot((h.dmg || 110) * dt,{boss:true,heavy:true});
             }
             if (tank.active && tank.p2InvulnTimer <= 0) {
                 let d = Math.hypot(tank.x - h.x, tank.y - h.y), a = Math.atan2(tank.y - h.y, tank.x - h.x);
@@ -801,7 +801,7 @@ function updateCaveHazards(dt) {
                 let d = Math.hypot(p.x - h.x, p.y - h.y);
                 if (Math.abs(d - h.radius) <= band + p.radius) {
                     p._vringHit = survivalTime + 0.65;
-                    p.takeDamage(h.dmg || 30);
+                    p.takeDamage(h.dmg || 30,{boss:true,heavy:true});
                     applyPlayerStatus(p, STATUS.CORROSION, { duration: 3.5, stacks: 2, dpsPercent: 0.0035, maxStacks: 6 });
                 }
             }
@@ -1531,7 +1531,7 @@ function drawTentacle(z, T, flash) {
 // DẪN ĐƯỜNG KHI LẠC: ở lâu một chỗ mà chưa tới mục tiêu thì hiện vệt mũi tên sáng trên nền hang
 // ---------------------------------------------------------------------------
 const CAVE_GUIDE = { key: '', since: 0, field: new Int16Array(NAV.n * NAV.n), fkey: '', ft: 0, pfield: new Int16Array(NAV.n * NAV.n) };
-const CAVE_GUIDE_WAIT = 25000; // ms
+const CAVE_GUIDE_WAIT = 12000; // ms
 function caveGuideGoal(lp) {
     if (hangZRun.stairs) return hangZRun.stairs;
     if (objState === 'CAVE_ESCORT') return caveProps.find(p => p.kind === 'c4' && p.idx === mission.progress) || null;
@@ -1552,7 +1552,7 @@ function drawCaveGuide(T) {
     let now = performance.now(), G = CAVE_GUIDE;
     let key = objState + ':' + hangZRun.floor + ':' + mineRun.floor + ':' + mission.progress;
     if (key !== G.key) { G.key = key; G.since = now; }
-    let urgent = objState === 'CAVE_RUN' || objState === 'QUEEN_RUN';   // đang chạy đua với thời gian: chỉ đường ngay
+    let urgent = ['CAVE_RUN','QUEEN_RUN','MINE_ESCORT','MINE_PREP','MINE_COLLAPSE_RUN','QUEEN'].includes(objState);   // đang chạy đua với thời gian: chỉ đường ngay
     if (!urgent && now - G.since < CAVE_GUIDE_WAIT) return;
     if (Math.hypot(goal.x - lp.x, goal.y - lp.y) < 150) return;
     if (NAV.dirty) navRebuild();

@@ -69,7 +69,7 @@ function updateStatusEffects(target, dt, isPlayer = false) {
         let s = target.status[id];
         s.timer -= dt;
         // Người chơi nhận sát thương rỉ qua takeDot (để có thể gục ngã đúng cách); quái trừ máu trực tiếp
-        const dot = (amt) => { if (isPlayer) target.takeDot(amt); else { target.hp -= amt; if (s.source instanceof Player) target.lastHitBy = s.source; } };
+        const dot = (amt) => { if (isPlayer) target.takeDot(amt,{boss:!!s.boss}); else { target.hp -= amt; if (s.source instanceof Player) target.lastHitBy = s.source; } };
         if (id === STATUS.BURN) {
             // Boss chỉ chịu 1/4 thiêu đốt theo % máu
             dot(target.maxHp * (s.dpsPercent || 0) * dt * (!isPlayer && isBossType(target.type) ? 0.25 : 1) * (isPlayer ? 1 : arsenalDotMult(s)));
@@ -82,7 +82,7 @@ function updateStatusEffects(target, dt, isPlayer = false) {
         } else if (id === STATUS.CORROSION) {
             let resist = isPlayer && target.perks && target.perks.a_chongAnMon ? 0.65 : 1;
             let cAmt = target.maxHp * (s.dpsPercent || 0.006) * Math.max(1, s.stacks || 1) * resist * dt;
-            if (isPlayer) acidHurt(target, cAmt * 0.5);   // acid của quái đốt chậm, không giết được người chơi (20-queen.js)
+            if (isPlayer) acidHurt(target, cAmt * 0.5,{boss:!!s.boss});   // acid của quái đốt chậm, không giết được người chơi (20-queen.js)
             else dot(cAmt * (isBossType(target.type) ? 0.25 : 1) * arsenalDotMult(s));
             if (Math.random() < 0.15) createParticles(target.x, target.y, '#2ecc71', 1, 60);
         } else if (id === STATUS.OVERLOAD) {
@@ -1088,7 +1088,7 @@ function hurtPlayersInRadius(x, y, radius, dmg, opts = {}) {
         let d = Math.hypot(p.x - x, p.y - y);
         if (d > radius + p.radius) continue;
         let amount = dmg * Math.max(0.25, 1 - d / Math.max(radius, 1));
-        if (opts.dot) p.takeDot(amount); else p.takeDamage(amount);
+        if (opts.dot) p.takeDot(amount,opts); else p.takeDamage(amount,opts);
         if (opts.stun) stunPlayer(p, opts.stun);
         if (opts.silence) p.silenceTimer = Math.max(p.silenceTimer || 0, opts.silence);
         if (opts.fear) p.fearTimer = Math.max(p.fearTimer || 0, opts.fear);
@@ -1391,7 +1391,7 @@ function updateHazards(dt) {
         } else if (h.type === 'beam') {
             let len = 1600, bx = h.x + Math.cos(h.angle) * len, by = h.y + Math.sin(h.angle) * len;
             h.angle += (h.rot || 1.6) * dt;
-            for (let pl of players) if (!pl.isDowned && distancePointToSegment(pl.x, pl.y, h.x, h.y, bx, by) < pl.radius + 14) pl.takeDot((h.dmg || 70) * dt);
+            for (let pl of players) if (!pl.isDowned && distancePointToSegment(pl.x, pl.y, h.x, h.y, bx, by) < pl.radius + 14) pl.takeDot((h.dmg || 70) * dt,{boss:true,heavy:true});
         }
         if (h.life <= 0) hazards.splice(i, 1);
     }

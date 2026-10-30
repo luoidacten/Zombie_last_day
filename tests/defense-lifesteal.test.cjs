@@ -131,16 +131,16 @@ test('barriers block ground zombies but let players, allies, flying enemies and 
 test('scythe lifesteal, overkill clamp, offering shield and virtual HP cap', () => {
     const { run } = game();
     run('let p=players[0]; p.hp=50; p.onHitEnemy(100,true,true)');
-    assert.equal(run('p.hp'), 54.5);
-    run(`Math.random=()=>0; p.hp=50; p._scHealTick=-1; p.weapon={...WEAPON_TYPES.SCYTHE};
+    assert.equal(run('p.hp'), 51.375);
+    run(`Math.random=()=>0; p.hp=50; p._recovery=null; p._scHealTick=-1; p.weapon={...WEAPON_TYPES.SCYTHE};
         let z={x:2050,y:2000,radius:16,hp:1,maxHp:100,type:0,knockback:()=>{}}; zombies=[z];
         let slash=new Slash(p.x,p.y,0,p.weapon,p); slash.update(0.01,p.x,p.y);`);
-    assert.ok(Math.abs(run('p.hp') - 54.045) < 1e-8);
+    assert.ok(Math.abs(run('p.hp') - 51.11375) < 1e-8);
     assert.equal(run('hazards.filter(h=>h.type==="soul").length'), 1);
-    assert.equal(run('p.vHp'), 34);
-    run('p.addVirtualHp(9999)'); assert.equal(run('p.vHp'), 60);
-    run('p.perks.ls_overheal=true; p.hp=p.maxHp; p.vHp=0; p.applyLifesteal(10)');
-    assert.equal(run('p.vHp'), 6.5);
+    assert.equal(run('p.vHp'), 4);
+    run('p.addVirtualHp(9999,{grant:true})'); assert.equal(run('p.vHp'), 25);
+    run('p.perks.ls_overheal=true; p.hp=p.maxHp; p.vHp=0; p._recovery=null; p.applyLifesteal(10)');
+    assert.ok(Math.abs(run('p.vHp')-1.925)<1e-8);
 });
 
 test('scythe offering chance, capacity, boss exclusion and upgrade bonus', () => {
@@ -148,7 +148,7 @@ test('scythe offering chance, capacity, boss exclusion and upgrade bonus', () =>
     run(`let p=players[0], z={type:0,x:0,y:0}; Math.random=()=>0.1; scytheKill(z,p)`);
     assert.equal(run('hazards.length'), 0);
     run('p.perks.sc_soul=true; scytheKill(z,p)'); assert.equal(run('hazards.length'), 1);
-    assert.equal(run('p.vHp'), 48);
+    assert.equal(run('p.vHp'), 4);
     run('hazards=[]; Math.random=()=>0; scytheKill({...z,type:50},p); scytheKill({...z,type:51},p)');
     assert.equal(run('hazards.length'), 0);
     run('for(let i=0;i<20;i++) scytheKill(z,p)'); assert.equal(run('hazards.length'), 12);
@@ -156,14 +156,14 @@ test('scythe offering chance, capacity, boss exclusion and upgrade bonus', () =>
 
 test('defense cards, virtual HP absorption and damage-over-time respect their limits', () => {
     const { run } = game();
-    run('let p=players[0]; applyUpgrade(p,"df_plate")'); assert.equal(run('p.maxHp'), 160);
-    assert.equal(run('p.getDefenseMult()'), 0.85);
-    run('p.tags["PHÒNG THỦ"]=4'); assert.ok(Math.abs(run('p.getDefenseMult()') - 0.646) < 1e-8);
-    run('p.vHp=20; p.takeDot(10)'); assert.equal(run('p.hp'), 160);
-    assert.ok(Math.abs(run('p.vHp') - 13.54) < 1e-8);
+    run('let p=players[0]; applyUpgrade(p,"df_plate")'); assert.equal(run('p.maxHp'), 135);
+    assert.equal(run('p.getDefenseMult()'), 0.9);
+    run('p.tags["PHÒNG THỦ"]=4'); assert.ok(Math.abs(run('p.getDefenseMult()') - 0.756) < 1e-8);
+    run('p.vHp=20; p.takeDot(10)'); assert.equal(run('p.hp'), 135);
+    assert.ok(Math.abs(run('p.vHp') - 12.44) < 1e-8);
     assert.equal(run('p.noHitT'), 0);
     run('p.perks.df_unbreakable=true; p.vHp=0; p.takeDamage(99999)');
-    assert.equal(run('p.hp'), 104);
+    assert.equal(run('p.hp'), 74.25);
 });
 
 test('shield saves and host-to-guest state preserve new mechanics', () => {

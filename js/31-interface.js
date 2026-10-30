@@ -14,7 +14,7 @@ function drawModernPlayerPanel(p,x,y,w,h,T){
     ctx.save();artBox(x,y,w,h,'rgba(30,30,30,.94)','#595754',8);artBox(x+1,y+10,3,h-20,p.color,null,1);
     ctx.textBaseline='middle';ctx.textAlign='left';ctx.fillStyle='#cfcdca';ctx.font='600 10px Segoe UI, Arial';
     ctx.fillText('MAP '+currentLevel+' / '+getMapName(),x+12,y+13,w-24);
-    ctx.font='600 11px Segoe UI, Arial';ctx.fillStyle=p.isDowned?'#aca7a0':'#c0bebb';ctx.fillText(p.isDowned?'CẦN ĐỒNG ĐỘI CỨU':'THỂ LỰC',x+12,y+30);
+    ctx.font='600 11px Segoe UI, Arial';ctx.fillStyle=p.isDowned?'#aca7a0':'#c0bebb';ctx.fillText(p.isDowned?'CẦN ĐỒNG ĐỘI CỨU':p.woundT>0?'HỒI −75% · '+Math.ceil(p.woundT)+'s':'THỂ LỰC',x+12,y+30);
     ctx.textAlign='right';ctx.fillStyle='#d9d7d4';ctx.fillText(Math.max(0,Math.ceil(p.hp))+' / '+Math.round(p.maxHp)+(p.vHp>=1?' +'+Math.ceil(p.vHp):''),x+w-12,y+30);
     hudBar(x+12,y+40,w-24,6,p.hp/Math.max(1,p.maxHp),p.hp<p.maxHp*.3?'#b86652':'#a2a98b');
     if(p.vHp>0)hudBar(x+12,y+40,(w-24)*Math.min(1,p.vHp/p.maxHp),2,1,'#adbfb7');

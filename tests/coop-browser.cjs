@@ -37,11 +37,11 @@ const {pathToFileURL}=require('node:url');
   for(let page of [host,a]){await page.waitForFunction(()=>gameState==='PLAYING');await page.evaluate(()=>loopToken++);}
   await host.evaluate(()=>{enterHub();loopToken++;});await b.locator('#netCodeInput').fill(code.trim());await b.evaluate(()=>netJoin());
   await host.waitForFunction(()=>NET.peers.length===2&&players.length===3);await a.waitForFunction(()=>players.length===3);await b.waitForFunction(()=>gameState==='PLAYING');await b.evaluate(()=>loopToken++);
-  await host.evaluate(()=>{players[2].level=9;players[2].weapon={...WEAPON_TYPES.AR};players[2].weapon.mag=11;players[2].vHp=37;enterHub();loopToken++;saveCheckpoint(true);});
+  await host.evaluate(()=>{players[2].level=9;players[2].weapon={...WEAPON_TYPES.AR};players[2].weapon.mag=11;players[2].vHp=22;enterHub();loopToken++;saveCheckpoint(true);});
   const uuid=await b.evaluate(()=>localPlayerUUID());
   await a.evaluate(()=>netTeardown());await b.evaluate(()=>netTeardown());await host.waitForFunction(()=>NET.peers.length===0);
   assert.equal(await host.evaluate(()=>NET.mode==='host'&&NET.locked),true);
-  await b.evaluate(()=>netJoin());await host.waitForFunction(()=>NET.peers.length===1);await b.waitForFunction(()=>gameState==='PLAYING'&&localPlayer().level===9&&localPlayer().vHp===37);await b.evaluate(()=>loopToken++);
+  await b.evaluate(()=>netJoin());await host.waitForFunction(()=>NET.peers.length===1);await b.waitForFunction(()=>gameState==='PLAYING'&&localPlayer().level===9&&localPlayer().vHp===22);await b.evaluate(()=>loopToken++);
   await host.evaluate(()=>{saveCheckpoint(true);netTeardown();loopToken++;});await host.reload();await host.evaluate(()=>loadGame());await host.waitForFunction(()=>NET.role==='host'&&document.getElementById('netRoomCode').textContent.trim().length===5);code=await host.locator('#netRoomCode').textContent();
   await b.evaluate(()=>netTeardown());await b.reload();assert.equal(await b.evaluate(()=>localPlayerUUID()),uuid);await b.evaluate(code=>{netOpenLobby();document.getElementById('netCodeInput').value=code;netJoin();},code.trim());
   await host.waitForFunction(()=>NET.peers.length===1&&NET.peers[0].conn.open);await host.evaluate(()=>netStartGame());await b.waitForFunction(()=>gameState==='PLAYING'&&localPlayer().level===9&&localPlayer().weapon?.key==='AR');

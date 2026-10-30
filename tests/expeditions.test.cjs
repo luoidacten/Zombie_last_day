@@ -53,10 +53,10 @@ test('only drivers steer; navigators ping/fire; disconnect transfers the wheel',
 });
 test('cart hazards apply distinct penalties and surviving course completes',()=>{
     const {run}=game();run(`gameState='PLAYING';startMinecart();cartRun.stage='race';let c=cartRun.carts[0];cartHit(c,'collapse')`);
-    assert.equal(run('c.hp'),70);assert.equal(run('c.stun'),1.5);
-    run(`cartHit(c,'fall')`);assert.equal(run('c.slow'),2);
+    assert.equal(run('c.hp'),74);assert.equal(run('c.stun'),.9);
+    run(`cartHit(c,'fall')`);assert.equal(run('c.slow'),1.6);
     run(`c.distance=51.99;c.stun=0;c.slow=0;c.ants=0;tickMinecart(.02)`);
-    assert.equal(run('cartRun.win'),true);assert.equal(run('queenSlain'),true);
+    assert.equal(run('cartRun.win'),true);assert.equal(run('zombies.some(z=>z.type===45)'),false);
 });
 
 test('ambient gas allows hacking, circuit and frequency puzzles complete',()=>{

@@ -22,7 +22,7 @@ function arsenalLevelStart() {
         p.mgHeat = 0; p.jamT = 0; p.ventT = 0; p.leapT = 0; p.blinkCD = 0; p.rewindUsed = false; p.flurryT = 0; p.overT = 0;
         p.noHitT = 5.0; p.unbreakCD = 0; p.lsIcd = 0; p.lsNovaCD = 0;
         if (p.rage === undefined) p.rage = 0;
-        if (p.perks.ls_overheal) p.vHp = Math.max(p.vHp || 0, Math.round(p.maxHp * 0.25));
+        if (p.perks.ls_overheal) p.vHp = Math.max(p.vHp || 0, Math.round(p.maxHp * 0.1));
         if (typeof p.getMaxVHp === 'function') p.vHp = Math.min(p.getMaxVHp(), p.vHp || 0);
         // Link TĂNG TIẾN mốc 3: mỗi map mới +4% sát thương vĩnh viễn
         if (currentLevel > 1 && (p.tags['TĂNG TIẾN'] || 0) >= 3) p.dmgMult += 0.04;

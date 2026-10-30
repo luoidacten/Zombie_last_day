@@ -232,7 +232,7 @@ const labDamageMult=Player.prototype.getTotalDamageMult;
 Player.prototype.getTotalDamageMult=function(){return labDamageMult.call(this)*(this.labWeak>0?.85:1);};
 for(let method of ['takeDamage','takeDot']) {
     let original=Player.prototype[method];
-    Player.prototype[method]=function(amount){let hp=this.hp,v=this.vHp;let result=original.call(this,amount);let D=labDungeon();if(D&&!this.labGasDamage&&(this.hp<hp||this.vHp<v))for(let d of D.doors)if(d.owner===this.id)labFailHack(D,d);return result;};
+    Player.prototype[method]=function(amount,opts){let hp=this.hp,v=this.vHp;let result=original.call(this,amount,opts);let D=labDungeon();if(D&&!this.labGasDamage&&(this.hp<hp||this.vHp<v))for(let d of D.doors)if(d.owner===this.id)labFailHack(D,d);return result;};
 }
 const labScientistUpdate=Scientist.prototype.update,labScientistDamage=Scientist.prototype.takeDamage;
 Scientist.prototype.update=function(dt){if(!this.labSafe)return labScientistUpdate.call(this,dt);};

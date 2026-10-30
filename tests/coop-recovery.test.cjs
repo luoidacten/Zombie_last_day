@@ -8,8 +8,8 @@ test('device UUID is stable, names are sanitized, and only host writes co-op che
  assert.equal(run(`cleanPlayerName('<Anh>\u0001')`),'Anh');
 });
 test('resume restores each UUID despite a changed join order; absent profiles keep their progress',()=>{
- const {run}=party();run(`players[1].level=7;players[2].level=11;players[2].vHp=55;players[2].weapon={...WEAPON_TYPES.SMG};saveCheckpoint(true);let saved=readSave();NET.peers=[{pid:2,uuid:'guest_uuid_3',name:'Đổi tên',profile:'guest_uuid_3'}];NET.playerCount=4;coopRestoreLineup(saved)`);
- assert.equal(run('players[1].level'),11);assert.equal(run('players[1].vHp'),55);assert.equal(run('players[1].weapon.key'),'SMG');assert.equal(run(`partyArchive['guest_uuid_2'].data.level`),7);
+ const {run}=party();run(`players[1].level=7;players[2].level=11;players[2].vHp=20;players[2].weapon={...WEAPON_TYPES.SMG};saveCheckpoint(true);let saved=readSave();NET.peers=[{pid:2,uuid:'guest_uuid_3',name:'Đổi tên',profile:'guest_uuid_3'}];NET.playerCount=4;coopRestoreLineup(saved)`);
+ assert.equal(run('players[1].level'),11);assert.equal(run('players[1].vHp'),20);assert.equal(run('players[1].weapon.key'),'SMG');assert.equal(run(`partyArchive['guest_uuid_2'].data.level`),7);
  assert.equal(run('players.length===4&&players[2].netLeft&&players[3].netLeft'),true);
 });
 test('host can resume alone with resting profiles, and a retreat cannot skip scheduled defense for a story route',()=>{
@@ -18,9 +18,9 @@ test('host can resume alone with resting profiles, and a retreat cannot skip sch
  run(`currentLevel=5;campaignQueued=true;story.bolt=1;players[0].pendingUpgrades=0;continueAfterShop()`);assert.equal(run('currentLevel'),5);assert.equal(run('objState'),'BASE_DEF');
 });
 test('disconnect archives before downing the placeholder and keeps an empty host room open',()=>{
- const {run}=party();run(`players[1].hp=67;players[1].vHp=33;for(let pr of NET.peers.slice())netOnGuestLost(pr)`);
- assert.equal(run('NET.mode'),'host');assert.equal(run('NET.locked'),true);assert.equal(run(`partyArchive['guest_uuid_2'].data.hp`),67);assert.equal(run(`partyArchive['guest_uuid_2'].data.vhp`),33);assert.equal(run('players[1].netLeft&&players[1].hp===0'),true);
- run(`let pr={pid:2,uuid:'guest_uuid_2',name:'Quay lại',profile:'guest_uuid_2',conn:{open:true,send(){}}};NET.peers=[pr];coopPeerReady(pr)`);assert.equal(run('players[1].hp'),67);assert.equal(run('players[1].vHp'),33);
+ const {run}=party();run(`players[1].hp=67;players[1].vHp=23;for(let pr of NET.peers.slice())netOnGuestLost(pr)`);
+ assert.equal(run('NET.mode'),'host');assert.equal(run('NET.locked'),true);assert.equal(run(`partyArchive['guest_uuid_2'].data.hp`),67);assert.equal(run(`partyArchive['guest_uuid_2'].data.vhp`),23);assert.equal(run('players[1].netLeft&&players[1].hp===0'),true);
+ run(`let pr={pid:2,uuid:'guest_uuid_2',name:'Quay lại',profile:'guest_uuid_2',conn:{open:true,send(){}}};NET.peers=[pr];coopPeerReady(pr)`);assert.equal(run('players[1].hp'),67);assert.equal(run('players[1].vHp'),23);
 });
 test('host can loan a resting character; guest cannot assign profiles or overwrite the original owner',()=>{
  const {run}=party();run(`players[2].level=13;netOnGuestLost(NET.peers.find(p=>p.pid===3));let pr=NET.peers[0];let ok=coopAssignProfile(2,'guest_uuid_3')`);assert.equal(run('ok'),true);assert.equal(run('players[1].level'),13);assert.equal(run('players[1].playerUUID'),'guest_uuid_2');

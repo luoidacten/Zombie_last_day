@@ -31,18 +31,19 @@ antDamageFilter=function(z){if(!z.mineRework)return mineFilter(z);let prev=z._hp
 const mineSpecial=updateSpecialZombie;
 updateSpecialZombie=function(z,target,dist,ang,dt,speed){
     if(!z.mineRework)return mineSpecial(z,target,dist,ang,dt,speed);
+    for(let c of caveProps)if(c.kind==='tntcart'&&c.hp>0&&c.moving&&Math.hypot(c.x-z.x,c.y-z.y)<z.radius+c.r+20){z.mineStun=4;c.hp=0;}
     z.mineStun=Math.max(0,(z.mineStun||0)-dt);
     if(z.mineStun>0){z.airborne=false;z.downed=true;return true;}z.downed=false;
     if(z.hp<z.maxHp*.45&&!z.mineDark){z.mineDark=true;z.phase=2;darknessBattery=0;let g=worldFeatures.find(f=>f.kind==='generator');if(g){g.on=false;g.progress=0;}bossSay(z,'BÓNG TỐI — BẬT MÁY PHÁT!', '#9b80ff');}
     z.airborne=!!z.mineDark&&!worldFeatures.some(f=>f.kind==='generator'&&f.on);
     if(z.airborne){
         z.x+=Math.cos(ang+Math.PI/2)*70*dt;z.y+=Math.sin(ang+Math.PI/2)*70*dt;queenClamp(z);
-        if(z.spCD<=0){z.spCD=3;if(!mineSabotage.eggs)for(let i=0;i<3+bossTeamCount()&&zombies.length<100;i++)zombies.push(new Zombie(z.x+(Math.random()-.5)*100,z.y+80,40));}
+        if(z.spCD<=0){z.spCD=3;queenAcid(target.x,target.y,1,mineSabotage.gland?58:96);if(!mineSabotage.eggs)for(let i=0;i<3+bossTeamCount()&&zombies.length<100;i++)zombies.push(new Zombie(z.x+(Math.random()-.5)*100,z.y+80,40));}
     }else{
         z.x+=Math.cos(ang)*Math.min(160,speed)*dt;z.y+=Math.sin(ang)*Math.min(160,speed)*dt;queenClamp(z);
         if(z.spCD<=0){z.spCD=2.2;for(let i=0;i<3+bossTeamCount();i++)queenAcid(target.x+(Math.random()-.5)*350,target.y+(Math.random()-.5)*350,1,mineSabotage.gland?58:96);}
         if(dist<z.radius+(target.radius||16)+15&&z.atkCD<=0){z.atkCD=.9;target.takeDamage(38);}
-        for(let c of caveProps)if(c.kind==='tntcart'&&c.moving&&Math.hypot(c.x-z.x,c.y-z.y)<z.radius+c.r+20){z.mineStun=4;z.downed=true;c.hp=0;}
+        for(let c of caveProps)if(c.kind==='tntcart'&&c.hp>0&&c.moving&&Math.hypot(c.x-z.x,c.y-z.y)<z.radius+c.r+20){z.mineStun=4;z.downed=true;c.hp=0;}
     }return true;
 };
 const mineDown=zombieDown;
@@ -69,7 +70,7 @@ updateCaveWorld=function(dt){
     if(objState==='MINE_ESCORT'&&mineRail){
         let c=mineRail,crew=labLiving().filter(p=>Math.hypot(p.x-c.x,p.y-c.y)<180),next=c.path[c.step];
         let sw=worldFeatures.find(f=>f.kind==='switch');if(sw)c.branch=sw.branch||'long';
-        if(next&&crew.length){let d=Math.hypot(next.x-c.x,next.y-c.y),step=Math.min(d,dt*(c.branch==='short'?160:96)*(1+(crew.length-1)*.2));c.x+=(next.x-c.x)/Math.max(1,d)*step;c.y+=(next.y-c.y)/Math.max(1,d)*step;if(d<30)c.step++;}
+        if(next&&crew.length){let d=Math.hypot(next.x-c.x,next.y-c.y),step=Math.min(d,dt*(c.branch==='short'?160:132)*(1+Math.min(2,crew.length-1)*.2));c.x+=(next.x-c.x)/Math.max(1,d)*step;c.y+=(next.y-c.y)/Math.max(1,d)*step;if(d<30)c.step++;}
         for(let o of [...obstacles])if(o.type==='rubble'&&Math.hypot(c.x-o.x-o.w/2,c.y-o.y-o.h/2)<100)caveHitRubble(o,99999);
         for(let z of zombies)if(z.hp>0&&Math.hypot(z.x-c.x,z.y-c.y)<80)c.hp-=8*dt;
         if(c.branch==='short')for(let p of crew)acidHurt(p,4*dt);

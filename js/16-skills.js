@@ -151,7 +151,7 @@ function skillTryC(p) {
         for (let z of zombies) { if (z.hp <= 0 || z.flying || isBossType(z.type)) continue; let dd = Math.hypot(z.x - p.x, z.y - p.y); if (dd < c.range * 1.6 && dd > 50) { z.x += (p.x - z.x) / dd * 70; z.y += (p.y - z.y) / dd * 70; } }
         slashes.push(new Slash(p.x, p.y, ang, c, p)); spawnRing(p.x, p.y, '#ff4650', c.range, 0.3, 5); addScreenShake(6); Sound.play('slash_heavy');
     } else if (k === 'LIGHTSABER') {
-        p.tempShield = Math.max(p.tempShield || 0, 3);
+        p.tempShield = Math.min(2,Math.max(p.tempShield || 0, 2));
         for (let b of enemyBullets) if (b.active && Math.hypot(b.x - p.x, b.y - p.y) < 170) { b.active = false; createParticles(b.x, b.y, '#00ffff', 5, 100); }
         spawnRing(p.x, p.y, '#00ffff', 90, 0.4, 5); Sound.play('saber');
     } else if (k === 'ELECTRO_WHIP') {

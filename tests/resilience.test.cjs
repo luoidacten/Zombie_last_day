@@ -10,30 +10,32 @@ test('new resilience cards have valid tags and can be selected only once',()=>{
  }
 });
 test('shield capacity, kill gain and harvest cooldown respect caps and exclude offerings',()=>{
- const {run}=setup();run(`applyUpgrade(p,'vh_reservoir');applyUpgrade(p,'vh_harvest')`);assert.equal(run('p.getMaxVHp()'),95);
- run(`p.onKill(0);p.onKill(0)`);assert.equal(run('p.vHp'),2);
- run(`resilienceTick(p,.4);p.onKill(51)`);assert.equal(run('p.vHp'),2);
- run(`p.onKill(0)`);assert.equal(run('p.vHp'),4);
- run(`p.addVirtualHp(9999)`);assert.equal(run('p.vHp'),95);
- run(`p.isDowned=true;p.onKill(0)`);assert.equal(run('p.vHp'),95);
+ const {run}=setup();run(`applyUpgrade(p,'vh_reservoir');applyUpgrade(p,'vh_harvest')`);assert.equal(run('p.getMaxVHp()'),40);
+ run(`p.onKill(0);p.onKill(0)`);assert.equal(run('p.vHp'),1);
+ run(`resilienceTick(p,1);p.onKill(51)`);assert.equal(run('p.vHp'),1);
+ run(`p.onKill(0)`);assert.equal(run('p.vHp'),2);
+ run(`p.addVirtualHp(9999)`);assert.equal(run('p.vHp'),4);
+ run(`p.addVirtualHp(9999,{grant:true})`);assert.equal(run('p.vHp'),40);
+ run(`p.isDowned=true;p.onKill(0)`);assert.equal(run('p.vHp'),40);
 });
-test('new shield regeneration waits five seconds, stops after a hit and has a fixed ceiling',()=>{
+test('shield regeneration waits six seconds, stops after a hit and takes the strongest source',()=>{
  const {run}=setup();run(`p.perks.vh_recovery=true;p.noHitT=4;p.update(.2)`);assert.equal(run('p.vHp'),0);
- run(`p.noHitT=5;p.update(1)`);assert.equal(run('p.vHp'),3);
+ run(`p.noHitT=5;p.update(1)`);assert.equal(run('p.vHp'),1);
  run(`p.takeDot(1);let shield=p.vHp;p.update(.2)`);assert.equal(run('p.vHp'),run('shield'));
- run(`p.noHitT=5;p.update(30)`);assert.equal(run('p.vHp'),25);
- run(`p.perks.df_aegis=true;p.update(30)`);assert.equal(run('p.vHp'),60);
+ run(`p.noHitT=6;for(let i=0;i<300;i++)p.update(.1)`);assert.equal(run('p.vHp'),15);
+ run(`p.perks.df_aegis=true;for(let i=0;i<300;i++)p.update(.1)`);assert.equal(run('p.vHp'),20);
 });
 test('conditional reduction applies to hits and DOT; shield break protects subsequent damage only',()=>{
- const {run}=setup();run(`p.perks.dr_veil=true;p.vHp=30;p.takeDot(10)`);assert.ok(Math.abs(run('p.vHp')-21.2)<1e-8);
+ const {run}=setup();run(`p.perks.dr_veil=true;p.vHp=25;p.takeDot(10)`);assert.ok(Math.abs(run('p.vHp')-15.6)<1e-8);
  run(`p.perks.dr_veil=false;p.perks.dr_aftershock=true;p.vHp=5;p.takeDot(10)`);assert.equal(run('p.hp'),95);assert.equal(run('p.perks.rhBreakT'),4);assert.equal(run('p.perks.rhBreakCD'),12);
- run(`p.takeDot(10)`);assert.equal(run('p.hp'),87);
- run(`resilienceTick(p,4);p.takeDot(10)`);assert.equal(run('p.hp'),77);
+ run(`p.takeDot(10)`);assert.equal(run('p.hp'),86);
+ run(`resilienceTick(p,4);p.takeDot(10)`);assert.equal(run('p.hp'),76);
  run(`p.vHp=1;p.takeDot(2)`);assert.equal(run('p.perks.rhBreakT'),0);
  run(`resilienceTick(p,8);p.vHp=1;p.takeDot(2)`);assert.equal(run('p.perks.rhBreakT'),4);
- run(`p.perks.rhBreakT=0;p.perks.dr_laststand=true;p.hp=35;p.takeDot(10)`);assert.equal(run('p.hp'),27);
+ run(`p.perks.rhBreakT=0;p.perks.dr_laststand=true;p.hp=35;p.takeDot(10)`);assert.equal(run('p.hp'),26);
  run(`p.hp=100;p.vHp=5;p.tempShield=1;p.perks.rhBreakT=0;p.perks.rhBreakCD=0;p.takeDamage(20)`);assert.equal(run('p.perks.rhBreakT'),0);assert.equal(run('p.vHp'),5);
 });
+
 test('new perk flags and cooldowns survive save and host-to-guest upgrade sync',()=>{
  const {run}=setup();run(`p.perks.dr_aftershock=true;p.perks.rhBreakT=3;p.perks.rhBreakCD=11;p.perks.vh_reservoir=true;let saved=savePlayer(p);let packet={gs:'PLAYING',lvl:8,pl:[{tags:p.tags,perks:JSON.parse(JSON.stringify(p.perks)),pend:0}],cf:[1]};players=[new Player(1,0,0,'#fff')];NET.mode='guest';NET.localIdx=0;netApplySync(packet)`);
  assert.equal(run('saved.perks.vh_reservoir'),true);assert.equal(run('players[0].perks.rhBreakT'),3);assert.equal(run('players[0].perks.rhBreakCD'),11);

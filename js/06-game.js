@@ -632,7 +632,7 @@ function gameLoop(time) {
         if (!fz.source) {
             for (let pl of players) {
                 if (pl.netLeft || pl.isDowned || inTank(pl) || Math.hypot(pl.x - fz.x, pl.y - fz.y) > fz.radius) continue;
-                if (fz.kind === 'acid') acidHurt(pl, (fz.dmg || 10) * 0.5 * dt); else pl.takeDot((fz.dmg || 10) * 0.5 * dt);
+                if (fz.kind === 'acid') acidHurt(pl, (fz.dmg || 10) * 0.5 * dt,{boss:!!fz.boss}); else pl.takeDot((fz.dmg || 10) * 0.5 * dt,{boss:!!fz.boss});
                 if (fz.kind === 'acid') { fz.tick = (fz.tick || 0) - dt; if (fz.tick <= 0) { fz.tick = 0.8; applyPlayerStatus(pl, STATUS.CORROSION, { duration: 2.5, stacks: 1, dpsPercent: 0.0015, maxStacks: 3 }); } }
             }
         }
@@ -1631,9 +1631,9 @@ function applyUpgrade(p, upgId) {
         if (p.weapon && p.weapon.name === 'Lục') { p.weapon.maxAmmo *= 3; p.weapon.ammo = p.weapon.maxAmmo; }
     }
     else if (upgId === 'a_elite_squad') { for (let a of allies) if (!a.elite) a.promoteElite(); }
-    else if (upgId === 'df_plate') { p.maxHp += 60; p.hp = Math.min(p.maxHp, p.hp + 60); }
-    else if (upgId === 'ls_overheal') { p.perks.ls_overheal = true; p.addVirtualHp(p.maxHp * 0.25); }
-    else if (upgId === 'df_aegis') { p.perks.df_aegis = true; p.addVirtualHp(p.maxHp * 0.2); }
+    else if (upgId === 'df_plate') { p.maxHp += 35; p.hp = Math.min(p.maxHp, p.hp + 35); }
+    else if (upgId === 'ls_overheal') { p.perks.ls_overheal = true; p.addVirtualHp(p.maxHp * 0.1,{grant:true}); }
+    else if (upgId === 'df_aegis') { p.perks.df_aegis = true; p.addVirtualHp(p.maxHp * 0.1,{grant:true}); }
 
     if (PERK_FLAG_ALIASES[upgId]) p.perks[PERK_FLAG_ALIASES[upgId]] = true;
     p.perks[upgId] = true;
@@ -1699,7 +1699,7 @@ function confirmUpgrade(pid) {
 
         p.tags[t] = (p.tags[t] || 0) + 1;
         if (t === 'PHÒNG THỦ' && p.tags[t] === 2) {
-            p.maxHp += 25; p.hp = Math.min(p.maxHp, p.hp + 25);
+            p.maxHp += 15; p.hp = Math.min(p.maxHp, p.hp + 15);
         }
         // Mốc 10 Kiếm Sư khởi đầu với Huyền thoại
         if (t === 'KIẾM SƯ' && p.tags[t] === 10) {

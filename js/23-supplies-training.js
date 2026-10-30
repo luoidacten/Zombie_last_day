@@ -93,7 +93,7 @@ window.addEventListener('keydown',e=>{if(e.code==='KeyF'&&gameState==='PLAYING'&
 async function supplyFullscreen(){try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();if(screen.orientation?.lock)await screen.orientation.lock('landscape');}catch(e){netToast('Có thể xoay ngang máy để chơi rộng hơn.',1800);}}
 function drawSupplyHud(){
     let box=document.getElementById('supplyHud');if(!box){box=document.createElement('div');box.id='supplyHud';box.style.cssText='position:fixed;top:100px;left:10px;z-index:21;display:flex;gap:6px;max-width:80vw;font:12px Arial';document.body.appendChild(box);}
-    box.style.display=gameState==='PLAYING'&&objState!=='HUB'?'flex':'none';
+    box.style.display=gameState==='PLAYING'&&objState!=='HUB'&&!cartRun?'flex':'none';
     let html='';if(gameState==='PLAYING'&&objState!=='HUB'&&!cartRun)for(let p of NET.mode?[localPlayer()]:players.slice(0,isSinglePlayer?1:2)){
         let w=magazineInit(p);if(w)html+=`<button style="background:#122331dd;color:#fff;border:1px solid #79b6c3;border-radius:8px;padding:6px" onpointerdown="event.preventDefault();sendReload(${p.id})">P${p.id} ${w.mag}/${w.magSize} · Dự trữ ${Math.max(0,w.ammo-w.mag)}<br>${p.reloadT>0?'NẠP '+p.reloadT.toFixed(1)+'s':'NẠP [F]'}</button>`;
     }

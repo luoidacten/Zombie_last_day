@@ -14,10 +14,10 @@ try { deadSlain = localStorage.getItem('zs_dead_slain') === '1'; } catch (e) { }
 // LIỀM: mặc định có hút máu cao, khi giết quái tạo ra Tế Phẩm (6%, thẻ Gặt Hồn: 16%) sẽ cấp ngay Máu Ảo cho chủ nhân
 function scytheKill(z, src) {
     let perks = (src && src.perks) || {}, tags = (src && src.tags) || {};
-    if (src && typeof src.applyLifesteal === 'function') src.applyLifesteal(perks.sc_reap ? 8 : 4);
+    if (src && typeof src.applyLifesteal === 'function') src.applyLifesteal(perks.sc_reap ? 3 : 2);
     if (perks.sc_reap && src && src.weapon && src.weapon.isScythe) {
         src.weapon.ammo = Math.min(src.weapon.maxAmmo, src.weapon.ammo + 1);
-        if (typeof src.addVirtualHp === 'function') src.addVirtualHp(6);
+        if (typeof src.addVirtualHp === 'function') src.addVirtualHp(2);
     }
     if (isBossType(z.type) || z.type === OFFERING_T) return;
     let procCh = (perks.sc_soul ? 0.16 : 0.06) + ((tags['LIỀM'] || 0) >= 3 ? 0.04 : 0);
@@ -26,7 +26,7 @@ function scytheKill(z, src) {
     hazards.push({ type: 'soul', x: z.x, y: z.y, radius: 16, life: 7, friendly: true, source: src, big: !!perks.sc_blast });
     let vGain = 0;
     if (src && typeof src.addVirtualHp === 'function') {
-        vGain = Math.round((20 + src.maxHp * 0.14) * (perks.sc_soul ? 1.4 : 1.0));
+        vGain = Math.round((6 + src.maxHp * 0.04) * (perks.sc_soul ? 1.2 : 1.0));
         vGain = Math.round(src.addVirtualHp(vGain));
         createParticles(src.x, src.y, '#48dbfb', 14, 180);
     }
@@ -96,7 +96,7 @@ function updateDeadHazards(dt) {
             h.done = true; h.life = 0;
             for (let p of players) {
                 if (p.netLeft || p.isDowned || inTank(p) || !deadInArc(h, p.x, p.y, p.radius)) continue;
-                p.takeDamage(h.dmg); deadPush(p, Math.atan2(p.y - h.y, p.x - h.x), h.push || 180);
+                p.takeDamage(h.dmg,{boss:true,heavy:true}); deadPush(p, Math.atan2(p.y - h.y, p.x - h.x), h.push || 180);
             }
             if (tank.active && deadInArc(h, tank.x, tank.y, tank.radius) && tank.p2InvulnTimer <= 0) tank.hp -= h.dmg;
             for (let z of zombies) {
@@ -113,7 +113,7 @@ function updateDeadHazards(dt) {
             if (!h.started) { h.started = true; Sound.play('slash_heavy'); addScreenShake(6); }
             h.tick = (h.tick || 0) - dt;
             if (h.tick <= 0) { h.tick = 0.5; Sound.play('slash'); createParticles(h.x, h.y, '#ff3838', 6, 240); }
-            for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p) && Math.hypot(p.x - h.x, p.y - h.y) < h.radius + p.radius) p.takeDot(h.dmg * dt);
+            for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p) && Math.hypot(p.x - h.x, p.y - h.y) < h.radius + p.radius) p.takeDot(h.dmg * dt,{boss:true,heavy:true});
             if (tank.active && tank.p2InvulnTimer <= 0 && Math.hypot(tank.x - h.x, tank.y - h.y) < h.radius + tank.radius) tank.hp -= h.dmg * 0.5 * dt;
             for (let z of zombies) if (z.type !== DEAD_T && z.hp > 0 && !z.flying && Math.hypot(z.x - h.x, z.y - h.y) < h.radius + z.radius) { z.hp -= 450 * dt; if (Math.random() < dt * 6) createParticles(z.x, z.y, '#c0392b', 3, 200); }
             for (let n of rescueNPCs) if (n.hp > 0 && Math.hypot(n.x - h.x, n.y - h.y) < h.radius) n.takeDamage(h.dmg * dt);
@@ -136,8 +136,8 @@ function updateDeadHazards(dt) {
                     for (let pl of players) {
                         if (!pl || pl.isDowned || pl.netLeft) continue;
                         if (pl === h.source || Math.hypot(pl.x - h.x, pl.y - h.y) < 340) {
-                            pl.applyLifesteal(8);
-                            pl.addVirtualHp(22);
+                            pl.applyLifesteal(3);
+                            pl.addVirtualHp(5);
                         }
                     }
                     spawnRing(h.x, h.y, '#48dbfb', 160, 0.3, 4);
@@ -147,7 +147,7 @@ function updateDeadHazards(dt) {
             // Lãnh Địa Huyết Nguyệt: bước RA NGOÀI vòng máu sẽ bị rút máu + làm chậm; quái bên ngoài tiến vào cũng dính
             for (let p of players) {
                 if (p.netLeft || p.isDowned || inTank(p) || Math.hypot(p.x - h.x, p.y - h.y) <= h.radius) continue;
-                p.takeDot(24 * dt); p.netTimer = Math.max(p.netTimer || 0, 0.3);
+                p.takeDot(24 * dt,{boss:true}); p.netTimer = Math.max(p.netTimer || 0, 0.3);
                 if (Math.random() < dt * 8) createParticles(p.x, p.y, '#c0392b', 2, 80);
             }
             for (let z of zombies) {

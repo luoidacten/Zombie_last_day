@@ -98,9 +98,9 @@ resolveCollision = function (e) {
 // Đang bay: miễn sát thương tầm gần (quái áp sát cắn / đấm không tới)
 (function () {
     const td = Player.prototype.takeDamage;
-    Player.prototype.takeDamage = function (a) {
-        if (this.flyT > 0 && zombies.some(z => z.hp > 0 && !z.hidden && Math.hypot(z.x - this.x, z.y - this.y) < z.radius + this.radius + 45)) return;
-        return td.call(this, a);
+    Player.prototype.takeDamage = function (a,opts={}) {
+        if (this.flyT > 0 && !incomingContext(opts).heavy && !incomingContext(opts).ranged && zombies.some(z => z.hp > 0 && !z.hidden && Math.hypot(z.x - this.x, z.y - this.y) < z.radius + this.radius + 45)) return;
+        return td.call(this, a,opts);
     };
 })();
 function drawAntWings(p, T) {

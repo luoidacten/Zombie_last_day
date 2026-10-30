@@ -170,8 +170,8 @@ function admJump(L, route) {
 (function admHooks() {
     const P = Player.prototype;
     const td = P.takeDamage, tdot = P.takeDot, gd = P.goDown;
-    P.takeDamage = function (a) { if (adm.god) return; return td.call(this, a); };
-    P.takeDot = function (a) { if (adm.god) return; return tdot.call(this, a); };
+    P.takeDamage = function (a,opts) { if (adm.god) return; return td.call(this, a,opts); };
+    P.takeDot = function (a,opts) { if (adm.god) return; return tdot.call(this, a,opts); };
     P.goDown = function () { if (adm.god) { this.hp = this.maxHp; return; } return gd.call(this); };
     const ts = bossTimeScale;
     bossTimeScale = function (dt) { return ts(dt) * adm.speed; };
