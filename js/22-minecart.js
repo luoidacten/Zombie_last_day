@@ -1,4 +1,4 @@
-// Three-lane co-op escape: readable hazards, finite tools and persistent pursuit.
+// Three-lane co-op escape: the mine collapses after the Queen is already dead.
 let cartRun=null;
 function cartSeats(roster){
     return [roster.slice(0,2),roster.slice(2,4)].filter(a=>a.length).map((a,i)=>({
@@ -11,14 +11,14 @@ function startMinecart(bossDead=false){
     clearCavePresentation();
     let crew=activePlayers(),queen=zombies.find(z=>z.type===ANT.QUEEN&&z.hp>0);
     cartRun={stage:'mount',time:0,mount:4,end:0,win:false,bossDead:!!bossDead||!queen,carts:cartSeats(crew),
-        message:'NÉ ĐÁ · BẮN KIẾN · TĂNG TỐC [SHIFT] · TNT [B] CÓ GIỚI HẠN',seq:0};
+        message:bossDead||!queen?'NÉ ĐÁ · BẮN ĐÁ CHẮN · TĂNG TỐC [SHIFT] · TNT [B] CÓ GIỚI HẠN':'NÉ ĐÁ · BẮN KIẾN · TĂNG TỐC [SHIFT] · TNT [B] CÓ GIỚI HẠN',seq:0};
     caveRun.kind='cart';caveRun.timer=52;caveRun.exit=null;caveRun.pendingStage=null;caveRun.endT=0;caveRun.result=null;hangZRun.stairs=null;
     hazards=[];enemyBullets=[];bullets=[];obstacles=[];caveProps=[];rescueNPCs=[];fireZones=[];
     tank.active=false;tank.crew=[];story.dialog=null;story.intro=null;story.arena=null;
     // Reuse an actual pursuer on legacy routes; never spawn a second Queen after her death.
     zombies=queen&&!cartRun.bossDead?[queen]:[];
     objState='QUEEN_RUN';mission={type:'QUEEN_RUN',progress:0,required:52,complete:false};
-    crew.forEach((p,i)=>{p.x=1900+i*55;p.y=2000;});Sound.play('roar');clearPcInputs();
+    crew.forEach((p,i)=>{p.x=1900+i*55;p.y=2000;});Sound.play(cartRun.bossDead?'tank':'roar');clearPcInputs();
 }
 genQueenTunnel=startMinecart;
 function cartFor(pid){return cartRun&&cartRun.carts.find(c=>c.members.includes(pid));}
@@ -35,7 +35,14 @@ function cartCommand(pid,action,value){
     }
     let radar=c.spotter===pid||(!c.spotter&&c.driver===pid);
     if(action==='ping'&&radar&&Number.isInteger(value)&&value>=0&&value<=2){c.ping=value;c.pingT=2.5;}
-    if(action==='fire'&&radar&&c.shotCD<=0){c.shotCD=.35;if(c.ants>0)c.ants--;Sound.play('pistol');}
+    if(action==='fire'&&radar&&c.shotCD<=0){
+        c.shotCD=.35;
+        if(cartRun.bossDead){
+            let rock=c.hazards.filter(h=>h.type==='rubble'&&!h.cleared&&h.lane===c.lane&&h.eta>0&&h.eta<=1.4).sort((a,b)=>a.eta-b.eta)[0];
+            if(rock){rock.shots=(rock.shots||0)+1;if(rock.shots>=2)rock.cleared=true;}
+        }else if(c.ants>0)c.ants--;
+        Sound.play('pistol');
+    }
     if(action==='tnt'&&radar&&c.tnt>0&&c.tntCD<=0){
         c.tnt--;c.tntCD=12;c.gap=Math.min(85,c.gap+10);c.ants=0;c.hit=.2;
         for(let h of c.hazards)if(h.lane===c.lane&&h.eta<1.4)h.cleared=true;
@@ -92,12 +99,12 @@ function tickMinecart(dt){
         c.distance=Math.min(52,c.distance+speed*dt);
         let pressure=.85+c.distance/100+(difficulty==='hell'?.35:difficulty==='hard'?.2:0);
         c.gap=Math.min(85,c.gap+((c.boost>0&&speed>1?6:0)-pressure-(1-Math.min(speed,1))*12)*dt);
-        c.spawn-=dt;c.antCD-=dt;
+        c.spawn-=dt;if(!R.bossDead)c.antCD-=dt;
         if(c.spawn<=0)cartHazardRow(c,R);
-        if(c.antCD<=0){c.antCD=6;c.ants=Math.min(4,c.ants+1);}
+        if(R.bossDead)c.ants=0;else if(c.antCD<=0){c.antCD=6;c.ants=Math.min(4,c.ants+1);}
         if(c.supplyStep<2&&c.distance>=(c.supplyStep+1)*18){c.supplyStep++;c.tnt=Math.min(2,c.tnt+1);c.charge=Math.min(100,c.charge+15);}
         c.hp=Math.max(0,c.hp-c.ants*.85*dt);
-        if(c.gap<=0){c.gap=18;c.hp=Math.max(0,c.hp-35);c.hit=.6;Sound.play('roar');}
+        if(c.gap<=0){c.gap=18;c.hp=Math.max(0,c.hp-35);c.hit=.6;Sound.play(R.bossDead?'explode':'roar');}
         for(let h of c.hazards)h.eta-=dt;
         let due=[...new Set(c.hazards.filter(h=>h.eta<=0).map(h=>h.row??h.id))];
         for(let row of due){
@@ -153,11 +160,12 @@ function drawMinecart(){
             ctx.strokeStyle='#594735';ctx.lineWidth=5;
             for(let y=top+(c.distance*100)%35;y<bottom+45;y+=35){ctx.beginPath();ctx.moveTo(lx(lane)-laneW*.4,y);ctx.lineTo(lx(lane)+laneW*.4,y);ctx.stroke();}
         }
-        // Visible rolling collapse and red ant silhouettes follow the distance meter.
+        // After the Queen's death only dust and falling rock follow the cart.
         let chaseY=bottom+16+Math.max(0,c.gap)*.5,pulse=.7+Math.sin(R.time*11)*.15;
         ctx.fillStyle=`rgba(95,46,31,${pulse})`;ctx.fillRect(x+8,chaseY,w-16,60);
         for(let n=0;n<8;n++){let ax=x+25+(n*(w-50)/8),ay=chaseY+8+Math.sin(n+R.time*8)*5;
-            ctx.strokeStyle='#b3654b';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(ax-9,ay-5);ctx.lineTo(ax,ay);ctx.lineTo(ax+9,ay-5);ctx.moveTo(ax-9,ay+5);ctx.lineTo(ax,ay);ctx.lineTo(ax+9,ay+5);ctx.stroke();ctx.fillStyle='#3d211b';ctx.beginPath();ctx.arc(ax,ay,5,0,Math.PI*2);ctx.fill();}
+            if(R.bossDead){ctx.fillStyle='#75614d';ctx.beginPath();ctx.moveTo(ax-11,ay+8);ctx.lineTo(ax-7,ay-9);ctx.lineTo(ax+7,ay-5);ctx.lineTo(ax+13,ay+9);ctx.closePath();ctx.fill();}
+            else{ctx.strokeStyle='#b3654b';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(ax-9,ay-5);ctx.lineTo(ax,ay);ctx.lineTo(ax+9,ay-5);ctx.moveTo(ax-9,ay+5);ctx.lineTo(ax,ay);ctx.lineTo(ax+9,ay+5);ctx.stroke();ctx.fillStyle='#3d211b';ctx.beginPath();ctx.arc(ax,ay,5,0,Math.PI*2);ctx.fill();}}
         for(let h of c.hazards){
             if(h.cleared||(!radar&&h.eta>1.25))continue;
             let y=bottom-Math.min(1,h.eta/(h.warning||2.8))*(bottom-top);
@@ -170,11 +178,11 @@ function drawMinecart(){
         outlinedText(`P${p.id} · ${cartRole(c,p.id)}`,cx,49,'#d7c8ae','bold 13px Arial');
         ctx.fillStyle='#34261f';ctx.fillRect(x+24,64,w-48,9);ctx.fillStyle=c.gap<22?'#bc4e3d':'#b49b68';ctx.fillRect(x+24,64,(w-48)*Math.max(0,c.gap)/85,9);
         outlinedText(`${R.bossDead?'SẬP HẦM':'KIẾN CHÚA'} ${Math.max(0,Math.round(c.gap))}m · XE ${Math.ceil(c.hp)}% · ${Math.floor(c.distance)}/52`,cx,83,'#d5c7b2',`${w<350?10:12}px Arial`);
-        outlinedText(`${c.ants} KIẾN BÁM · TNT ${c.tnt} · TĂNG TỐC ${Math.floor(c.charge)}/45`,cx,H-89,c.ants?'#e79a79':'#c7b691',`${w<350?10:12}px Arial`);
+        outlinedText(`${R.bossDead?'SPACE: BẮN ĐÁ CHẮN':c.ants+' KIẾN BÁM'} · TNT ${c.tnt} · TỐC ${Math.floor(c.charge)}/45`,cx,H-89,c.ants?'#e79a79':'#c7b691',`${w<350?10:12}px Arial`);
         if(c.hp<=0)outlinedText('XE ĐÃ VỠ · CHỜ ĐỒNG ĐỘI',cx,bottom-50,'#e5937b','bold 14px Arial');
         ctx.restore();
     });
-    outlinedText(R.stage==='mount'?`LÊN XE · ${Math.ceil(R.mount)}s · NÉ BẪY / BẮN KIẾN / TĂNG TỐC`:R.time>40?'SẮP TỚI CỬA HẦM — GIỮ VỮNG TAY LÁI!':'TẨU THOÁT · ĐỪNG ĐỂ ĐOÀN KIẾN BẮT KỊP',W/2,22,'#e6b681',`bold ${Math.min(16,W/33)}px Arial`);
+    outlinedText(R.stage==='mount'?`LÊN XE · ${Math.ceil(R.mount)}s · NÉ BẪY / ${R.bossDead?'BẮN ĐÁ':'BẮN KIẾN'} / TĂNG TỐC`:R.time>40?'SẮP TỚI CỬA HẦM — GIỮ VỮNG TAY LÁI!':R.bossDead?'TẨU THOÁT · HẦM ĐANG SẬP SAU LƯNG!':'TẨU THOÁT · ĐỪNG ĐỂ KIẾN CHÚA BẮT KỊP',W/2,22,'#e6b681',`bold ${Math.min(16,W/33)}px Arial`);
     if(R.stage==='end'){ctx.fillStyle=R.win?'rgba(220,193,140,.85)':'rgba(70,5,5,.8)';ctx.fillRect(0,0,W,H);outlinedText(R.win?'THOÁT KHỎI HẦM!':'ĐANG GỌI CỨU HỘ',W/2,H/2,R.win?'#29271f':'#ead8c5','bold 28px Arial');}
 }
 function renderCartControls(){
@@ -190,7 +198,7 @@ function renderCartControls(){
             if(c.driver===p.id)html+=btn('← A','steer',-1)+btn('D →','steer',1)+btn('TỐC [Shift]','boost');
             if(c.spotter===p.id||(!c.spotter&&c.driver===p.id)){
                 if(c.spotter)html+=btn('Q ←','ping',0)+btn('W ↑','ping',1)+btn('E →','ping',2);
-                html+=btn('BẮN [Space]','fire')+btn('TNT [B]','tnt');
+                html+=btn(cartRun.bossDead?'BẮN ĐÁ [Space]':'BẮN [Space]','fire')+btn('TNT [B]','tnt');
             }
         }else html+='<span style="color:#baa38a">Chờ đội cứu hộ</span>';
         html+='</div>';

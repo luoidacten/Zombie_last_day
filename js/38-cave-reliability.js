@@ -66,7 +66,7 @@ function clearCavePresentation(){
 }
 startMineCollapse=function(){
     clearCavePresentation();
-    mineEscape={time:0,wave:1,rock:2,front:3680};mineRun.stage='collapseWalk';objState='MINE_COLLAPSE_RUN';
+    mineEscape={time:0,rock:2,front:3680};mineRun.stage='collapseWalk';objState='MINE_COLLAPSE_RUN';
     mission={type:objState,progress:0,required:1,complete:false};
     obstacles=[{type:'cave',x:0,y:0,w:1600,h:4000},{type:'cave',x:2400,y:0,w:1600,h:4000}];
     // Alternating fallen supports always leave a 500-unit passage; no dead ends.
@@ -81,11 +81,8 @@ startMineCollapse=function(){
 const reliableCaveUpdate=updateCaveWorld;
 updateCaveWorld=function(dt){
     if(!mineEscape)return reliableCaveUpdate(dt);
-    let e=mineEscape,crew=labLiving();e.time+=dt;e.wave-=dt;e.rock-=dt;
+    let e=mineEscape,crew=labLiving();e.time+=dt;e.rock-=dt;
     e.front-=Math.min(185,165+e.time)*dt;
-    if(e.wave<=0){e.wave=2.4;for(let i=0;i<2&&zombies.length<24;i++){
-        let z=new Zombie(1850+Math.random()*300,Math.min(3800,e.front-65),40);z.speed*=1.2;zombies.push(z);
-    }}
     if(e.rock<=0&&crew.length){
         e.rock=2.6;let p=crew[Math.floor(Math.random()*crew.length)];
         let pt=findSafePoint(p.x,Math.max(650,p.y-200),45);

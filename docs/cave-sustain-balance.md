@@ -12,13 +12,13 @@ Kiến Chúa pha 2 tiếp tục thả Acid khi máy phát tắt. Xe TNT có th�
 
 ## Rượt đuổi
 
-Hành lang có năm vách đổ xen kẽ, mỗi vách chừa ít nhất 500 đơn vị ngang để đi. Mép sập đuổi với tốc độ 165 lên 185 đơn vị/s; người chạm vùng sập chịu DOT. Ba cột chống có 60 HP, phá bằng bất kỳ vũ khí nào để lùi mép sập 150 đơn vị. Đá rơi báo trước 1,4s và không tạo vách mới chặn đường. Tối đa 24 kiến đuổi; cả đội còn sống phải tới điểm lên xe.
+Hành lang có năm vách đổ xen kẽ, mỗi vách chừa ít nhất 500 đơn vị ngang để đi. Mép sập đuổi với tốc độ 165 lên 185 đơn vị/s; người chạm vùng sập chịu DOT. Ba cột chống có 60 HP, phá bằng bất kỳ vũ khí nào để lùi mép sập 150 đơn vị. Đá rơi báo trước 1,4s và không tạo vách mới chặn đường. Không sinh kiến hoặc sinh vật đuổi sau khi boss đã chết; cả đội còn sống phải tới điểm lên xe.
 
 Xe goòng bắt đầu cách nguy hiểm 55m, khoảng cách luôn giảm và giảm nhanh khi bị chậm/choáng. Bẫy xuất hiện theo hàng, 1–2 làn bị chặn và luôn còn làn an toàn. Báo trước 2,8/2,6/2,4s tùy độ khó; người lái cùng radar thấy toàn bộ cảnh báo, người lái có đồng đội radar vẫn nhìn trực tiếp bẫy trong 1,25s cuối. Hàng bẫy chỉ gây một lần thiệt hại.
 
-- A/D hoặc mũi tên: đổi làn, hồi 0,2s. Radar dùng Q/W/E chỉ làn, Space bắn kiến bám.
+- A/D hoặc mũi tên: đổi làn, hồi 0,2s. Radar dùng Q/W/E chỉ làn, Space bắn đá chắn trên làn xe bằng hai phát khi đá cách tối đa 1,4s. Trần sập không phá được bằng súng và phải né. Tuyến cũ chỉ bắn kiến bám nếu chính Kiến Chúa vẫn còn sống khi lên xe.
 - Shift/C (hoặc nút tăng tốc): tốn 45 nhiên liệu, tăng tốc 1,8s, hồi 7s. Có 60 nhiên liệu đầu màn; né đúng +8, mỗi trạm tiếp tế +15.
-- B: dùng một TNT, hồi 12s; đẩy xa nguy hiểm 10m, diệt kiến bám và dọn bẫy sắp va trên làn hiện tại. Có một quả đầu màn và thêm một ở mốc 18/36, giữ tối đa hai.
+- B: dùng một TNT, hồi 12s; đẩy xa mép sập 10m và dọn bẫy sắp va trên làn hiện tại. Có một quả đầu màn và thêm một ở mốc 18/36, giữ tối đa hai.
 - Va bẫy mất máu xe, khoảng cách và khả năng di chuyển. Bị đuổi kịp mất 35% máu xe, không thể bù bằng hút máu của nhân vật.
 - Người dẫn đường ngắt kết nối/gục: người lái nhận radar. Người lái mất kết nối: người còn sống nhận tay lái. Người dẫn đường trở lại nhận đúng vai.
 
@@ -32,10 +32,12 @@ Máu Ảo nền 25% máu tối đa; Huyết Giáp +15%, Hút Máu 5 +15%, Phòng
 
 Tổng giảm sát thương có sàn nhận 40% với quái thường, 55% với boss, 70% với chiêu nặng có báo trước. Chiêu nặng gây tối thiểu 28% máu tối đa thô trước hệ số độ khó; 40% sát thương sau giảm xuyên Máu Ảo. Khiên điện tối đa hai lớp, chặn đòn thường nhưng chỉ giảm 40% một chiêu nặng. Phản đòn/né ngẫu nhiên không chặn chiêu nặng; phản đòn boss thường tối đa 15%, né boss thường 8%. Pháo Đài Bất Khuất chỉ giới hạn đòn ngoài boss ở 45% máu tối đa. Kỹ năng bất tử chủ động vẫn hoạt động.
 
-Sát thương boss được giữ qua AI → đạn/vùng nguy hiểm/trạng thái → các hàm bọc admin/cánh bay/hack Lab → Player. Acid boss có thể kết liễu; Acid môi trường/quái thường vẫn giữ sàn 50% như trước. Mô tả thẻ/wiki được đồng bộ trong module 39. Trạng thái suy giảm hồi được thêm vào slot 33 snapshot; không lưu ngân sách tạm vào checkpoint.
+Sát thương boss được giữ qua AI → đạn/vùng nguy hiểm/trạng thái → các hàm bọc admin/cánh bay/hack Lab → Player. Acid boss có thể kết liễu; Acid môi trường/quái thường vẫn giữ sàn 50% như trước. Mô tả thẻ/wiki được đồng bộ trong module 39. Boss gây sát thương đòn thường ×1,2, chiêu nặng báo trước ×1,8; hệ số chỉ tính một lần ở Player sau sàn sát thương thô. Các chiêu nổ, sét, nện, lao, xích và cắm thương giữ nguyên thời gian cảnh báo. Nổ từ boss không lấy Tag Nổ của đội để tăng vùng nổ hoặc triệt sát thương. Marker nguồn boss giữ nguyên đối tượng boss trong xích/tảng đá Hucker thay vì ghi đè thành boolean. Trạng thái suy giảm hồi được thêm vào slot 33 snapshot; không lưu ngân sách tạm vào checkpoint.
 
 ## Kiểm chứng
 
 `node --test tests/cave-balance.test.cjs tests/resilience.test.cjs tests/expeditions.test.cjs tests/boss-progression.test.cjs` kiểm tra điều kiện và mô phỏng đường đi, ngân sách hồi, phối hợp nhiều nguồn, sát thương xuyên qua các hàm bọc, bản lưu/đồng bộ, xe và vai co-op. Có 8 seed mê cung để NPC đi qua đủ C4/cửa; 20 lượt lái có phản ứng trên bốn độ khó và đội 1–4 người, cùng lượt bỏ lái phải thất bại.
 
 `node tests/cave-browser.cjs` cần Playwright và Edge. Kiểm tra ba tầng Hang Z, gài C4/thoát, xe bom/cổng/pha tối Kiến Chúa/nhặt lõi, hành lang và xe. Bấm bàn phím/nút cảm ứng thật ở 1280×800, 844×390, 390×844 và render khách P3. Ảnh lưu vào thư mục tạm `zombie-cave-*.png`. Kiểm tra này và transport mô phỏng trong `coop-browser.cjs` chưa thay thế thử WebRTC qua Internet trên nhiều máy thật.
+
+`node --test tests/boss-collapse.test.cjs` bổ sung kiểm tra sát thương mới, thời gian/vùng cảnh báo, chống triệt nổ boss bằng Tag Nổ, nguồn xích Hucker, không còn kiến đuổi/bám và cơ chế bắn đá của radar.

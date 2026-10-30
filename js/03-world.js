@@ -1080,7 +1080,7 @@ function hurtPlayersInRadius(x, y, radius, dmg, opts = {}) {
     if (tank.active && tank.p2InvulnTimer <= 0 && !opts.skipTank) {
         let dtank = Math.hypot(tank.x - x, tank.y - y);
         if (dtank <= radius + tank.radius) {
-            tank.hp -= dmg * Math.max(0.25, 1 - dtank / Math.max(radius, 1)) * 0.7;
+            tank.hp -= dmg * bossAttackMult(opts) * Math.max(0.25, 1 - dtank / Math.max(radius, 1)) * 0.7;
         }
     }
     for (let p of players) {
@@ -1325,12 +1325,12 @@ function updateHazards(dt) {
                 }
             } else {
                 let canStun = !(h.stunCD > 0);
-                hurtPlayersInRadius(h.x, h.y, h.radius, (h.dmg || 12) * dt, { dot: true, stun: canStun ? (h.stun || 0.25) : 0 });
+                hurtPlayersInRadius(h.x, h.y, h.radius, (h.dmg || 12) * dt, { dot: true, stun: canStun ? (h.stun || 0.25) : 0,...bossHazardContext(h) });
                 if (canStun) h.stunCD = 1.2;
             }
             if (Math.random() < dt * 12) createParticles(h.x + (Math.random() - 0.5) * h.radius * 1.4, h.y + (Math.random() - 0.5) * h.radius * 1.4, '#00d2d3', 1, 60);
         } else if (h.type === 'slow') {
-            hurtPlayersInRadius(h.x, h.y, h.radius, (h.dmg || 8) * dt, { dot: true });
+            hurtPlayersInRadius(h.x, h.y, h.radius, (h.dmg || 8) * dt, { dot: true,...bossHazardContext(h) });
             for (let pl of players) if (!pl.isDowned && Math.hypot(pl.x - h.x, pl.y - h.y) < h.radius) pl.netTimer = Math.max(pl.netTimer || 0, 0.25);
         } else if (h.type === 'magnet') {
             for (let pl of players) {
@@ -1348,7 +1348,7 @@ function updateHazards(dt) {
             }
         } else if ((h.type === 'rock' || h.type === 'slam' || h.type === 'artillery' || h.type === 'strike' || h.type === 'collapse') && h.timer <= 0) {
             if (h.friendly) explode(h.x, h.y, h.radius || 130, h.dmg || 90, h.source || null, true);
-            else if (h.type === 'strike') electricBurst(h.x, h.y, h.radius || 90, h.dmg || 32, h.stun === undefined ? 0.8 : h.stun);
+            else if (h.type === 'strike') withDamageContext(bossHazardContext(h),()=>electricBurst(h.x, h.y, h.radius || 90, h.dmg || 32, h.stun === undefined ? 0.8 : h.stun));
             else if (h.type === 'collapse') {
                 hurtPlayersInRadius(h.x, h.y, h.radius, 9999);
                 damageZombiesInRadius(h.x, h.y, h.radius, 9999);
@@ -1357,11 +1357,11 @@ function updateHazards(dt) {
                 addDecal(h.x, h.y, '#3d3d3d', h.radius * 0.8, 0.5);
                 addScreenShake(20);
                 Sound.play('explode');
-            } else explode(h.x, h.y, h.radius || 130, h.dmg || 90);
+            } else withDamageContext(bossHazardContext(h),()=>explode(h.x, h.y, h.radius || 130, h.dmg || 90));
             h.life = 0;
         } else if (h.type === 'quake' && h.timer <= 0) {
             // Dậm đất của quái: chỉ hại phe người chơi, không làm bị thương quái khác
-            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 30, { stun: h.stun || 0 });
+            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 30, { stun: h.stun || 0,...bossHazardContext(h) });
             if (h.bz) bossHitZombies(h.x, h.y, h.radius, h.bz, 320);   // dậm đất của BOSS trúng cả zombie
             if (tank.active && tank.p2InvulnTimer <= 0 && Math.hypot(tank.x - h.x, tank.y - h.y) < h.radius + tank.radius) tank.hp -= (h.dmg || 30) * 0.5;
             for (let a of allies) if (a.hp > 0 && Math.hypot(a.x - h.x, a.y - h.y) < h.radius) a.takeDamage((h.dmg || 30) * 0.5);
@@ -1372,7 +1372,7 @@ function updateHazards(dt) {
             Sound.play('tank');
             h.life = 0;
         } else if (h.type === 'emp' && h.timer <= 0) {
-            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 18, { silence: 2.0 });
+            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 18, { silence: 2.0,...bossHazardContext(h) });
             createParticles(h.x, h.y, '#ff6b6b', 70, 420);
             spawnRing(h.x, h.y, '#ff6b6b', h.radius, 0.4);
             addScreenShake(12);
@@ -1383,7 +1383,7 @@ function updateHazards(dt) {
                 for (let j = 0; j < h.points.length; j++) {
                     let a = h.points[j], b = h.points[(j + 1) % h.points.length];
                     if (distancePointToSegment(pl.x, pl.y, a.x, a.y, b.x, b.y) < pl.radius + 12) {
-                        pl.takeDot((h.dmg || 10) * dt);
+                        pl.takeDot((h.dmg || 10) * dt,bossHazardContext(h));
                         if (!(h.stunCD > 0)) { stunPlayer(pl, 0.35); h.stunCD = 1.0; }
                     }
                 }

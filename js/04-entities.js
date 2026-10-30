@@ -202,7 +202,7 @@ class Player {
         if (this.isDowned || this.perks.invulnTimer > 0 || !(amount > 0)) return;
         this.noHitT = 0;
         this.woundT=4;
-        let finalDmg = amount * Math.max(this.getDefenseMult(),hit.heavy?.7:hit.boss?.55:.4);
+        let finalDmg = amount * bossAttackMult(hit) * Math.max(this.getDefenseMult(),hit.heavy?.7:hit.boss?.55:.4);
         let hadVHp = this.vHp > 0;
         if (this.vHp > 0) {
             let ab = Math.min(this.vHp, finalDmg*(hit.heavy?.6:1));
@@ -242,7 +242,7 @@ class Player {
 
         this.noHitT = 0;
         this.woundT=4;
-        let rawDmg=(hit.heavy?Math.max(amount,this.maxHp*.28):amount)*enemyDmgScale();
+        let rawDmg=(hit.heavy?Math.max(amount,this.maxHp*.28):amount)*bossAttackMult(hit)*enemyDmgScale();
         let finalDmg = rawDmg * this.getDefenseMult(); // map đầu đỡ đau, map sau đau dần
 
         // Giáp Gai Phản Chấn: giảm thêm sát thương cận chiến & phản lực lên quái áp sát
@@ -2650,7 +2650,7 @@ function updateSpecialZombie(z, target, dist, ang, dt, speed) {
         if (z.atkCD > 0) return;
         if (tank.active && tank.p2InvulnTimer <= 0 && Math.hypot(z.x - tank.x, z.y - tank.y) < z.radius + tank.radius + 8) {
             let meleeDmgReduction = getTeamTagLevel('CHIẾN XA') >= 5 ? 0.2 : 1.0;
-            tank.hp -= dmg * meleeDmgReduction;
+            tank.hp -= dmg * bossAttackMult() * meleeDmgReduction;
             z.atkCD = cd;
             return;
         }
@@ -3069,11 +3069,12 @@ function getNearestZombie(x, y, range, checkWall = false) {
 function explode(x, y, radius, dmg, source = null, friendly = false) {
     Sound.play('explode');
     let finalRadius = radius;
+    let bossBlast=!!incomingContext().boss&&!friendly&&!(source instanceof Player);
     let selfDmgMult = 0.4;
     let dmgMult = 1.0;
 
     // Logic Tag NỔ
-    let expTagLvl = (source && source.tags) ? (source.tags['NỔ'] || 0) : getTeamTagLevel('NỔ');
+    let expTagLvl = bossBlast?0:((source && source.tags) ? (source.tags['NỔ'] || 0) : getTeamTagLevel('NỔ'));
     if (expTagLvl >= 1) { selfDmgMult -= 0.10; dmgMult += 0.10; } // Giảm 10%, Tăng 10%
     if (expTagLvl >= 2) { selfDmgMult -= 0.10; dmgMult += 0.05; } // Tổng Giảm 20%, Tăng 15%
     if (expTagLvl >= 4) { selfDmgMult -= 0.20; dmgMult += 0.15; } // Tổng Giảm 40%, Tăng 30%
@@ -3087,7 +3088,7 @@ function explode(x, y, radius, dmg, source = null, friendly = false) {
         selfDmgMult *= 0.25;
     }
 
-    if (tank.active) {
+    if (tank.active && !bossBlast) {
         if (getTeamTagLevel('CHIẾN XA') >= 1) selfDmgMult = 0;
         else selfDmgMult *= 0.5;
     }
@@ -3107,7 +3108,7 @@ function explode(x, y, radius, dmg, source = null, friendly = false) {
         fireZones.push({ x: x, y: y, life: 2.0, dmg: finalDmg * 0.2, source: source, radius: finalRadius * 0.5 });
     }
 
-    if (tank.active && getTeamTagLevel('CHIẾN XA') >= 5 && Math.random() < 0.5) {
+    if (!bossBlast && tank.active && getTeamTagLevel('CHIẾN XA') >= 5 && Math.random() < 0.5) {
         // Đã neft vùng lửa mốc 5 nhỏ hơn (0.6 -> 0.3)
         fireZones.push({ x: x, y: y, life: 3.0, dmg: 100, source: source, radius: finalRadius * 0.2 });
     }
@@ -3133,7 +3134,7 @@ function explode(x, y, radius, dmg, source = null, friendly = false) {
     }
     if (tank.active && tank.p2InvulnTimer <= 0) {
         let d = Math.hypot(tank.x - x, tank.y - y);
-        if (d < finalRadius) tank.hp -= (dmg * selfDmgMult) * (1 - d / finalRadius);
+        if (d < finalRadius) tank.hp -= (dmg * selfDmgMult) * (bossBlast?bossAttackMult():1) * (1 - d / finalRadius);
     }
 }
 const GLOW_COLORS = new Set(['#00d2d3', '#00ffff', '#f1c40f', '#e67e22', '#ff9f43', '#f9ca24', '#48dbfb', '#ff007f', '#e056fd', '#feca57', '#54a0ff', '#9b59b6', '#ff6b35', '#2ecc71', '#3498db', '#dff9fb']);

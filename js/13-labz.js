@@ -244,7 +244,7 @@ function updateHucker(z, target, dist, ang, dt, speed) {
             bossHitZombiesSeg(z.x, z.y, z.targetX, z.targetY, 34, 260);
             for (let p of players) {
                 if (p.netLeft || p.isDowned || inTank(p) || distancePointToSegment(p.x, p.y, z.x, z.y, z.targetX, z.targetY) > p.radius + 34) continue;
-                p.takeDamage(28); stunPlayer(p, 0.5);
+                p.takeDamage(28,{boss:true,heavy:true}); stunPlayer(p, 0.5);
                 let a = Math.atan2(z.y - p.y, z.x - p.x), pull = Math.max(0, Math.hypot(z.x - p.x, z.y - p.y) - z.radius - 40);
                 for (let s = 0; s < 10; s++) { p.x += Math.cos(a) * pull / 10; p.y += Math.sin(a) * pull / 10; resolveCollision(p); }
                 vfxList.push({ type: 'text', text: 'BỊ MÓC XÍCH!', x: p.x, y: p.y - 40, life: 1.0, color: '#e17055' });

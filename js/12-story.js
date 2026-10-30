@@ -352,7 +352,7 @@ function updateStoryHazards(dt) {
         if (h.done || h.timer > 0) continue;
         if (h.type === 'lancefall') {
             h.done = true; h.life = 0;
-            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 34, { stun: 0.4 });
+            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 34, { stun: 0.4,boss:true,heavy:true });
             vfxList.push({ type: 'bolt', x: h.x, y: h.y, life: 0.25, max: 0.25, seed: Math.random() * 1000 });
             createParticles(h.x, h.y, '#a29bfe', 22, 280); spawnRing(h.x, h.y, '#a29bfe', h.radius, 0.3); addScreenShake(7); Sound.play('lightning');
             if (zombies.filter(z => z.type === 38 && z.hp > 0).length < 8 + extraP * 3 && zombies.some(z => z.type === 36 && z.hp > 0)) {
@@ -363,7 +363,7 @@ function updateStoryHazards(dt) {
         } else if (h.type === 'plunge') {
             h.done = true; h.life = 0;
             let z = zombies.find(e => e.type === 36 && e.hp > 0);
-            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 75, { stun: 0.8 });
+            hurtPlayersInRadius(h.x, h.y, h.radius, h.dmg || 75, { stun: 0.8,boss:true,heavy:true });
             if (tank.active && tank.p2InvulnTimer <= 0 && Math.hypot(tank.x - h.x, tank.y - h.y) < h.radius + tank.radius) tank.hp -= 60;
             vfxList.push({ type: 'bolt', x: h.x, y: h.y, life: 0.45, max: 0.45, seed: 3 }); vfxList.push({ type: 'flash', x: h.x, y: h.y, r: h.radius, life: 0.4, max: 0.4, color: '170,190,255' });
             spawnRing(h.x, h.y, '#f9ca24', h.radius * 1.2, 0.5, 10); addScreenShake(22); Sound.play('thunder'); Sound.play('explode');
@@ -487,7 +487,7 @@ function updateRemnant(z, target, dist, ang, dt, speed) {
         createParticles(z.x, z.y, '#a29bfe', 3, 120);
         if (!z.dashHit) {
             if (tank.active && tank.p2InvulnTimer <= 0 && Math.hypot(tank.x - z.x, tank.y - z.y) < z.radius + tank.radius + 10) { tank.hp -= 55; z.dashHit = true; }
-            for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p) && Math.hypot(p.x - z.x, p.y - z.y) < z.radius + p.radius + 14) { p.takeDamage(45); stunPlayer(p, 0.5); z.dashHit = true; }
+            for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p) && Math.hypot(p.x - z.x, p.y - z.y) < z.radius + p.radius + 14) { p.takeDamage(45,{boss:true,heavy:true}); stunPlayer(p, 0.5); z.dashHit = true; }
         }
         if (z.dashT <= 0) { if (z.dashLeft > 0) { z.dashLeft--; remnantDash(z, pickAlivePlayer(), 0.38); } else z.atkCD = 0.5; }
         return true;
@@ -594,7 +594,7 @@ function updateZap(z, target, dist, ang, dt) {
         if (z.warnBeamTimer <= 0) {
             let sx = z.x, sy = z.y, ex = z.targetX, ey = z.targetY, len = Math.hypot(ex - sx, ey - sy);
             if (tank.active && tank.p2InvulnTimer <= 0 && distancePointToSegment(tank.x, tank.y, sx, sy, ex, ey) < tank.radius + 40) tank.hp -= 70;
-            for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p) && distancePointToSegment(p.x, p.y, sx, sy, ex, ey) < p.radius + 44) { p.takeDamage(55); stunPlayer(p, 0.6); }
+            for (let p of players) if (!p.netLeft && !p.isDowned && !inTank(p) && distancePointToSegment(p.x, p.y, sx, sy, ex, ey) < p.radius + 44) { p.takeDamage(55,{boss:true,heavy:true}); stunPlayer(p, 0.6); }
             for (let d = 60; d < len; d += 130) hazards.push({ type: 'electric', x: sx + (ex - sx) * d / len, y: sy + (ey - sy) * d / len, radius: 56, life: 2.4, dmg: 16, stun: 0.25 });
             vfxList.push({ type: 'laser_beam', x: sx, y: sy, tx: ex, ty: ey, life: 0.35, jag: true });
             vfxList.push({ type: 'flash', x: (sx + ex) / 2, y: (sy + ey) / 2, r: 200, life: 0.25, max: 0.25, color: '170,200,255' });

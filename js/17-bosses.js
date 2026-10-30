@@ -211,7 +211,7 @@ function updateBoulder(h, dt) {
         h.life = 0;
         createParticles(h.x, h.y, '#7f8c8d', 60, 420); createParticles(h.x, h.y, '#5d4037', 24, 260);
         spawnRing(z.x, z.y, '#a1887f', z.radius + 150, 0.4, 8); addScreenShake(16); Sound.play('explode');
-        hurtPlayersInRadius(z.x, z.y, z.radius + 150, 35, { stun: 0.4 });
+        hurtPlayersInRadius(z.x, z.y, z.radius + 150, 35, { stun: 0.4,boss:true,heavy:true });
         bossHitZombies(z.x, z.y, z.radius + 150, 500, 380);
         z.rootTimer = 1.0; bossSay(z, 'NGHIỀN NÁT!', '#e17055');
     }

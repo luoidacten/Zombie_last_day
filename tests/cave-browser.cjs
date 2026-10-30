@@ -34,14 +34,21 @@ const {pathToFileURL}=require('node:url');
   await page.screenshot({path:path.join(os.tmpdir(),'zombie-cave-collapse.png')});
   await page.evaluate(()=>{players[0].x=2000;players[0].y=500;updateCaveWorld(.1);cartRun.stage='race';draw();});
   assert.equal(await page.evaluate(()=>cartRun.bossDead),true);
+  assert.equal(await page.evaluate(()=>zombies.length),0);
+  assert.equal(await page.evaluate(()=>cartRun.message.includes('KIẾN')),false);
   await page.keyboard.press('d');assert.equal(await page.evaluate(()=>cartRun.carts[0].lane),2);
   await page.keyboard.press('Shift');assert.ok(await page.evaluate(()=>cartRun.carts[0].boost)>0);
   await page.keyboard.press('b');assert.equal(await page.evaluate(()=>cartRun.carts[0].tnt),0);
+  await page.evaluate(()=>{let c=cartRun.carts[0];c.shotCD=0;c.hazards=[{row:777,lane:c.lane,type:'rubble',eta:1,warning:2.8}];draw();});
+  await page.keyboard.press('Space');await page.evaluate(()=>cartRun.carts[0].shotCD=0);await page.keyboard.press('Space');
+  assert.equal(await page.evaluate(()=>cartRun.carts[0].hazards[0].cleared),true);
   // Check actual visible button hit targets on landscape and portrait phones.
   for(let size of [{width:1280,height:800},{width:844,height:390},{width:390,height:844}]){
    await page.setViewportSize(size);await page.waitForFunction(w=>W===w,size.width);
    await page.evaluate(()=>{showTouchUI=true;cartRun.carts[0].steerCD=0;cartRun.carts[0].hazards=[];cartRun.carts[0].spawn=0;tickMinecart(.01);draw();});
    let controls=page.locator('#minecartControls');assert.equal(await controls.isVisible(),true);
+   assert.ok((await controls.textContent()).includes('BẮN ĐÁ'));
+   assert.equal((await controls.textContent()).includes('KIẾN'),false);
    assert.equal(await controls.evaluate(el=>el.scrollWidth<=innerWidth),true);
    await controls.getByRole('button',{name:'← A',exact:true}).click();
    assert.ok(await page.evaluate(()=>cartRun.carts[0].lane)<2);

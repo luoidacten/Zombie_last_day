@@ -7,6 +7,15 @@ function withDamageContext(opts,fn) {
     let prev=combatDamageContext;combatDamageContext=incomingContext(opts);
     try{return fn();}finally{combatDamageContext=prev;}
 }
+function bossAttackMult(opts={}) {
+    let hit=incomingContext(opts);
+    return hit.boss?(hit.heavy?1.8:1.2):1;
+}
+function bossHazardContext(h) {
+    let boss=!!h.boss||!!h.bz||['hrock','hspin','hboulder','hsweep','zthrow','railbeam','lancefall','plunge','beam','quad','acidbomb','venomring','d_arc','d_scythe','d_moon'].includes(h.type);
+    let heavy=boss&&!!(h.telegraphed||['rock','slam','artillery','strike','quake','emp','hrock','hspin','hboulder','hsweep','zthrow','railbeam','lancefall','plunge','beam','quad','acidbomb','venomring','d_arc','d_scythe'].includes(h.type));
+    return {boss,heavy};
+}
 function recoveryBudget(p) {
     let t=p._recoveryClock||0, rates={all:.06,blood:.04,heal:.04,shield:.04};
     if(!p._recovery)p._recovery={t,all:.06,blood:.04,heal:.04,shield:.04};
@@ -70,7 +79,10 @@ updateSpecialZombie=function(z,...args){
     return withDamageContext({boss:true,heavy:!!z.isCharging},()=>{
         let hi=hazards.length,fi=fireZones.length;
         let value=balancedSpecial(z,...args);
-        for(let i=hi;i<hazards.length;i++)hazards[i].boss=true;
+        for(let i=hi;i<hazards.length;i++){
+            // Hucker chains/boulders store the actual boss here to follow his position.
+            let h=hazards[i];h.boss=h.boss||true;h.telegraphed=!!h.telegraphed||h.timer>0;
+        }
         for(let i=fi;i<fireZones.length;i++)fireZones[i].boss=true;
         return value;
     });
