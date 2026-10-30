@@ -46,7 +46,7 @@
             Ra ngoài tìm tiếp tế. Đưa người sống sót về trại.<br>Giữ căn cứ qua một đêm nữa.
         </p>
         <div class="menu-landscape" aria-hidden="true"></div>
-        <div class="menu-features"><span><b>01—04</b> NGƯỜI SỐNG SÓT</span><span><b>16</b> VÙNG NHIỆM VỤ</span><span><b>∞</b> CÁCH SINH TỒN</span></div>
+        <div class="menu-features"><span><b>01—04</b> NGƯỜI SỐNG SÓT</span><span><b>17</b> VÙNG NHIỆM VỤ</span><span><b>∞</b> CÁCH SINH TỒN</span></div>
         <p class="menu-keyboard"><kbd>WASD</kbd> Di chuyển <kbd>Q</kbd> Kỹ năng <kbd>R</kbd> Nộ <kbd>F</kbd> Nạp đạn</p>
         </section>
         <section class="menu-command" aria-label="Bắt đầu chơi">
@@ -333,6 +333,8 @@
                 <p class="text-xs text-gray-400" id="shopScrapText"></p>
                 <div id="storyBanner" class="mt-2 p-3 rounded-xl border-2 border-yellow-400 bg-yellow-950/40 text-sm text-yellow-100 leading-relaxed" style="display:none"></div>
                 <div id="routeList" class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                    <div id="routeSnow" class="cursor-pointer rounded-xl border-2 border-gray-600 bg-gray-800 p-3" onclick="selectRoute('snow')"><h3 class="font-bold">RỪNG TUYẾT</h3><p class="text-xs">Mở từ map 3. Rét, đóng băng và dị thể băng; tìm lửa sưởi.</p></div>
+                    <div id="routeSurvival" class="cursor-pointer rounded-xl border-2 border-gray-600 bg-gray-800 p-3" onclick="selectRoute('survival')"><h3 class="font-bold">SINH TỒN BẦY ĐÀN</h3><p class="text-xs">Trụ ở bất cứ đâu trong 30–120 giây theo độ khó rồi chờ trực thăng. Zombie đông nhất trong các nhiệm vụ map thường.</p></div>
                     <div id="routeBalanced"
                         class="p-3 bg-gray-800 border border-gray-600 rounded-xl cursor-pointer hover:border-yellow-500 transition"
                         onclick="selectRoute('balanced')">
@@ -457,6 +459,8 @@
     <script src="js/30-environment-art.js"></script>
     <script src="js/31-interface.js"></script>
     <script src="js/32-resilience.js"></script>
+    <script src="js/33-expeditions.js"></script>
+    <script src="js/34-snow-bosses.js"></script>
 </body>
 
 </html>

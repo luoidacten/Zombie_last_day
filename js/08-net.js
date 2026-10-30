@@ -452,7 +452,7 @@ function netOnData(d, fromPeer) {
 function netSendMap() {
     const R = Math.round;
     netSend({
-        t: 'map', lvl: currentLevel, mt: currentMapType, bg: bgMapColor, w: currentWeather,
+        t: 'map', lvl: currentLevel, mt: currentMapType, bg: bgMapColor, w: currentWeather,size:[MAP_SIZE.w,MAP_SIZE.h],fw:fieldNetState(),rw:riverWorld,
         ob: obstacles.map(o => [Math.max(0, NET_OB_T.indexOf(o.type)), R(o.x), R(o.y), R(o.w), R(o.h)]),
         sz: slowZones.map(z => [R(z.x), R(z.y), R(z.w), R(z.h), z.type]),
         bu: bushes.map(b => [R(b.x), R(b.y), R(b.rx), R(b.ry), +(b.rot || 0).toFixed(2), b.alpha]),
@@ -507,7 +507,8 @@ function netBuildSnapshot(slow) {
     };
     let s = { t: 's', n: ++NET.seq, pt: 0, pd: 0 };
 
-    s.g = [objState, R(evacTimer * 10), evacZone ? [R(evacZone.x), R(evacZone.y), R(evacZone.progress * 100)] : 0, R(fortressTimer), currentWeather,
+    s.fw=fieldNetState();
+    s.g = [objState, R(evacTimer * 10), evacZone ? [R(evacZone.x), R(evacZone.y), R(evacZone.progress * 100),evacZone.announced===false?0:1] : 0, R(fortressTimer), currentWeather,
         R(darknessBattery), R(flashAlpha * 100), R(cameraShake), shopScrap, breakthroughShards, killCount, powerCellsHeld, empStorm.active ? 1 : 0,
         R(darknessFlash * 100), thietXaUnlocked ? 1 : 0, R(tankExitTimer * 100)];
     s.m = [mission.type, mission.progress, mission.required];
@@ -540,6 +541,7 @@ function netBuildSnapshot(slow) {
         let flags = (z.hidden ? 1 : 0) | (z.isFrenzied > 0 ? 2 : 0) | (beam ? 4 : 0) | (z.phase2Done ? 8 : 0) | (z.hitFlash > 0 ? 16 : 0) | ((z.flying || z.airborne) ? 32 : 0) | (z.downed ? 64 : 0) | (z.carry ? 128 : 0) | (z.mutant ? 256 : 0);
         let e = [z.nid, R(z.x), R(z.y), z.type, Math.max(1, R(z.hp / z.maxHp * 100)), flags, mask];
         if (beam) e.push(R(z.targetX), R(z.targetY));
+        if(z.type===45)e[9]=[z.phase||1,R((z.flightArmor||0)/Math.max(1,z.flightArmorMax||1)*100),R((z.groundT||0)*10),z.flightWeak?1:0];
         s.z.push(e);
     }
 
@@ -626,6 +628,7 @@ function netHostTick(dt) {
 function netApplyMap(m) {
     const num = (v, d = 0) => (typeof v === 'number' && isFinite(v)) ? v : d;
     currentLevel = num(m.lvl, 1); currentMapType = num(m.mt, 1); currentWeather = num(m.w, 1);
+    fieldApplyMap(m.fw,m.size);if(m.rw)riverWorld=m.rw;
     bgMapColor = (typeof m.bg === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(m.bg)) ? m.bg : '#2c3e50';
     obstacles = (m.ob || []).map(o => {
         let ob = { type: NET_OB_T[o[0]] || 'wall', x: num(o[1]), y: num(o[2]), w: num(o[3]), h: num(o[4]) };
@@ -755,7 +758,7 @@ function netApplySnapshot(s) {
 
     let g = s.g;
     objState = String(g[0]); evacTimer = g[1] / 10;
-    evacZone = g[2] ? { x: g[2][0], y: g[2][1], progress: g[2][2] / 100 } : null;
+    evacZone = g[2] ? { x: g[2][0], y: g[2][1], progress: g[2][2] / 100,announced:g[2][3]!==0 } : null;
     fortressTimer = g[3]; currentWeather = g[4]; darknessBattery = g[5]; flashAlpha = g[6] / 100;
     cameraShake = Math.max(cameraShake, g[7] || 0);
     shopScrap = g[8]; breakthroughShards = g[9]; killCount = g[10]; powerCellsHeld = g[11]; empStorm.active = !!g[12];
@@ -779,6 +782,7 @@ function netApplySnapshot(s) {
 
     s.p.forEach((e, i) => { if (players[i] && Array.isArray(e)) netDecodePlayer(players[i], e, i === NET.localIdx); });
     storyNetApply(s.x);
+    fieldApplySnapshot(s.fw);
 
     // Zombie (có nội suy vị trí)
     let seen = new Set();
@@ -795,6 +799,7 @@ function netApplySnapshot(s) {
         if ((f & 256) && !z.mutant) { z.mutant = true; z.radius = Math.round(z.radius * 1.15); }
         z.color = (f & 8) && NET_PHASE2[z.type] ? NET_PHASE2[z.type] : z.baseColor;
         if (f & 16) z.hitFlash = 0.1;
+        if(z.type===45&&e[9]){z.phase=e[9][0];z.flightArmorMax=100;z.flightArmor=e[9][1];z.groundT=e[9][2]/10;z.flightWeak=!!e[9][3];}
         if (f & 4) { z.warnBeamTimer = 1; z.targetX = e[7]; z.targetY = e[8]; } else z.warnBeamTimer = 0;
         z.status = {};
         for (let i = 0; i < NET_STATUS.length; i++) if (e[6] & (1 << i)) z.status[NET_STATUS[i]] = { id: NET_STATUS[i], timer: 1 };

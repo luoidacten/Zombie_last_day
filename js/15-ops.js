@@ -681,7 +681,7 @@ function hubTaskLines() {
     else if (f === 'final') L.push(['⚡ Cốt truyện: về NHÀ MÁY ĐIỆN, hạ ZAP-1624 "KÌNH LÔI"', '#f9ca24']);
     if (baseDefenseNext()) L.push(['🛡 MAP KẾ TIẾP: PHÒNG THỦ NHÀ CHÍNH — ghé Xưởng đặt ụ súng!', '#ff7675']);
     else if (!f) {
-        let names = { balanced: 'Tuyến An Toàn', hunt: 'Săn Quét', rescue: 'Giải Cứu', power: 'Nhà Máy Điện', hangz: 'Hang Z', mine: 'Hầm Mỏ', botanical: 'Vườn Thực Vật', cityn: 'Thành Phố N', labz: 'Phòng Thí Nghiệm Z', bandit: 'Thị Trấn Cướp' };
+        let names = { balanced: 'Tuyến An Toàn', hunt: 'Săn Quét', rescue: 'Giải Cứu', power: 'Nhà Máy Điện', hangz: 'Hang Z', mine: 'Hầm Mỏ', botanical: 'Vườn Thực Vật', cityn: 'Thành Phố N', labz: 'Phòng Thí Nghiệm Z', bandit: 'Thị Trấn Cướp',snow:'Rừng Tuyết',survival:'Sinh Tồn Bầy Đàn' };
         let mt = predictNextMission(), known = nextRoute !== 'balanced' || nextMissionPreference;
         L.push([`🚩 Điểm đến Map ${next}: ${names[nextRoute] || nextRoute}${known ? ' — ' + getMissionName(mt) : ''}`, '#dfe6e9']);
         L.push([`💰 Thưởng hoàn thành: khoảng +${missionReward(known ? mt : 'TOWERS', next)} ⚙`, '#f1c40f']);

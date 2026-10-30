@@ -51,7 +51,7 @@ function banditTick(z,dt){
         if(Math.hypot(z.x-x,z.y-y)<65){z.hp=0;z.gone=true;z._credited=true;z.stolenLoot=[];}return;
     }
     if(z.type===66){
-        let injured=zombies.filter(o=>o!==z&&isBandit(o)&&o.hp>0&&Math.hypot(o.x-z.x,o.y-z.y)<900&&(o.hp<o.maxHp||o.banditDown)).sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0];
+        let injured=zombies.filter(o=>o!==z&&isBandit(o)&&o.hp>0&&!(o.banditDown&&o.noReanimate)&&Math.hypot(o.x-z.x,o.y-z.y)<900&&(o.hp<o.maxHp||o.banditDown)).sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0];
         if(injured){banditMove(z,injured.x,injured.y,90,dt);if(Math.hypot(z.x-injured.x,z.y-injured.y)<180){if(injured.banditDown&&!injured.revived){injured.banditDown=false;injured.revived=true;injured.hp=injured.maxHp*.5;}else injured.hp=Math.min(injured.maxHp,injured.hp+injured.maxHp*.05*dt);}}
     }
     if(z.type===60){
@@ -91,7 +91,7 @@ Zombie.prototype.update=function(dt){
 const banditEnemyUpdate=EnemyBullet.prototype.update;
 EnemyBullet.prototype.update=function(dt){
     if(this.active)for(let z of zombies){if(z.hp<=0||z.banditDown||factionOf(z)===(this.faction||'zombie'))continue;
-        if(distancePointToSegment(z.x,z.y,this.x,this.y,this.x+this.vx*dt,this.y+this.vy*dt)<z.radius+5){factionHurt(z,this.type==='acid'?15:22,this.owner||{faction:this.faction||'zombie'});this.active=false;return;}}
+        if(distancePointToSegment(z.x,z.y,this.x,this.y,this.x+this.vx*dt,this.y+this.vy*dt)<z.radius+5){if(this.type==='acid')z.noReanimate=true;factionHurt(z,this.type==='acid'?15:22,this.owner||{faction:this.faction||'zombie'});this.active=false;return;}}
     return banditEnemyUpdate.call(this,dt);
 };
 const banditCalcDamage=calcDamage;
@@ -106,11 +106,11 @@ const banditDown=zombieDown;
 zombieDown=function(z,src){
     if(!isBandit(z)||z.hp>0||z._credited)return banditDown(z,src);
     let bitten=z.lastHitFaction==='zombie',medic=zombies.some(o=>o!==z&&o.type===66&&o.hp>0&&!o.banditDown&&Math.hypot(o.x-z.x,o.y-z.y)<700);
-    if(!z.gibbed&&!bitten&&!z.revived&&!z.downExpired&&!z.banditDown&&medic){z.hp=1;z.banditDown=true;z.downT=12;return false;}
+    if(!z.gibbed&&!z.noReanimate&&!bitten&&!z.revived&&!z.downExpired&&!z.banditDown&&medic){z.hp=1;z.banditDown=true;z.downT=12;return false;}
     z.banditDown=false;let killed=banditDown(z,src);if(!killed)return false;
     banditReturnLoot(z);shopScrap+=2;
     if(!z.gibbed)drops.push({type:'BLINDBOX',forceWeapon:'AR',x:z.x+20,y:z.y,radius:16,lifeTime:120});
-    if(!z.gibbed&&(bitten||z.revived)){
+    if(!z.gibbed&&!z.noReanimate&&(bitten||z.revived)){
         let n=new Zombie(z.x,z.y,BANDIT_MUTATIONS[z.type-60]);n.infectedBandit=true;n.noLoot=true;zombies.push(n);
         if(z.type===63)n.isFrenzied=999;
     }else if(!z.gibbed)spawnDrop(z.x,z.y,false,'AMMOBOX');

@@ -3,6 +3,7 @@ let worldFeatures=[],featureSerial=0,anomalyZone=null;
 const FEATURE_LABELS={signal:'THÁP TÍN HIỆU',fuel:'BỒN NHIÊN LIỆU',siren:'XE CỨU HỘ',market:'SIÊU THỊ',arsenal:'KHO VŨ KHÍ',outpost:'TIỀN ĐỒN',cage:'CHUỒNG ZOMBIE',minefield:'BÃI MÌN',ranger:'TRẠM KIỂM LÂM',ferry:'BẾN PHÀ',light:'MÁY PHÁT ĐÈN',swamp:'ĐẦM LẦY',heli:'TRỰC THĂNG RƠI',transformer:'TRẠM BIẾN ÁP',spores:'VÙNG BÀO TỬ',greenhouse:'NHÀ KÍNH',geo:'TRẠM KHẢO CỔ',mushroom:'NẤM PHÁT QUANG',chasm:'CẦU ĐÁ',bridge:'CẦU GỖ MỤC',shaft:'GIẾNG TIẾP TẾ',switch:'ĐỔI RAY: NGẮN / DÀI',crusher:'MÁY NGHIỀN',gland:'TUYẾN ACID',eggs:'BUỒNG ẤP',mineral:'GIÁP KHOÁNG',vault:'KHO THUỐC NỔ',furnace:'LÒ LUYỆN',cocoon:'KÉN THỢ MỎ',generator:'ĐIỆN ĐẤU TRƯỜNG',ceiling:'THẠCH NHŨ',pillar:'CỘT CHỐNG HẦM'};
 function addFeature(kind,x,y,extra={}){let sp=findSafePoint(x,y,28),f={id:++featureSerial,kind,x:sp.x,y:sp.y,r:38,hp:180,maxHp:180,on:false,progress:0,...extra};worldFeatures.push(f);return f;}
 function setupBiome(){
+    if(fieldActive())return;
     worldFeatures=[];anomalyZone=null;if([10,14,15,16].includes(currentMapType))return;
     let kinds=[1,8,13].includes(currentMapType)?['market','arsenal','signal','fuel','siren']:[4,5].includes(currentMapType)?['arsenal','outpost','signal','cage']:currentMapType===6?['transformer','arsenal','signal']:currentMapType===9?['transformer','light','spores']:currentMapType===12?['greenhouse','spores','market']:['ranger',currentMapType===3?'ferry':'light','mushroom'];
     let coords=[[850,1050],[3000,1100],[1150,2850],[3000,2850],[2000,700]];
@@ -23,6 +24,7 @@ function setupBiome(){
     let a=addFeature(kind,3300,3300,{r:450,anomaly:true});anomalyZone={x:a.x,y:a.y,r:450,kind};
     if(kind==='swamp')slowZones.push({x:a.x-250,y:a.y-250,w:500,h:500,type:'mud'});
     navRebuild();
+    if(currentMapType===17)addFeature('brazier',2000,2200);
 }
 function featureAction(f,p){
     if(f.on)return;f.on=true;Sound.play('upgrade');
@@ -60,6 +62,7 @@ const FEATURE_DESTRUCTIBLE=new Set(['fuel','siren','cage','mushroom','vault','br
 function tickFeatures(dt){
     if(NET.mode==='guest'||objState==='HUB')return;
     for(let f of worldFeatures){
+        if(f.kind==='brazier')continue;
         if(f.kind==='geo'&&f.on)for(let z of zombies)if(Math.hypot(z.x-f.x,z.y-f.y)<650)z.hidden=false;
         if(f.kind==='chasm')for(let z of zombies)if(z.hp>0&&!isBossType(z.type)&&Math.abs(z.y-f.y)<55&&Math.abs(z.x-f.x)>48&&Math.abs(z.x-f.x)<175){z.hp=0;zombieDown(z,null);}
         if(FEATURE_DESTRUCTIBLE.has(f.kind)&&!f.on){

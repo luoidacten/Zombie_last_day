@@ -74,7 +74,7 @@ function navFlood(sources, out) {
     return out;
 }
 // Ô kế tiếp trên đường ngắn nhất về nguồn của trường khoảng cách
-function navNext(field, x, y) {
+function navNext(field, x, y, radius=18) {
     let i = navOpenIdx(x, y);
     if (i < 0 || field[i] <= 0) return null;
     let n = NAV.n, cx = i % n, cy = (i - cx) / n, best = field[i], bi = -1;
@@ -87,7 +87,14 @@ function navNext(field, x, y) {
         best = field[j]; bi = j;
     }
     if (bi < 0) return null;
-    return { x: (bi % n) * NAV.cs + NAV.cs / 2, y: Math.floor(bi / n) * NAV.cs + NAV.cs / 2 };
+    let step={x:(bi%n)*NAV.cs+NAV.cs/2,y:Math.floor(bi/n)*NAV.cs+NAV.cs/2};
+    // Crossing a grid cell boundary is not enough to clear a bridge rail: first
+    // reach the current cell's safe center before turning onto the riverbank.
+    if((fieldWorld||riverWorld)&&!fieldWalkClear(x,y,step.x,step.y,radius)){
+        let center={x:cx*NAV.cs+NAV.cs/2,y:cy*NAV.cs+NAV.cs/2};
+        if(fieldWalkClear(x,y,center.x,center.y,radius))return center;
+    }
+    return step;
 }
 function navUpdate(dt) {
     if (NAV.dirty) navRebuild();
@@ -119,17 +126,17 @@ function caveRandomOpenPoint() {
 // Móc trong Zombie.update: không thấy mục tiêu thì đi theo lưới dẫn đường
 function caveSteer(z, target, ang, dist) {
     if (z.flying || z.airborne || dist < 110) return ang;
-    if (hasLineOfSight(z.x, z.y, target.x, target.y)) return ang;
-    let nx = navNext(NAV.field, z.x, z.y);
+    if (hasLineOfSight(z.x, z.y, target.x, target.y)&&fieldWalkClear(z.x,z.y,target.x,target.y,z.radius)) return ang;
+    let nx = navNext(NAV.field, z.x, z.y,z.radius);
     return nx ? Math.atan2(nx.y - z.y, nx.x - z.x) : ang;
 }
 // Di chuyển tới một điểm bất kỳ theo lưới (Tiến Sĩ, Kiến Thợ) — mỗi thực thể giữ trường khoảng cách riêng
 function navMoveTo(e, gx, gy, spd, dt) {
     let key = Math.round(gx / 40) + ':' + Math.round(gy / 40);
     e._ft = (e._ft || 0) - dt;
-    if (!e._f || e._fg !== key || e._ft <= 0) { e._f = e._f || new Int16Array(NAV.n * NAV.n); navFlood([{ x: gx, y: gy }], e._f); e._fg = key; e._ft = 2.0; }
+    if (!e._f || e._f.length!==NAV.n*NAV.n || e._fg !== key || e._ft <= 0) { if(!e._f||e._f.length!==NAV.n*NAV.n)e._f=new Int16Array(NAV.n*NAV.n); navFlood([{ x: gx, y: gy }], e._f); e._fg = key; e._ft = 2.0; }
     let a = Math.atan2(gy - e.y, gx - e.x);
-    if (Math.hypot(gx - e.x, gy - e.y) > 90 && !hasLineOfSight(e.x, e.y, gx, gy)) { let nx = navNext(e._f, e.x, e.y); if (nx) a = Math.atan2(nx.y - e.y, nx.x - e.x); }
+    if (Math.hypot(gx - e.x, gy - e.y) > 90 && (!hasLineOfSight(e.x, e.y, gx, gy)||!fieldWalkClear(e.x,e.y,gx,gy,e.radius))) { let nx = navNext(e._f, e.x, e.y,e.radius); if (nx) a = Math.atan2(nx.y - e.y, nx.x - e.x); }
     e.x += (Math.cos(a) * spd + (e.kbX || 0)) * dt; e.y += (Math.sin(a) * spd + (e.kbY || 0)) * dt;
     resolveCollision(e);
     return a;
@@ -308,7 +315,7 @@ function genQueenArena(cx, cy) {
     zombies.push(q);
     mission = { type: 'QUEEN', progress: 1, required: 3, complete: false };
     objState = 'QUEEN';
-    queueRadio('Bộ đàm: KIẾN CHÚA! Nó đang bay — đạn chỉ gây nửa sát thương. Chờ nó kiệt sức rồi dồn hoả lực!', null, 6);
+    queueRadio('Bộ đàm: Kiến Chúa bất tử khi bay! Bắn để phá giáp và ép nó đáp sớm. Khi giáp vỡ nó suy yếu; cất cánh sẽ hồi nửa giáp.', null, 7);
 }
 
 function genQueenTunnel() {
@@ -1133,7 +1140,7 @@ function updateQueen(z, target, dist, ang, dt) {
     // Bầy kiến tràn ra liên tục theo số người chơi
     caveRun.spawnT -= dt;
     if (caveRun.spawnT <= 0) {
-        caveRun.spawnT = ((z.qWave || 1) >= 2 ? 6.2 : 7.5) / (1 + extraP * 0.18);
+        caveRun.spawnT = ((z.qWave || 1) >= 2 ? 5.0 : 6.0) / (1 + extraP * 0.18);
         let a = Math.random() * Math.PI * 2, edge = { x: A.x + Math.cos(a) * (A.r - 70), y: A.y + Math.sin(a) * (A.r - 70), r: 20 };
         if (zombies.filter(e => e.type === ANT.SOLDIER).length < 4 + extraP) antSpawn(edge, ANT.SOLDIER, 1 + (extraP >= 2 ? 1 : 0));
         if (zombies.filter(e => e.type === ANT.EXPLODER).length < 3 + extraP) antSpawn(edge, ANT.EXPLODER, 1 + Math.floor(extraP / 2));

@@ -25,8 +25,9 @@ function drawModernPlayerPanel(p,x,y,w,h,T){
 }
 drawBossHud=function(b,y,bw){
     let pct=Math.max(0,Math.min(1,b.hp/Math.max(1,b.maxHp))),x=W/2-bw/2,now=performance.now()/1000;
-    let locked=b.hidden||b.invuln||(b.type===45&&typeof queenIsShielded==='function'&&queenIsShielded(b));
-    let state=locked?(b.type===45?'BẢO VỆ · PHÁ XÚC TU':'LỚP BẢO VỆ'):b.exhaust>0?'KIỆT SỨC ×2':b.downed||b.mineStun>0?'LỘ ĐIỂM YẾU':b.chargeStun>0||b.stunTimer>0?'CHOÁNG':b.phase2Done?'PHA CUỒNG NỘ':'';
+    let airQueen=b.type===45&&b.phase===1&&b.airborne;
+    let locked=airQueen||b.hidden||b.invuln||(b.type===45&&typeof queenIsShielded==='function'&&queenIsShielded(b));
+    let state=airQueen?'TRÊN KHÔNG · GIÁP '+Math.ceil((b.flightArmor||0)/Math.max(1,b.flightArmorMax||1)*100)+'% · BẮN ĐỂ KÉO XUỐNG':locked?(b.type===45?'BẢO VỆ · PHÁ XÚC TU':'LỚP BẢO VỆ'):b.flightWeak||b.exhaust>0?'SUY YẾU ×2':b.downed||b.mineStun>0?'LỘ ĐIỂM YẾU':b.chargeStun>0||b.stunTimer>0?'CHOÁNG':b.phase2Done?'PHA CUỒNG NỘ':'';
     ctx.save();artBox(x-10,y,bw+20,48,'rgba(29,29,29,.95)','#706f6d',7);
     ctx.font='600 11px Segoe UI, Arial';ctx.textBaseline='middle';ctx.textAlign='left';ctx.fillStyle='#a8a39b';ctx.fillText('BOSS / '+(BOSS_NAMES[b.type]||'DỊ THỂ'),x,y+13,bw*.68);
     ctx.textAlign='right';ctx.fillStyle='#ceccca';ctx.fillText(Math.ceil(pct*100)+'%',x+bw,y+13);
@@ -65,7 +66,7 @@ netApplySync=function(...args){let r=interfaceSync(...args);syncUpgradePresentat
 const interfaceSelectCard=selectCard;
 selectCard=function(pid,id,index,...rest){let r=interfaceSelectCard(pid,id,index,...rest),slot=upgDomSlot(pid),box=document.getElementById('p'+slot+'Cards');if(box?.querySelectorAll)for(let card of box.querySelectorAll('.upg-card'))card.setAttribute('aria-selected',String(card.id==='p'+slot+'Card'+index));return r;};
 const interfaceRoute=selectRoute;
-selectRoute=function(route){let r=interfaceRoute(route);for(let el of document.querySelectorAll('#routeList [onclick]'))el.setAttribute('aria-pressed',String((el.getAttribute('onclick')||'').includes("'"+route+"'")));return r;};
+selectRoute=function(route,...args){let r=interfaceRoute(route,...args);for(let el of document.querySelectorAll('#routeList [onclick]'))el.setAttribute('aria-pressed',String((el.getAttribute('onclick')||'').includes("'"+route+"'")));return r;};
 
 function initializePresentationUI(){
     if(typeof HTMLElement==='undefined')return;

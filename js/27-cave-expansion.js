@@ -25,7 +25,7 @@ function setupCaveFeatures(){
     }
 }
 const mineArena=genQueenArena;
-genQueenArena=function(x,y){mineArena(x,y);let q=zombies.find(z=>z.type===45);if(q){q.mineRework=true;q.airborne=false;q.qShield=false;q._hpPrev=q.hp;q.spCD=2;}queueRadio('Kiến Chúa đang ở trên đường ray! Dùng xe TNT lật ngửa nó. Khi dưới 45% máu, bật máy phát rồi bắn thạch nhũ để kéo nó xuống.',null,7);};
+genQueenArena=function(x,y){mineArena(x,y);let q=zombies.find(z=>z.type===45);if(q){q.mineRework=true;q.airborne=true;q.qShield=false;q._hpPrev=q.hp;q.spCD=2;queenFlightInit(q);}queueRadio('Bắn giáp khi nó bay, dồn sát thương lúc đáp! Dưới 45% máu: bật máy phát và dùng TNT/thạch nhũ kéo nó xuống.',null,7);};
 const mineFilter=antDamageFilter;
 antDamageFilter=function(z){if(!z.mineRework)return mineFilter(z);let prev=z._hpPrev??z.hp,delta=prev-z.hp;if(delta>0){let mult=z.mineStun>0?2:z.airborne?.5:1;if(mineSabotage.mineral)mult*=1.35;z.hp=prev-delta*mult;}z._hpPrev=z.hp;z._expHit=false;};
 const mineSpecial=updateSpecialZombie;
@@ -37,7 +37,7 @@ updateSpecialZombie=function(z,target,dist,ang,dt,speed){
     z.airborne=!!z.mineDark&&!worldFeatures.some(f=>f.kind==='generator'&&f.on);
     if(z.airborne){
         z.x+=Math.cos(ang+Math.PI/2)*70*dt;z.y+=Math.sin(ang+Math.PI/2)*70*dt;queenClamp(z);
-        if(z.spCD<=0){z.spCD=3;if(!mineSabotage.eggs)for(let i=0;i<2+bossTeamCount()&&zombies.length<100;i++)zombies.push(new Zombie(z.x+(Math.random()-.5)*100,z.y+80,40));}
+        if(z.spCD<=0){z.spCD=3;if(!mineSabotage.eggs)for(let i=0;i<3+bossTeamCount()&&zombies.length<100;i++)zombies.push(new Zombie(z.x+(Math.random()-.5)*100,z.y+80,40));}
     }else{
         z.x+=Math.cos(ang)*Math.min(160,speed)*dt;z.y+=Math.sin(ang)*Math.min(160,speed)*dt;queenClamp(z);
         if(z.spCD<=0){z.spCD=2.2;for(let i=0;i<3+bossTeamCount();i++)queenAcid(target.x+(Math.random()-.5)*350,target.y+(Math.random()-.5)*350,1,mineSabotage.gland?58:96);}

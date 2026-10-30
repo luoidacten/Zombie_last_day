@@ -9,6 +9,7 @@ const HUB = { x: 2000, y: 2000, r: 100, shop: { x: 1660, y: 1880 }, board: { x: 
 let hub = { armed: true, panel: null };
 
 function enterHub() {
+    resetFieldWorld();
     colonyArrive();   // người được giải cứu về căn cứ, thợ nộp vật liệu (18-colony.js) — trước khi dọn rescueNPCs
     for (let id of ['menu', 'routeShop', 'upgradeScreen', 'netWait']) document.getElementById(id).style.display = 'none';
     gameState = 'PLAYING'; initControls(); clearPcInputs();

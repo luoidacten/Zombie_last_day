@@ -100,6 +100,7 @@ function startBossIntro(z) {
 // ---------------------------------------------------------------------------
 function makeBossArena(z, cx, cy, R = 740, keep = false) {
     if (story.arena) return;
+    if(z?.type===37)R=Math.max(R,1350);
     if (cx === undefined) {
         let al = players.filter(p => !p.netLeft && !p.isDowned && !inTank(p));
         if (tank.active) al.push(tank);
@@ -110,8 +111,9 @@ function makeBossArena(z, cx, cy, R = 740, keep = false) {
     cx = Math.max(R + 170, Math.min(MAP_SIZE.w - R - 170, cx)); cy = Math.max(R + 170, Math.min(MAP_SIZE.h - R - 170, cy));
     const hits = (o) => { let nx = Math.max(o.x, Math.min(cx, o.x + o.w)), ny = Math.max(o.y, Math.min(cy, o.y + o.h)); return Math.hypot(nx - cx, ny - cy) < R + 172; };
     obstacles = obstacles.filter(o => o.keep || !hits(o));
-    for (let k = 0; k < 44; k++) {
-        let a = k / 44 * Math.PI * 2, bx = cx + Math.cos(a) * (R + 78) - 80, by = cy + Math.sin(a) * (R + 78) - 80;
+    let wallCount=Math.max(44,Math.ceil(Math.PI*2*(R+78)/125));
+    for (let k = 0; k < wallCount; k++) {
+        let a = k / wallCount * Math.PI * 2, bx = cx + Math.cos(a) * (R + 78) - 80, by = cy + Math.sin(a) * (R + 78) - 80;
         obstacles.push({ type: 'cave', arena: true, x: bx, y: by, w: 160, h: 160, poly: makePolyBox(bx, by, 160, 160, 26, 8) });
     }
     const pull = (e) => { if (!e.netLeft && Math.hypot(e.x - cx, e.y - cy) > R - 90) { let a = Math.random() * Math.PI * 2, r = 120 + Math.random() * 160; e.x = cx + Math.cos(a) * r; e.y = cy + Math.sin(a) * r; } };

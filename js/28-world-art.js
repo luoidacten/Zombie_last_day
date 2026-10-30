@@ -135,6 +135,10 @@ function drawWorldFeature(f,T){
     else{
         artShadow(0,0,53,29);
         switch(f.kind){
+            case 'brazier':{
+                ctx.fillStyle='rgba(196,142,75,.06)';ctx.beginPath();ctx.arc(0,0,240,0,Math.PI*2);ctx.fill();
+                artDisc(0,7,36,'#4c4d3e','#30382b');artBox(-21,-6,42,32,'#4f5646','#2a3528',3);for(let x=-17;x<21;x+=8)artLine([[x,-1],[x,22]],'#9e9c7d',2);
+                let time=artMotion(T);for(let k=0;k<3;k++){let h=24+Math.sin(time*7+k*2)*5;artPoly([[-14+k*8,7],[-12+k*7,-h],[8+k*4,7]],k?'#cbb17a':'#a66d42',null);}break;}
             case 'signal':
                 artBox(-42,-18,84,52,'#3b4e51');artBox(-35,-12,30,33,'#708177');artBox(4,-10,28,23,'#263b41');
                 for(let y=-80;y<20;y+=24){artLine([[-24,y+24],[24,y],[-24,y]],'#7b9090',3);}
@@ -194,7 +198,7 @@ function drawWorldFeature(f,T){
     let p=localPlayer(),near=p&&Math.hypot(p.x-f.x,p.y-f.y)<300;
     let labelY=f.building?-152:f.kind==='signal'?-140:f.kind==='shaft'?-87:-66;
     artPlate(FEATURE_LABELS[f.kind]||f.kind,0,labelY,f.on?'#adc5aa':'#d5d4b6');
-    if(near&&!f.on&&!FEATURE_DESTRUCTIBLE.has(f.kind)&&!f.anomaly){ctx.font='10px Arial';ctx.textAlign='center';ctx.fillStyle='#b5cbc9';ctx.fillText(f.kind==='switch'?'ĐỔI RAY [G]':'GIỮ VỊ TRÍ '+(f.kind==='signal'?5:3)+'s',0,f.building?145:55);}
+    if(near&&!f.on&&!FEATURE_DESTRUCTIBLE.has(f.kind)&&!f.anomaly){ctx.font='10px Arial';ctx.textAlign='center';ctx.fillStyle='#b5cbc9';ctx.fillText(f.kind==='brazier'?'SƯỞI ẤM · BÁN KÍNH 240':f.kind==='switch'?'ĐỔI RAY [G]':'GIỮ VỊ TRÍ '+(f.kind==='signal'?5:3)+'s',0,f.building?145:55);}
     if(f.progress>0)drawMiniBar(0,f.building?158:69,75,5,f.progress,f.kind==='signal'?5:3,'#93bcb0');
     if(damaged)drawMiniBar(0,49,64,4,Math.max(0,f.hp),f.maxHp,'#cba06b');
     ctx.restore();

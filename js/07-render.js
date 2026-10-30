@@ -212,6 +212,7 @@ function getObjectiveText() {
         case 'TOWERS': return [`THÁP TÍN HIỆU: ${towers.filter(t => t.active).length}/${towers.length}`, '#f1c40f'];
         case 'COLLECT': return [`THU THẬP: ${mission.progress}/${mission.required}`, '#00d2d3'];
         case 'KILL': return [`TIÊU DIỆT: ${mission.progress}/${mission.required}`, '#f1c40f'];
+        case 'SURVIVAL':return [`SINH TỒN: ${fmt(Math.max(0,mission.required-mission.progress))} · BẦY ĐÀN ĐANG TỚI`,'#e2b49a'];
         case 'BOSS': case 'POWER_BOSS': case 'CITY_BOSS': return ['HẠ GỤC BOSS!', '#ff9f43'];
         case 'DEFEND': return [`TỬ THỦ: ${fmt(fortressTimer)}`, '#f1c40f'];
         case 'HANGZ_ESCAPE': return [`HANG Z ${hangZRun.floor}/${hangZRun.total} - ${fmt(hangZRun.timer)}`, hangZRun.timer <= 30 ? '#ff4757' : '#ecf0f1'];
@@ -220,7 +221,7 @@ function getObjectiveText() {
         case 'POWER_KILL': return [`THANH LỌC: ${mission.progress}/${mission.required}`, '#00d2d3'];
         case 'RESCUE': return [`GIẢI CỨU: ${mission.progress}/${mission.required}`, '#2ecc71'];
         case 'ROOFTOP': return ['CHẠY LÊN SÂN THƯỢNG!', '#00d2d3'];
-        case 'WAITING': return [`TRỰC THĂNG ĐẾN SAU ${Math.ceil(evacTimer / heliWeatherMult())}s${heliWeatherMult() > 1 ? ` (thời tiết ${weatherTag().toLowerCase()}: nhanh x${heliWeatherMult()})` : ''}`, '#f1c40f'];
+        case 'WAITING': return [`TRỰC THĂNG ĐẾN SAU ${Math.ceil(evacTimer)}s${landingKnown()?' · ĐIỂM ĐÁP ĐÃ ĐÁNH DẤU':' · CHỜ XÁC ĐỊNH ĐIỂM ĐÁP'}`, '#f1c40f'];
         case 'EVAC': return ['LÊN TRỰC THĂNG!', '#2ecc71'];
     }
     return null;
@@ -826,6 +827,7 @@ function draw() {
     for (let gy = Math.max(0, Math.floor(y0 / 200) * 200); gy <= Math.min(MAP_SIZE.h, y1); gy += 200) { ctx.moveTo(Math.max(0, x0), gy); ctx.lineTo(Math.min(MAP_SIZE.w, x1), gy); }
     ctx.stroke();
     drawBiomeTerrain(x0,x1,y0,y1,T);
+    drawRiver(T,x0,x1,y0,y1);
     if (isRainyWeather() || caveSlippery()) drawPuddles(x0, x1, y0, y1, T); // hang tầng 1-2: nước rỉ từ trần đọng thành vũng
     ctx.fillStyle = 'rgba(0,0,0,0.16)';
     for (let d of GROUND_DOTS) { if (!vis(d.x, d.y, 5)) continue; ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 1.6, 0, Math.PI * 2); ctx.fill(); }
@@ -889,9 +891,9 @@ function draw() {
 
     for (let t of towers) {
         if (!vis(t.x, t.y, 220)) continue;
-        drawMissionTower(t,T);
+        if(fieldTowerKnown(t))drawMissionTower(t,T);
     }
-    if (evacZone) {
+    if (landingKnown()) {
         let ev = objState === 'EVAC', roof = objState === 'ROOFTOP';
         let col = ev ? '46, 204, 113' : (roof ? '0, 210, 211' : '241, 196, 15');
         let R = roof ? 180 : 200;
@@ -1002,7 +1004,7 @@ function draw() {
             let radius = h.radius || 110;
             if (!vis(h.x, h.y, radius)) continue;
             let warn = h.type === 'electric' || h.type === 'strike' || h.type === 'emp' || h.type === 'magnet';
-            let col = h.friendly ? (h.type === 'electric' ? '72, 219, 251' : '241, 196, 15') : (warn ? '0, 210, 211' : '231, 76, 60');
+            let col = h.type === 'snowwarn' ? '166, 211, 218' : h.friendly ? (h.type === 'electric' ? '72, 219, 251' : '241, 196, 15') : (warn ? '0, 210, 211' : '231, 76, 60');
             ctx.beginPath(); ctx.arc(h.x, h.y, radius, 0, Math.PI * 2);
             ctx.fillStyle = `rgba(${col}, ${h.friendly ? 0.08 : 0.12})`; ctx.fill();
             ctx.strokeStyle = `rgba(${col}, 0.45)`; ctx.lineWidth = 2; ctx.stroke();
@@ -1011,7 +1013,7 @@ function draw() {
                 if (h.t0 === undefined) h.t0 = Math.max(h.timer, 0.01);
                 let pct = Math.max(0, Math.min(1, h.timer / h.t0));
                 ctx.beginPath(); ctx.arc(h.x, h.y, radius * pct, 0, Math.PI * 2);
-                ctx.strokeStyle = h.friendly ? '#f1c40f' : (warn ? '#00d2d3' : '#ff4757'); ctx.lineWidth = 3; ctx.stroke();
+                ctx.strokeStyle = h.type === 'snowwarn' ? '#c9e2e4' : h.friendly ? '#f1c40f' : (warn ? '#00d2d3' : '#ff4757'); ctx.lineWidth = 3; ctx.stroke();
                 ctx.beginPath(); ctx.arc(h.x, h.y, radius * (1 - pct), 0, Math.PI * 2);
                 ctx.fillStyle = `rgba(${col}, ${0.10 + 0.14 * (1 - pct)})`; ctx.fill();
             }
@@ -1186,7 +1188,10 @@ function draw() {
         if (!vis(a.x, a.y, 30)) continue;
         drawShadow(a.x, a.y, 6);
         if (a.type === 'net') { ctx.fillStyle = '#8e44ad'; ctx.fillRect(a.x - 8, a.y - 8, 16, 16); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(a.x - 8, a.y - 8, 16, 16); }
-        else {
+        else if (a.type === 'ice') {
+            ctx.save();ctx.translate(a.x,a.y);ctx.rotate(Math.atan2(a.vy,a.vx));
+            artPoly([[12,0],[-5,-6],[-10,0],[-5,6]],'#bcd9dc','#6f9ea5',2);ctx.restore();
+        } else {
             let ecol = a.type === 'acid' ? '#2ecc71' : (a.type === 'electric' ? '#00d2d3' : (a.type === 'rocket' ? '#ff9f43' : (a.type === 'rock' ? '#95a5a6' : '#ecf0f1')));
             ctx.strokeStyle = ecol; ctx.globalAlpha = 0.4; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x - a.vx * 0.045, a.y - a.vy * 0.045); ctx.stroke(); ctx.globalAlpha = 1;
             ctx.beginPath(); ctx.arc(a.x, a.y, a.type === 'acid' ? 6 : (a.type === 'shotgun' ? 4 : (a.type === 'electric' ? 6 : (a.type === 'rocket' ? 7 : (a.type === 'rock' ? 8 : 3)))), 0, Math.PI * 2); ctx.fillStyle = ecol; ctx.fill();
@@ -1289,6 +1294,7 @@ function draw() {
         }
         else drawArsenalVfx(v, T);
     }
+    drawFieldFog(x0,x1,y0,y1);
     ctx.restore();
 
     // ================== LỚP PHỦ MÀN HÌNH ==================
@@ -1395,13 +1401,13 @@ function draw() {
         }
     }
 
-    if (objState === 'TOWERS') { for (let t of towers) { if (!t.active) drawPointer(t.x, t.y, '#f1c40f'); } }
+    if (objState === 'TOWERS') { for (let t of towers) { if (!t.active&&fieldTowerKnown(t)) drawPointer(t.x, t.y, '#f1c40f'); } }
     else if (objState === 'COLLECT' || objState === 'POWER_LOCKS') { for (let item of missionItems) { if (!item.taken) drawPointer(item.x, item.y, '#00d2d3'); } }
     else if (objState === 'BOSS') { let boss = zombies.find(z => z.type === 30); if (boss) drawPointer(boss.x, boss.y, '#ff9f43'); }
     else if (objState === 'POWER_BOSS') { let boss = zombies.find(z => z.type === 31); if (boss) drawPointer(boss.x, boss.y, '#00d2d3'); }
     else if (objState === 'CITY_BOSS') { let boss = zombies.find(z => z.type === 32); if (boss) drawPointer(boss.x, boss.y, '#ff4757'); }
     else if (objState === 'ROOFTOP' && evacZone) { drawPointer(evacZone.x, evacZone.y, '#00d2d3'); }
-    else if ((objState === 'WAITING' || objState === 'EVAC') && evacZone) { drawPointer(evacZone.x, evacZone.y, objState === 'WAITING' ? '#f1c40f' : '#3498db'); }
+    else if ((objState === 'WAITING' || objState === 'EVAC') && landingKnown()) { drawPointer(evacZone.x, evacZone.y, objState === 'WAITING' ? '#f1c40f' : '#3498db'); }
     else if (isCaveMap()) cavePointers(drawPointer);
     else if (objState === 'POWER_CHARGE') {
         for (let item of missionItems) if (!item.taken) drawPointer(item.x, item.y, '#f1c40f');
@@ -1423,6 +1429,7 @@ function draw() {
     }
 
     drawHud(T);
+    drawSnowHud();
     drawControlsLayer();
 }
 // Phím ảo (cảm ứng)
@@ -1560,17 +1567,18 @@ function drawMinimap(S) {
     let dark = currentMapType === 7 || currentMapType === 9 || currentMapType === 10 || currentMapType === 11 || currentMapType === 14 || currentWeather === 11;
     ctx.fillStyle = 'rgba(8,12,18,0.62)'; ctx.fillRect(mx, my, S, S);
     ctx.strokeStyle = 'rgba(148,163,184,0.3)'; ctx.lineWidth = 1; ctx.strokeRect(mx + 0.5, my + 0.5, S, S);
+    if(fieldActive()){ctx.fillStyle='#41533f55';for(let key of fieldWorld.seen){let [x,y]=key.split(',').map(Number);ctx.fillRect(mx+x*1000*sc,my+y*1000*sc,1000*sc,1000*sc);}}
     const dot = (x, y, r, c) => { ctx.fillStyle = c; ctx.fillRect(mx + x * sc - r, my + y * sc - r, r * 2, r * 2); };
     if (!dark) { let n = 0; for (let z of zombies) { if (z.hidden) continue; if (isBossType(z.type)) continue; dot(z.x, z.y, 1, 'rgba(231,76,60,0.75)'); if (++n > 160) break; } }
     for (let z of zombies) if (isBossType(z.type)) dot(z.x, z.y, 3, '#ff9f43');
-    for (let t of towers) dot(t.x, t.y, 2.5, t.active ? '#2ecc71' : '#f1c40f');
+    for (let t of towers) if(fieldTowerKnown(t))dot(t.x, t.y, 2.5, t.active ? '#2ecc71' : '#f1c40f');
     for (let it of missionItems) if (!it.taken) dot(it.x, it.y, 1.5, it.kind === 'battery' ? '#f1c40f' : '#00d2d3');
     for (let n of rescueNPCs) if (n.hp > 0) dot(n.x, n.y, 2, n.rescued ? '#2ecc71' : '#f8c291');
     for (let op of outposts) if (!op.dead) dot(op.x + op.w / 2, op.y + op.h / 2, 3, '#c0392b');
     if (hangZRun.stairs && isCaveMap()) dot(hangZRun.stairs.x, hangZRun.stairs.y, 3, '#ecf0f1');
     if (isCaveMap()) for (let cp of caveProps) if (cp.kind === 'nest' || cp.kind === 'core' || (cp.kind === 'c4' && cp.state < 2)) dot(cp.x, cp.y, 2.5, cp.kind === 'c4' ? '#f1c40f' : '#e67e22');
     for (let sp of story.props) if (!sp.on && sp.kind !== 'traindoor') dot(sp.x, sp.y, sp.kind === 'wreck' ? 1.8 : 2.5, sp.kind === 'wreck' ? '#bdc3c7' : sp.kind === 'station' ? '#f9ca24' : (sp.kind === 'print' ? '#74b9ff' : '#48dbfb'));
-    if (evacZone) { ctx.strokeStyle = objState === 'EVAC' ? '#2ecc71' : '#f1c40f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(mx + evacZone.x * sc, my + evacZone.y * sc, 5, 0, Math.PI * 2); ctx.stroke(); }
+    if (landingKnown()) { ctx.strokeStyle = objState === 'EVAC' ? '#2ecc71' : '#f1c40f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(mx + evacZone.x * sc, my + evacZone.y * sc, 5, 0, Math.PI * 2); ctx.stroke(); }
     if (hasTeamPerk('p_tinHieu')) for (let d of drops) if (d.type === 'SUPERBOX') dot(d.x, d.y, 2, '#f39c12');
     players.forEach((p, i) => {
         if (p.netLeft) return;

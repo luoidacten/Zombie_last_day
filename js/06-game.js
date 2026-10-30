@@ -109,6 +109,7 @@ function startLevel() {
     gameState = 'PLAYING'; initControls();
     saveCheckpoint();      // tự lưu ở đầu mỗi map (trước khi map mới tiêu thụ lựa chọn tuyến đường)
     storyLevelReset();
+    resetFieldWorld();
     document.getElementById('upgradeScreen').style.display = 'none';
     zombies = []; bullets = []; enemyBullets = []; slashes = []; thrownItems = []; drops = []; particles = []; vfxList = []; airdropMarkers = []; fireZones = [];
     decals = []; ashZones = []; rescueNPCs = [];
@@ -241,6 +242,7 @@ function gameLoop(time) {
     if (objState === 'HUB') { updateHub(dt); return; }   // Khu Sống Sót: không quái, không đói
     dt *= bossTimeScale(dt);        // chậm hình khi hạ boss (17-bosses.js)
     survivalTime += dt; score += dt * 10;
+    updateFieldWorld(dt);
 
     let activeP = activePlayers();
     let allDead = activeP.length > 0 && activeP.every(p => p.isDowned);
@@ -307,7 +309,7 @@ function gameLoop(time) {
         }
     }
 
-    else if (objState === 'COLLECT' || objState === 'KILL' || objState === 'BOSS' || objState === 'POWER_LOCKS' || objState === 'POWER_KILL' || objState === 'POWER_BOSS' || objState === 'CITY_BOSS' || objState === 'HANGZ_ESCAPE' || objState === 'POWER_CHARGE' || objState === 'RESCUE') {
+    else if (objState === 'SURVIVAL' || objState === 'COLLECT' || objState === 'KILL' || objState === 'BOSS' || objState === 'POWER_LOCKS' || objState === 'POWER_KILL' || objState === 'POWER_BOSS' || objState === 'CITY_BOSS' || objState === 'HANGZ_ESCAPE' || objState === 'POWER_CHARGE' || objState === 'RESCUE') {
         updateMission(dt); // (RESCUE trước đây bị thiếu trong danh sách -> nhiệm vụ Giải Cứu không bao giờ hoàn thành)
     }
 
@@ -375,7 +377,8 @@ function gameLoop(time) {
             completeMission();
         }
     } else if (objState === 'WAITING') {
-        evacTimer -= dt * heliWeatherMult();   // thời tiết xấu: trực thăng tới nhanh x1.5, khắc nghiệt x2
+        if(evacTimer<=15&&evacZone&&!evacZone.announced)announceLanding();
+        evacTimer -= dt;
 
         let isSupportHeli = hasTeamPerk('p_yemTro') ? 20.0 : 15.0; // Yểm trợ tới sớm 5s
         // Thêm heliTag >= 3 để gọi trực thăng yểm trợ
@@ -384,7 +387,7 @@ function gameLoop(time) {
         if (heliCondition) {
             heliSupport.active = true; heliSupport.fireTimer -= dt;
 
-            let hasFollow = isPermaHeli || droneTag >= 2 || activeP.some(p => p.perks.heliFollow);
+            let hasFollow = !landingKnown() || isPermaHeli || droneTag >= 2 || activeP.some(p => p.perks.heliFollow);
             if (hasFollow) {
                 let tc = teamCenter();
                 heliSupport.x += (tc.x - heliSupport.x) * dt * 1.5;
@@ -414,6 +417,7 @@ function gameLoop(time) {
 
         if (evacTimer <= 0) {
             objState = 'EVAC';
+            if(mission.type==='RESCUE')rescueMission.heliArrived=true;
             Sound.play('heli_arrive');
             createParticles(evacZone.x, evacZone.y, '#3498db', 100, 500);
             addScreenShake(20);
@@ -553,6 +557,7 @@ function gameLoop(time) {
         if (zombies.length > 240 || story.noSpawn) zCount = 0;
         zCount = Math.ceil(zCount * diff().spawn);   // độ khó
         if (isCaveMap()) zCount = caveSpawnCount(zCount);
+        ({count:zCount,rate:spawnRate}=fieldSpawnPlan(zCount,spawnRate));
         for (let i = 0; i < zCount; i++) {
             // Sinh quanh MỘT người chơi còn sống bất kỳ (không chỉ người chơi 1), ngoài tầm an toàn
             let anchorP = pickAlivePlayer();
@@ -563,6 +568,7 @@ function gameLoop(time) {
             let spawnY = Math.max(20, Math.min(MAP_SIZE.h - 20, anchor.y + Math.sin(angle) * distance));
             if (isCaveMap()) { let cp = caveSpawnPoint(); if (!cp) continue; spawnX = cp.x; spawnY = cp.y; } // trong hang: sinh ở ngách khuất, đi được tới người chơi
             else { let ni = navOpenIdx(spawnX, spawnY); if (ni < 0 || NAV.field[ni] < 0) continue; } // không sinh quái trong ô bị bịt kín / trong nhà
+            if (fieldTerrainBlocked(spawnX, spawnY, 20) || (fieldActive() && !fieldWorld.loaded.includes(Math.floor(spawnX/1000)+','+Math.floor(spawnY/1000)))) continue;
             // Không sinh sát mặt bất kỳ người chơi nào còn sống
             if (activeP.some(p => { let px = inTank(p) ? tank.x : p.x, py = inTank(p) ? tank.y : p.y; return !p.isDowned && Math.hypot(px - spawnX, py - spawnY) < 380; })) continue;
             zombies.push(new Zombie(spawnX, spawnY));
@@ -598,6 +604,7 @@ function gameLoop(time) {
         for (let z of zombies) {
             if (z.hp <= 0 || !fz.source) continue; // vũng của quái không làm hại chính bầy quái
             if (Math.hypot(z.x - fz.x, z.y - fz.y) < fz.radius + z.radius) {
+                if (fz.kind !== 'arrow') z.noReanimate = true;
                 if (fz.kind === 'acid') {
                     applyStatus(z, STATUS.CORROSION, { duration: 2.2, stacks: 1, dpsPercent: 0.0035, maxStacks: 8, source: fz.source });
                     z.hp -= (fz.dmg || 0) * dt * srcMult;
@@ -896,6 +903,7 @@ function gameLoop(time) {
 
     for (let i = zombies.length - 1; i >= 0; i--) {
         let z = zombies[i];
+        if (z.type === 45 && z.phase === 1) antDamageFilter(z);
         if (z.hp > 0) {
             z.update(dt);
             // Va chạm đạn kiểu "quét" theo đoạn đường đạn vừa bay -> đạn nhanh (cung, sniper) không còn xuyên qua quái
@@ -1080,7 +1088,7 @@ const SHOP_COSTS = { heal: 18, ammo: 14, box: 24, factoryMap: 500, flare: 20, mi
 const ROUTE_DEFS = {
     balanced: { el: 'routeBalanced', min: 1 }, hunt: { el: 'routeHunt', min: 1 }, rescue: { el: 'routeRescue', min: 1 },
     power: { el: 'routePower', min: 1 }, hangz: { el: 'routeHangz', min: 3 }, mine: { el: 'routeMine', min: 3 }, botanical: { el: 'routeBotanical', min: 4 }, cityn: { el: 'routeCityn', min: 4 },
-    labz: { el: 'routeLabz', min: 5 }, bandit: { el: 'routeBandit', min: 4 }
+    labz: { el: 'routeLabz', min: 5 }, bandit: { el: 'routeBandit', min: 4 },snow:{el:'routeSnow',min:3},survival:{el:'routeSurvival',min:1}
 };
 function routeLocked(route) {
     let def = ROUTE_DEFS[route];
@@ -1179,8 +1187,9 @@ function selectRoute(route, confirmed = false) {
     if (route === 'power') nextMapPreference = 6;
     else if (route === 'botanical') nextMapPreference = 12;
     else if (route === 'cityn') nextMapPreference = 13;
+    else if (route === 'snow') nextMapPreference = 17;
     else nextMapPreference = null; // (Hang Z được thiết lập khi bấm TIẾP TỤC)
-    nextMissionPreference = route === 'hunt' ? 'KILL' : (route === 'rescue' ? 'RESCUE' : null);
+    nextMissionPreference = route === 'hunt' ? 'KILL' : (route === 'rescue' ? 'RESCUE' : route==='survival'?'SURVIVAL':null);
 
     Sound.play('select');
     updateRouteShopUI();

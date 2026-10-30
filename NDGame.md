@@ -98,7 +98,7 @@ Thẻ có ID, tên, mô tả, loại và danh sách tag. Chọn thẻ vừa cấ
 
 ## 6. Bản đồ, nhiệm vụ và cốt truyện
 
-Game có **16 mã loại bản đồ**, không phải chỉ có 16 màn chơi. `currentLevel` là số màn trong lượt chơi; `currentMapType` là loại bản đồ. Riêng loại 16 dùng cho cả trại nghỉ và trận phòng thủ, phân biệt bằng `objState`.
+Game có **17 mã loại bản đồ**, không phải chỉ có 17 màn chơi. `currentLevel` là số màn trong lượt chơi; `currentMapType` là loại bản đồ. Riêng loại 16 dùng cho cả trại nghỉ và trận phòng thủ, phân biệt bằng `objState`.
 
 | Loại bản đồ | Nội dung |
 | --- | --- |
@@ -107,8 +107,15 @@ Game có **16 mã loại bản đồ**, không phải chỉ có 16 màn chơi. `
 | 10–14 | Hang Z, Rừng Cây Cao, Vườn Thực Vật, Thành Phố N, Hầm Mỏ |
 | 15 | Phòng Thí Nghiệm Z & Nhà Ga X |
 | 16 | Khu Sống Sót / Phòng thủ Nhà Chính |
+| 17 | Rừng Tuyết: lạnh tích lũy, lửa sưởi và ba biến thể zombie băng |
 
 Nhiệm vụ gồm chiếm tháp tín hiệu, thu thập, diệt mục tiêu, đánh boss, giải cứu, hộ tống, nạp điện/phá khóa điện, tử thủ, thiêu thực vật đột biến, đột kích sào huyệt cướp và bảo vệ căn cứ. Tuyến đi được chọn ở Bàn Chiến Dịch; nhiều tuyến đặc biệt cần bản đồ hoặc điều kiện mở khóa.
+
+**Map thám hiểm thường:** loại 1/2/3/7/8/9/11/12/13/17 với nhiệm vụ TOWERS/COLLECT/KILL/RESCUE/BURN_PLANTS/SURVIVAL dùng vùng chơi 8.000 × 8.000 (gấp đôi mỗi chiều trước đây), viền tự nhiên và các chunk 1.000. Chỉ dựng địa hình quanh đội khi khám phá; các điểm nhiệm vụ được đặt trước để giữ đủ mục tiêu. Vách núi, cụm rừng lớn và sông chặn di chuyển; luôn chừa lối đến mục tiêu và điểm rút lui. Sông thám hiểm có 4 cầu, sông trong map kịch bản có 3 cầu; không thể bước/lướt từ cầu xuống nước. Các màn hang, phòng thủ, nhà ga, boss và sự kiện vẫn dùng bố cục riêng.
+
+Tháp tín hiệu ngẫu nhiên và cách nhau ít nhất 1.450 đơn vị trong map thám hiểm. Dễ cần 1–2 tháp, Thường 2–4, Khó 3–5, Địa Ngục 4–6. Tháp chỉ hiện khi đội đến gần 650 đơn vị; sau 90 giây không tiến triển, bộ đàm chỉ một tháp chưa tìm thấy và tăng áp lực zombie. Map thường giảm mật độ zombie; nhiệm vụ mới **SURVIVAL / Sinh Tồn Bầy Đàn** có mật độ cao nhất trong các map thường, cầm cự 30/60/90/120 giây theo độ khó rồi gọi trực thăng. Điểm đáp chọn ngẫu nhiên ở vùng đi được; có cảnh báo và dấu chỉ dẫn trước khi đáp tối thiểu 15 giây.
+
+**Rừng Tuyết** vào vòng bản đồ từ màn 3, cũng chọn được tại Bàn Chiến Dịch. Lạnh tăng khi ở ngoài trời, giảm khi gần lửa sưởi; đầy lạnh gây đóng băng ngắn. Xác Băng (55) đánh cận chiến, Phun Băng (56) bắn mảnh băng, Khổng Lồ Băng (57) có đòn vùng báo trước. Rét cộng dồn làm chậm, đủ 5 tầng đóng băng 1,1 giây rồi có khoảng chống đóng băng liên tiếp. Lửa sưởi trong vùng 240 đơn vị giảm lạnh và xóa trạng thái băng.
 
 Các chuỗi nội dung lớn:
 
@@ -124,6 +131,10 @@ Các chuỗi nội dung lớn:
 Địch không chỉ là zombie thường: có quái chạy nhanh, giáp sắt, phun độc, triệu hồi, tự nổ, hồi sinh, lẩn trốn, điện, Witch, cướp dùng súng, cận vệ và hệ sinh thái kiến. Có quái biến dị và mức tăng sức mạnh theo tiến độ.
 
 Boss tiêu biểu: **Khổng Lồ, Lõi Quá Tải, The Leader, Tàn Vết Chớp, ZAP-1624, The Hucker, Kiến Chúa, The Dead**. Boss có các pha/kỹ năng riêng, cảnh giới thiệu, thanh máu và hiệu ứng chiến thắng. Một số chiêu boss còn gây hại cho zombie.
+
+Kiến Chúa pha 1 bất tử khi bay: đòn trúng làm mất giáp bay và rút ngắn thời gian trên không. Tự đáp sau tối đa 14 giây, mở cửa sổ tấn công 4 giây; phá hết giáp buộc đáp và suy yếu 7 giây, nhận sát thương ×2. Cất cánh hồi nửa giáp. Hầm mỏ chuyển pha ở 45% máu; bản Kiến Chúa cũ ở 68%; các pha tiếp theo giữ luật riêng. Tăng nhẹ số kiến hỗ trợ. Sân The Hucker có bán kính tối thiểu 1.350 thay vì khoảng 640.
+
+Zombie/cướp đã dính lửa hoặc axit mang dấu chặn hồi sinh suốt đời thực thể: zombie hồi sinh chết hẳn, cướp không được quân y dựng dậy khi đã gục và không hóa zombie. Dấu vẫn còn sau khi trạng thái cháy/ăn mòn hết.
 
 Boss thường đến hạn ở map **8, 16, 24…**. Nếu đang ở map đặc biệt/nhiệm vụ cốt truyện, lượt boss được hoãn đến map thường tiếp theo: ví dụ map 8–9 đặc biệt, map 10 thường sẽ gặp boss. Thành phố tàn phá dùng The Leader; các map thường khác dùng Khổng Lồ. Hạ boss nhiệm vụ đặc biệt không tiêu thụ lượt boss thường. Nếu ở chuỗi đặc biệt qua nhiều mốc, một trận boss thường xử lý các mốc đang chờ, không dồn nhiều boss liên tiếp.
 
@@ -170,7 +181,7 @@ Môi trường có chướng ngại và tìm đường, vùng độc/cháy/đi�
 
 ## 11. Kiến trúc và bản đồ mã nguồn
 
-Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `package.json` hoặc bước build ứng dụng trong thư mục hiện tại. `index.html` tải 32 file JavaScript theo thứ tự; chúng dùng chung phạm vi toàn cục, không phải ES modules.
+Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `package.json` hoặc bước build ứng dụng trong thư mục hiện tại. `index.html` tải 34 file JavaScript theo thứ tự; chúng dùng chung phạm vi toàn cục, không phải ES modules.
 
 | File / thư mục | Trách nhiệm chính |
 | --- | --- |
@@ -210,6 +221,8 @@ Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `packag
 | `js/30-environment-art.js` | Nền biome, kiến trúc/vật cản, căn cứ/cửa chắn, NPC/cư dân, xe tăng, Lab và xe goòng |
 | `js/31-interface.js` | HUD, chất lượng chi tiết, tương tác bàn phím/ARIA, focus hộp thoại và bố cục nâng cấp |
 | `js/32-resilience.js` | Sáu perk Máu Ảo/giảm sát thương, cooldown và nâng sức chứa súng từ bản lưu cũ |
+| `js/33-expeditions.js` | Map thường lớn, chunk, sông/cầu, rừng/vách chặn, tháp ẩn, đường đến mục tiêu, điểm đáp và đồng bộ địa hình |
+| `js/34-snow-bosses.js` | Rừng Tuyết, lạnh/rét/đóng băng, quái băng, giáp bay Kiến Chúa, HUD và dữ liệu online |
 | `docs/update-implementation.md` | Hành vi thực tế, thông số và giới hạn đợt cập nhật 30/10/2026 |
 | `Audio-SoundEffect/` | Nhạc và hiệu ứng âm thanh chia theo nhóm |
 | `tests/defense-lifesteal.test.cjs` | Kiểm thử hồi quy cơ chế phòng thủ và hút máu |

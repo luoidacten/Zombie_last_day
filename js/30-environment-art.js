@@ -4,7 +4,7 @@ function drawBiomeTerrain(x0,x1,y0,y1,T){
     const urban=[1,8,13].includes(currentMapType),forest=[2,3,7,9,11,12].includes(currentMapType),cave=isCaveMap();
     ctx.save();ctx.lineWidth=1;
     let spacing=typeof presentationLow==='function'&&presentationLow()?260:180;
-    for(let x=Math.max(0,Math.floor(x0/spacing)*spacing);x<x1&&x<4000;x+=spacing)for(let y=Math.max(0,Math.floor(y0/spacing)*spacing);y<y1&&y<4000;y+=spacing){
+    for(let x=Math.max(0,Math.floor(x0/spacing)*spacing);x<x1&&x<MAP_SIZE.w;x+=spacing)for(let y=Math.max(0,Math.floor(y0/spacing)*spacing);y<y1&&y<MAP_SIZE.h;y+=spacing){
         let h=terrainHash(x,y),px=x+23+h*124,py=y+terrainHash(y,x)*160;
         if(forest){ctx.fillStyle=currentMapType===9?'rgba(92,98,80,.13)':'rgba(96,125,78,.12)';ctx.beginPath();ctx.ellipse(px,py,54+h*60,24+h*20,h*3,0,Math.PI*2);ctx.fill();
             for(let k=0;k<4;k++)artLine([[px+k*9,py+6],[px+k*9+3,py-2-k%3*4]],'#42594c',1.3);
@@ -14,7 +14,7 @@ function drawBiomeTerrain(x0,x1,y0,y1,T){
         for(let k=0;k<3;k++){let q=terrainHash(x+k*21,y+k*67);ctx.fillStyle=cave?'#4d5047':forest?'#627453':'#5b6d6b';ctx.globalAlpha=.22;ctx.fillRect(px+k*12,py+k*7,2+q*3,2);}
         ctx.globalAlpha=1;
     }
-    if(urban){
+    if(urban&&!fieldActive()){
         for(let vertical of [true,false]){
             let rx=vertical?1880:Math.max(0,x0),ry=vertical?Math.max(0,y0):1880,rw=vertical?240:Math.min(4000,x1)-rx,rh=vertical?Math.min(4000,y1)-ry:240;
             ctx.fillStyle='rgba(17,30,38,.17)';ctx.fillRect(rx,ry,rw,rh);
@@ -29,15 +29,29 @@ function drawWorldObstacle(o,T){
     if(o.type==='rubble')return false;
     const x=o.x,y=o.y,w=o.w,h=o.h;
     ctx.save();
+    if(o.type==='forestwall'){
+        let snow=currentMapType===17;ctx.fillStyle=snow?'#657e76':'#263f2e';ctx.fillRect(x,y,w,h);
+        for(let px=x+27;px<x+w;px+=46)for(let py=y+25;py<y+h;py+=45){let n=terrainHash(px,py);artDisc(px+Math.sin(T*.6+n*7),py,29,snow?['#93b1a5','#b2c9bd','#7a9a8e'][Math.floor(n*3)]:['#3b5c3d','#4e6b44','#334f36'][Math.floor(n*3)],snow?'#658477':'#233e2a');}
+        ctx.restore();return true;
+    }
     if(o.type==='tree'){
         let cx=x+w/2,cy=y+h/2,r=w/2,n=terrainHash(x,y),night=[7,9].includes(currentMapType);
         artShadow(cx,cy,r*1.15,r*.83);artBox(cx-7,cy-5,14,r+12,'#6b6246','#344c3e',3);
         let sway=Math.sin(T*1.3+n*6)*1.8;
-        for(let k=0;k<(presentationLow()?4:7);k++){let a=k*.9+n*6,rr=r*(.2+.25*(k%2));artDisc(cx+Math.cos(a)*rr+sway,cy+Math.sin(a)*rr,r*(.48+.07*(k%3)),night?['#365a53','#42685b','#527967'][k%3]:['#466b50','#577b56','#6a8d60'][k%3],'#2f5147');}
+        for(let k=0;k<(presentationLow()?4:7);k++){let a=k*.9+n*6,rr=r*(.2+.25*(k%2));artDisc(cx+Math.cos(a)*rr+sway,cy+Math.sin(a)*rr,r*(.48+.07*(k%3)),currentMapType===17?['#91ada2','#a7c2b5','#c4d6c6'][k%3]:night?['#365a53','#42685b','#527967'][k%3]:['#466b50','#577b56','#6a8d60'][k%3],'#2f5147');}
         artLine([[cx-r*.4,cy-r*.2],[cx,cy-r*.45],[cx+r*.28,cy-r*.25]],'rgba(182,190,139,.28)',2);ctx.restore();return true;
     }
     if(o.poly){
         let p=o.poly;if(!p.length){ctx.restore();return false;}
+        if(fieldActive()&&o.type==='cave'&&w>=230){
+            let snow=currentMapType===17;
+            ctx.beginPath();p.forEach((v,i)=>i?ctx.lineTo(v.x+14,v.y+23):ctx.moveTo(v.x+14,v.y+23));ctx.closePath();ctx.fillStyle='#101b18aa';ctx.fill();
+            ctx.beginPath();p.forEach((v,i)=>i?ctx.lineTo(v.x,v.y):ctx.moveTo(v.x,v.y));ctx.closePath();ctx.fillStyle='#303d37';ctx.fill();
+            ctx.beginPath();p.forEach((v,i)=>i?ctx.lineTo(v.x,v.y-28):ctx.moveTo(v.x,v.y-28));ctx.closePath();ctx.fillStyle=snow?'#a8b9b0':'#6c7563';ctx.fill();ctx.strokeStyle=snow?'#d2ded1':'#95947b';ctx.lineWidth=3;ctx.stroke();
+            for(let i=2;i<p.length-1;i++)artLine([[p[i].x,p[i].y-24],[p[i].x-4,p[i].y+1]],'#202f2a',3);
+            artLine([[x+w*.2,y+h*.3-28],[x+w*.48,y+h*.2-28],[x+w*.7,y+h*.42-28]],snow?'#7c958c':'#454e40',3);
+            ctx.restore();return true;
+        }
         ctx.beginPath();p.forEach((v,i)=>i?ctx.lineTo(v.x+7,v.y+10):ctx.moveTo(v.x+7,v.y+10));ctx.closePath();ctx.fillStyle='rgba(7,19,25,.4)';ctx.fill();
         ctx.beginPath();p.forEach((v,i)=>i?ctx.lineTo(v.x,v.y):ctx.moveTo(v.x,v.y));ctx.closePath();ctx.fillStyle=o.type==='cave'?'#4c5a59':'#7c8982';ctx.fill();ctx.strokeStyle='#293e43';ctx.lineWidth=2;ctx.stroke();
         if(w<350&&h<350){artLine([[x+w*.17,y+h*.3],[x+w*.42,y+h*.12],[x+w*.69,y+h*.33]],'#7d8a7b',2);artLine([[x+w*.45,y+h*.15],[x+w*.51,y+h*.6],[x+w*.76,y+h*.79]],'#354b4e',2);}

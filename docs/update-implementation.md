@@ -2,6 +2,19 @@
 
 Nguồn yêu cầu: tin nhắn người dùng, `Cập nhâtz.txt` và GDD hiện tại. Các phần dưới mô tả hành vi đã triển khai trong mã để người tiếp quản phân biệt với mức chi tiết mong muốn của đặc tả.
 
+## Thám hiểm, sông và Rừng Tuyết — module 33–34
+
+- Map thường với mục tiêu tháp/thu thập/diệt/giải cứu/thiêu cây/sinh tồn dùng 8.000 × 8.000, viền hữu cơ và chunk 1.000. Hang, boss, sự kiện, trại và phòng thủ giữ bố cục riêng. Seed được gửi cho khách; chỉ chủ phòng sinh vật phẩm/POI/địch. Khám phá của cả đội mở chung vùng và tháp.
+- Cụm rừng dày và vách núi lớn chặn người/AI. Trước khi dựng chunk, giữ hành lang rộng tới toàn bộ mục tiêu; điểm rút lui mới cũng được dọn đường. Lưới dẫn đường tự đổi 50 × 50 ↔ 100 × 100 khi qua map/trại.
+- Sông uốn cong có 4 cầu; sông trong map kịch bản có 3 cầu và được dọn vật cản trên mặt cầu. Nước chặn di chuyển, không phải vùng đi chậm. Rời mặt cầu theo chiều ngang bị chặn, kể cả khi lướt. Zombie và NPC đi qua cầu theo lưới; khi rẽ ở đầu cầu phải đi hết phần mặt cầu trước để tránh kẹt lan can. Tầm nhìn/bắn qua nước vẫn hoạt động.
+- Tháp cách nhau tối thiểu 1.450; dễ/thường/khó/địa ngục cần 1–2/2–4/3–5/4–6. Trong map thám hiểm chỉ hiện tháp khi đến gần 650, hoặc được gợi ý sau 90 giây không tiến triển. Chờ lâu tăng mật độ zombie; bình thường giảm địch và giới hạn 65 con sống, có gợi ý giới hạn 85, sinh tồn giới hạn 145.
+- SURVIVAL cầm cự 30/60/90/120 giây, có mật độ cao nhất của map thường; hết giờ chuyển gọi trực thăng. Điểm đáp ngẫu nhiên trong vùng có lối đi, có chỉ dẫn/cảnh báo ít nhất 15 giây trước khi đáp. Bảo lưu mìn đã mua và hiệu ứng đưa NPC gần hơn của pháo sáng cứu hộ.
+- Rừng Tuyết loại 17 xuất hiện từ màn 3 và có tuyến riêng. Lạnh tăng 2%/giây khi đứng, 1,1%/giây khi di chuyển; gần lửa giảm 22%/giây. Đủ 100% gây đóng băng 1,1 giây, đưa lạnh về 55%. Rét giảm 8% tốc độ mỗi tầng, tối đa 5 tầng; đủ tầng đóng băng, có miễn tái đóng băng 4 giây. Lửa xóa rét/băng trong vùng 240. Quái 55/56/57 lần lượt đánh gần, bắn mảnh băng, đập băng vùng có cảnh báo 0,85 giây. Lạnh, trạng thái, đạn băng và cảnh báo được đồng bộ.
+- Kiến Chúa pha 1 không mất máu trên không. Giáp bay bằng `max(300, 8% máu tối đa)`; đánh giáp làm giảm thời gian bay tối đa 14 giây. Đáp tự nhiên 4 giây; giáp vỡ đáp 7 giây và chịu ×2 sát thương. Cất cánh hồi 50% giáp. Chặn sát thương vượt ngưỡng pha 45% ở hầm mới / 68% ở bản cũ. Tăng nhẹ kiến hỗ trợ. Sân Hucker bán kính tối thiểu 1.350, tăng số đoạn vách để vòng vẫn khép kín.
+- Cháy/ăn mòn hoặc đòn lửa/axit gắn `noReanimate` vĩnh viễn cho thực thể: zombie loại 11 không sống lại; cướp gục không được quân y dựng dậy và không biến zombie. Áp dụng cả đòn trực tiếp, DOT, vũng cháy/axit và đạn axit giữa các phe.
+
+Kiểm tra logic: `node --test tests/field-expansion.test.cjs`. Kiểm tra Edge/Playwright: `node tests/field-browser.cjs`. Bao gồm 12 seed với đủ 6 tháp, tải mọi chunk và kiểm tra đường đến tất cả tháp/điểm đáp; NPC đi qua từng cầu; trạng thái băng, giáp boss và map header/snapshot chủ→khách. Kiểm tra trình duyệt chạy cả vòng sinh tồn→đón→lên trực thăng và HUD desktop/điện thoại ngang. Chưa kiểm tra WebRTC bằng nhiều máy thật.
+
 ## Khu tập luyện và thực phẩm
 
 - Mỗi cư dân đang ở căn cứ tạo 3 thực phẩm khi về từ một chiến dịch, một lần cho mỗi map. Không sản xuất bằng cách mở lại bảng.

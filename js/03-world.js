@@ -9,6 +9,7 @@ function getStatus(target, id) {
 
 function applyStatus(target, id, opts = {}) {
     if (!target || target.hp <= 0) return null;
+    if (typeof target.type==='number'&&(id===STATUS.BURN||id===STATUS.CORROSION))target.noReanimate=true;
     let bag = ensureStatusBag(target);
     let cur = bag[id];
     let dur = opts.duration || 1;
@@ -221,14 +222,14 @@ function getMapName(type = currentMapType) {
         1: 'Khu Phố Bỏ Hoang', 2: 'Rừng', 3: 'Sông Lớn', 4: 'Thành Trì',
         5: 'Thị Trấn Cướp', 6: 'Nhà Máy Điện', 7: 'Rừng Đêm', 8: 'Thành Phố Tàn Phá',
         9: story.bolt === 2 ? 'Rừng Sét' : 'Rừng Mưa', 10: 'Hang Z', 11: 'Rừng Cây Cao', 12: 'Vườn Thực Vật', 13: 'Thành Phố N', 14: 'Hầm Mỏ',
-        15: 'Phòng Thí Nghiệm Z & Nhà Ga X', 16: 'Khu Sống Sót'
+        15: 'Phòng Thí Nghiệm Z & Nhà Ga X', 16: 'Khu Sống Sót', 17: 'Rừng Tuyết'
     };
     return names[type] || ('Map ' + type);
 }
 
 function getMissionName(type = objState) {
     const names = {
-        TOWERS: 'Chiếm tháp tín hiệu', COLLECT: 'Thu thập vật phẩm', KILL: 'Tiêu diệt mục tiêu',
+        TOWERS: 'Chiếm tháp tín hiệu', COLLECT: 'Thu thập vật phẩm', KILL: 'Tiêu diệt mục tiêu', SURVIVAL:'Sinh tồn giữa bầy đàn',
         BOSS: 'Hạ boss', DEFEND: 'Tử thủ', POWER_LOCKS: 'Phá khóa điện', POWER_KILL: 'Thanh lọc nhà máy',
         POWER_BOSS: 'Boss điện', CITY_BOSS: 'Thành phố nguy hiểm', HANGZ_ESCAPE: 'Trốn thoát Hang Z',
         POWER_CHARGE: 'Nạp điện', RESCUE: 'Giải cứu người sống sót',
@@ -369,7 +370,7 @@ function pickMissionType(level) {
     if (regularBossDue(level)) return currentMapType === 8 ? 'CITY_BOSS' : 'BOSS';
     if (nextMissionPreference) return nextMissionPreference;
     if (level === 1) return 'TOWERS';
-    const pool = level >= 2 ? ['TOWERS', 'COLLECT', 'KILL', 'LAST_STAND'] : ['TOWERS', 'COLLECT', 'KILL'];
+    const pool = level >= 2 ? ['TOWERS', 'COLLECT', 'KILL', 'LAST_STAND','SURVIVAL'] : ['TOWERS', 'COLLECT', 'KILL'];
     return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -378,7 +379,9 @@ function setupMission(type, level) {
     missionItems = [];
 
     if (type === 'TOWERS') {
-        mission.required = currentMapType === 5 ? 2 : 4;
+        mission.required = fieldTowerCount();
+    } else if(type==='SURVIVAL'){
+        mission.required = fieldDifficulty().survival;
     } else if (type === 'COLLECT') {
         mission.required = Math.min(12, 5 + Math.floor(level * 0.75));
     } else if (type === 'KILL') {
@@ -477,25 +480,23 @@ function beginEvacCountdown() {
     evacTimer = EVAC_SUPPORT_TIME * timeRed;
     if (hasTeamPerk('p_yemTro')) evacTimer -= 5;                                    // Yểm Trợ Hỏa Lực: trực thăng đến sớm 5s
     if (shopFlags.flare && mission.type === 'RESCUE') { evacTimer -= 8; shopFlags.flare = false; } // Pháo sáng cứu hộ
-    evacTimer = Math.max(4.0, evacTimer);
+    evacTimer = Math.max(15.0, evacTimer/heliWeatherMult());
     objState = 'WAITING';
-    if (mission.type === 'RESCUE') rescueMission.heliArrived = true;
+    if (mission.type === 'RESCUE') rescueMission.heliArrived = false;
 
-    // ĐÃ SỬA: Ép buộc Trực thăng cứu hộ hạ cánh chính xác tại giữa Map tâm bản đồ
-    evacZone = {
-        x: MAP_SIZE.w / 2,
-        y: MAP_SIZE.h / 2,
-        progress: 0
-    };
+    evacZone = {...pickLandingSite(),progress:0,announced:false};
+    if(evacTimer<=15)announceLanding();
 
     heliSupport.active = true;
-    heliSupport.x = evacZone.x;
-    heliSupport.y = evacZone.y;
+    let arrival = landingKnown() ? evacZone : teamCenter();
+    heliSupport.x = arrival.x;
+    heliSupport.y = arrival.y;
     heliSupport.fireTimer = 0;
 }
 
 function updateMission(dt) {
     if (mission.complete || isCaveMap()) return; // Hang Z / Hầm Mỏ do updateCaveWorld (09-cave.js) điều khiển
+    if(mission.type==='SURVIVAL'){mission.progress=Math.min(mission.required,mission.progress+dt);if(mission.progress>=mission.required)completeMission();return;}
     if (mission.type === 'COLLECT') {
         for (let item of missionItems) {
             if (item.taken) continue;
@@ -605,11 +606,12 @@ function updateMission(dt) {
 }
 
 function generateMap(level) {
+    resetFieldWorld();
     obstacles = []; drops = []; slowZones = []; towers = []; bushes = []; GROUND_DOTS.length = 0; fireZones = [];
     let margin = 500;
 
     // Logic chọn Map
-    let availableMaps = level >= 9 ? [1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 13] : (level >= 5 ? [1, 2, 3, 5, 7, 11, 12] : [1, 2, 3]);
+    let availableMaps = level >= 9 ? [1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 13,17] : (level >= 5 ? [1, 2, 3, 5, 7, 11, 12,17] : (level>=3?[1,2,3,17]:[1, 2, 3]));
     if (powerPlantRun.active) {
         currentMapType = 6;
     } else if (nextMapPreference) {
@@ -630,6 +632,7 @@ function generateMap(level) {
     if (!nextMissionPreference && ['TOWERS', 'COLLECT', 'KILL', 'LAST_STAND'].includes(missionType) &&
         ((currentMapType === 12 && Math.random() < 0.35) || (currentMapType === 13 && Math.random() < 0.3))) missionType = 'RESCUE';
     setupMission(missionType, level);
+    if(isFieldMission())return generateFieldMap(level);
     if (mission.type === 'POWER_CHARGE') {
         let need = mission.required;
         for (let i = 0; i < need; i++) {
@@ -648,12 +651,7 @@ function generateMap(level) {
 
     // Tháp tín hiệu chỉ xuất hiện khi nhiệm vụ là chiếm tháp.
     if (mission.type === 'TOWERS') {
-        towers.push({ x: margin, y: margin, progress: 0, active: false });
-        towers.push({ x: MAP_SIZE.w - margin, y: MAP_SIZE.h - margin, progress: 0, active: false });
-        if (currentMapType !== 5) {
-            towers.push({ x: MAP_SIZE.w - margin, y: margin, progress: 0, active: false });
-            towers.push({ x: margin, y: MAP_SIZE.h - margin, progress: 0, active: false });
-        }
+        placeLegacyTowers(mission.required);
     }
 
     if (currentMapType === 1) { bgMapColor = '#2c3e50'; for (let i = 0; i < 60 + level * 5; i++) { let isVert = Math.random() > 0.5; obstacles.push({ type: 'wall', x: Math.random() * (MAP_SIZE.w - 200) + 100, y: Math.random() * (MAP_SIZE.h - 200) + 100, w: isVert ? 30 + Math.random() * 20 : 120 + Math.random() * 150, h: isVert ? 120 + Math.random() * 150 : 30 + Math.random() * 20 }); } }
@@ -759,6 +757,7 @@ function generateMap(level) {
         }
     }
 
+    if(currentMapType===17)genSnowLegacy();
     for (let t of towers) obstacles = obstacles.filter(o => Math.hypot((o.x + o.w / 2) - t.x, (o.y + o.h / 2) - t.y) > 200);
     // Tránh đè lên tiền đồn
     if (currentMapType === 5) obstacles = obstacles.filter(o => Math.hypot((o.x + o.w / 2) - MAP_SIZE.w / 2, (o.y + o.h / 2) - MAP_SIZE.h / 2) > 300);
@@ -768,6 +767,7 @@ function generateMap(level) {
         for (let it of missionItems) it.kind = 'battery';
     }
     if (currentMapType !== 11) buildBushesForMap(level);
+    if(currentMapType===3)setupLegacyBridges();
 
     for (let i = 0; i < 600; i++) GROUND_DOTS.push({ x: Math.random() * MAP_SIZE.w, y: Math.random() * MAP_SIZE.h, r: Math.random() * 2.5 + 0.5 });
     for (let i = 0, dropN = isCaveMap() ? caveDropCount() : 30; i < dropN; i++) {
@@ -775,14 +775,7 @@ function generateMap(level) {
         spawnDrop(p.x, p.y);
     }
     // Bộ mìn phòng tuyến mua ở cửa hàng: rải quanh điểm xuất phát
-    if (shopFlags.mines > 0) {
-        for (let i = 0; i < shopFlags.mines; i++) {
-            let a = (i / shopFlags.mines) * Math.PI * 2;
-            let mp = findSafePoint(MAP_SIZE.w / 2 + Math.cos(a) * 260, MAP_SIZE.h / 2 + Math.sin(a) * 260, 14);
-            hazards.push({ type: 'mine', x: mp.x, y: mp.y, radius: 70, life: 9999, friendly: true, source: players[0] });
-        }
-        shopFlags.mines = 0;
-    }
+    deployShopMines();
     // Giải cứu: NPC không bị kẹt trong vật cản
     for (let n of rescueNPCs) { let sp = findSafePoint(n.x, n.y, 20); n.x = sp.x; n.y = sp.y; }
     if (!isCaveMap() && currentMapType !== 15 && currentMapType !== 16) finalizeMapLayout();
@@ -800,6 +793,14 @@ function spawnRescueNPCs(count) {
             MAP_SIZE.h / 2 + (Math.random() - 0.5) * 2 * spread
         ));
     }
+}
+function deployShopMines(){
+    let count=shopFlags.mines|0;
+    for(let i=0;i<count;i++){
+        let a=i/count*Math.PI*2,p=findSafePoint(MAP_SIZE.w/2+Math.cos(a)*260,MAP_SIZE.h/2+Math.sin(a)*260,14);
+        hazards.push({type:'mine',x:p.x,y:p.y,radius:70,life:9999,friendly:true,source:players[0]});
+    }
+    shopFlags.mines=0;
 }
 
 // Hàm sinh vật phẩm DUY NHẤT (trước đây có 2 bản trùng tên với tỉ lệ khác nhau)
@@ -826,11 +827,24 @@ function applyRandomStat(p) {
 }
 
 function resolveCollision(entity) {
-    for (let obs of obstacles) { let testX = entity.x, testY = entity.y; if (entity.x < obs.x) testX = obs.x; else if (entity.x > obs.x + obs.w) testX = obs.x + obs.w; if (entity.y < obs.y) testY = obs.y; else if (entity.y > obs.y + obs.h) testY = obs.y + obs.h; let distX = entity.x - testX, distY = entity.y - testY; let dist = Math.hypot(distX, distY); if (dist < entity.radius) { let overlap = entity.radius - dist; if (dist === 0) entity.y -= entity.radius; else { entity.x += (distX / dist) * overlap; entity.y += (distY / dist) * overlap; } } }
+    for (let obs of obstacles) {
+        let testX=Math.max(obs.x,Math.min(entity.x,obs.x+obs.w)),testY=Math.max(obs.y,Math.min(entity.y,obs.y+obs.h));
+        let dx=entity.x-testX,dy=entity.y-testY,dist=Math.hypot(dx,dy);
+        if(dist>=entity.radius)continue;
+        if(dist>0){let overlap=entity.radius-dist;entity.x+=dx/dist*overlap;entity.y+=dy/dist*overlap;}
+        else{
+            // Even a long frame or dash that enters a wide ridge must exit its nearest face.
+            let sides=[entity.x-obs.x,obs.x+obs.w-entity.x,entity.y-obs.y,obs.y+obs.h-entity.y],side=sides.indexOf(Math.min(...sides));
+            if(side===0)entity.x=obs.x-entity.radius;else if(side===1)entity.x=obs.x+obs.w+entity.radius;
+            else if(side===2)entity.y=obs.y-entity.radius;else entity.y=obs.y+obs.h+entity.radius;
+        }
+    }
     if (typeof resolveBaseGateCollision === 'function') resolveBaseGateCollision(entity);
     entity.x = Math.max(entity.radius, Math.min(MAP_SIZE.w - entity.radius, entity.x)); entity.y = Math.max(entity.radius, Math.min(MAP_SIZE.h - entity.radius, entity.y));
+    fieldClampEntity(entity);
 }
 function isBlockedPoint(x, y, radius = 16) {
+    if(fieldTerrainBlocked(x,y,radius))return true;
     for (let obs of obstacles) {
         let testX = Math.max(obs.x, Math.min(x, obs.x + obs.w));
         let testY = Math.max(obs.y, Math.min(y, obs.y + obs.h));

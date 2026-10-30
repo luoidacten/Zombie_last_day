@@ -1168,7 +1168,7 @@ function zombieDown(z, source = null) {
     if (z && z.type >= 45) antDamageFilter(z); // Kiến Chúa / Xúc Tu: lọc sát thương trước khi xét hạ gục
     else if (z && z.type >= 36 && z.type <= 38) zapDamageFilter(z);
     if (!z || z.hp > 0) return false;
-    if (z.type === 11 && !z.hasRevived) {
+    if (z.type === 11 && !z.hasRevived && !z.noReanimate) {
         z.hasRevived = true; z.hp = z.maxHp * 0.5;
         createParticles(z.x, z.y, '#2ecc71', 20, 100);
         vfxList.push({ type: 'text', text: 'HỒI SINH!', x: z.x, y: z.y - 30, life: 1.0, color: '#2ecc71' });
@@ -1185,6 +1185,7 @@ function zombieDown(z, source = null) {
 }
 
 function calcDamage(baseDmg, wepData, x, y, playerSource, targetZombie = null) {
+    if(targetZombie&&(wepData?.isFire||wepData?.isAcid||wepData?.isMolotov))targetZombie.noReanimate=true;
     lastHitInfo.crit = false; lastHitInfo.headshot = false;
     let hasMult = playerSource && typeof playerSource.getTotalDamageMult === 'function';
     let finalDmg = baseDmg * (hasMult ? playerSource.getTotalDamageMult() : 1);
@@ -1992,6 +1993,7 @@ class EnemyBullet {
                     electricBurst(p.x, p.y, 70, 4, 0.35);
                 }
                 else if (this.type === 'rock') { p.takeDamage(45); stunPlayer(p, 0.5); addScreenShake(6); }
+                else if (this.type === 'ice') {p.takeDamage(13);applyPlayerStatus(p,STATUS.FROST,{duration:6,stacks:2});}
                 else if (this.type === 'rocket') { explode(this.x, this.y, 150, 120); }
                 else {
                     // Acid của quái: không giết được người chơi, chỉ đốt tới 50% máu (20-queen.js)
@@ -2149,6 +2151,7 @@ class Ally {
 }
 // Lính / NPC đi tới một điểm: thấy thẳng thì đi thẳng, bị tường che thì bám theo lưới dẫn đường về phía người chơi
 function friendlyMoveTo(e, tx, ty, speed, dt) {
+    if(fieldWorld||riverWorld)return navMoveTo(e,tx,ty,speed,dt);
     let a = Math.atan2(ty - e.y, tx - e.x);
     if (!hasLineOfSight(e.x, e.y, tx, ty)) { let nx = navNext(NAV.field, e.x, e.y); if (nx) a = Math.atan2(nx.y - e.y, nx.x - e.x); }
     e.x += Math.cos(a) * speed * dt; e.y += Math.sin(a) * speed * dt; resolveCollision(e);
@@ -2213,7 +2216,7 @@ class RescueNPC {
             let fa = Math.atan2(this.y - threat.y, this.x - threat.x);
             this.x += Math.cos(fa) * 150 * dt; this.y += Math.sin(fa) * 150 * dt; resolveCollision(this);
         } else if (dFollow > 90) {
-            if (follow === evacZone) { let a = Math.atan2(follow.y - this.y, follow.x - this.x); this.x += Math.cos(a) * 170 * dt; this.y += Math.sin(a) * 170 * dt; resolveCollision(this); }
+            if (follow === evacZone) navMoveTo(this,follow.x,follow.y,170,dt);
             else friendlyMoveTo(this, follow.x, follow.y, dFollow > 320 ? 215 : 170, dt);
         }
         if (dFollow > 1100 && follow !== evacZone) { let sp = findSafePoint(follow.x + (Math.random() - 0.5) * 140, follow.y + (Math.random() - 0.5) * 140, this.radius); this.x = sp.x; this.y = sp.y; }
@@ -2404,6 +2407,8 @@ class Zombie {
                 this.radius = 16; this.color = ['#a6d9c8', '#a3cb38', '#b8a4d9'][this.type - 52];
                 this.maxHp = (50 + survivalTime * 0.8) * diffMult * (this.type === 54 ? 1.8 : 1.1);
                 this.baseSpeed = this.type === 54 ? 80 : 105; this.labFire = 1; break;
+            case 55: case 56: case 57:
+                this.radius=this.type===57?29:17;this.color=this.type===57?'#8eabae':'#b4c7c4';this.maxHp=(this.type===57?260:85)+survivalTime*(this.type===57?1.5:.7);this.baseSpeed=this.type===56?70:this.type===57?60:105;this.spCD=3;break;
             case 60: case 61: case 62: case 63: case 64: case 65: case 66: case 67:
                 this.radius=this.type===65?29:18;this.color='#bd9a69';this.baseSpeed=this.type===60?155:100;
                 this.maxHp=(this.type===65?950:this.type===62?450:170)*diffMult*(1+(teamN-1)*.18);break;
@@ -2431,7 +2436,7 @@ class Zombie {
         if (this.type < 30 || (this.type >= 40 && this.type <= 43)) this.baseSpeed *= enemyLateSpeedMult();
         this.hp = this.maxHp;
     }
-    knockback(vx, vy) { if ((this.type >= 45 && this.type !== 51) || (this.type >= 35 && this.type <= 38)) return; if (this.type === 4 || this.type === 6) { vx *= 0.2; vy *= 0.2; } if (this.mutant) { vx *= 0.5; vy *= 0.5; } this.kbX = vx; this.kbY = vy; }
+    knockback(vx, vy) { if ((this.type >= 45 && ![51,55,56].includes(this.type)) || (this.type >= 35 && this.type <= 38)) return; if (this.type === 4 || this.type === 6) { vx *= 0.2; vy *= 0.2; } if (this.mutant) { vx *= 0.5; vy *= 0.5; } this.kbX = vx; this.kbY = vy; }
     update(dt) {
         this.kbX *= 0.85; this.kbY *= 0.85; this.atkCD -= dt; this.spCD -= dt;
         let target = tank.active ? tank : players[0];
