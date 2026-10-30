@@ -107,6 +107,7 @@ function colonyArrive() {
     if (L && L.result && L.result.ok && L.sciSaved) n += L.sciSaved;
     let w = baseWorkers(), mat = w * 2;
     base.mat = (base.mat | 0) + mat;
+    base.food = (base.food | 0) + (base.pop | 0) * 3;
     base.wait = (base.wait | 0) + n;
     let moved = colonySettle();   // chỉ ở lại được khi đủ NHÀ Ở và LƯƠNG THỰC
     if (n || mat) netToast(`🏘 ${n ? `${n} người được giải cứu đã về căn cứ${moved < n ? ` — ${base.wait} người đang chờ vì thiếu nhà ở / nông trại` : ''}. ` : ''}${mat ? `${w} thợ chế tạo được +${mat} 🧱 Vật Liệu.` : ''}`, 5500);
@@ -440,7 +441,7 @@ storyPointers = function (ptr) {
 
 // ---------------------------------------------------------------------------
 // NHÀ Ở & NÔNG TRẠI: muốn thêm dân phải đủ chỗ ở VÀ đủ lương thực. Người dư phải chờ ở trại tạm.
-// TÍNH NĂNG THEO CẤP NHÀ CHÍNH: cấp 2 hồi 25% máu khi về, cấp 3 hồi 50% + Phòng Tập, cấp 4 thêm 4 Tháp Canh tự động
+// Nhà cấp 2 mở Khu Tập Luyện (23-supplies-training.js); cấp 3 hồi 50%, cấp 4 thêm Tháp Canh.
 // ---------------------------------------------------------------------------
 const HOME_CAP = 3, FARM_CAP = 4, COLONY_MAX = 6, TRAIN_MAX = 5;
 const HOME_SPOTS = [[1600, 1530], [1690, 1530], [1780, 1530], [2220, 1530], [2310, 1530], [2400, 1530]];
@@ -457,16 +458,15 @@ function colonySettle() {
     return k;
 }
 function colonyBuy(what) {
-    let c = what === 'home' ? homeCost() : what === 'farm' ? farmCost() : trainCost(what === 'thp' ? (base.trainHp | 0) : (base.trainSpd | 0));
+    if (['thp','tspd','tdmg'].includes(what)) return buyTraining(what);
+    if (!['home','farm'].includes(what) || NET.mode === 'guest') return;
+    let c = what === 'home' ? homeCost() : farmCost();
     if (what === 'home' && (base.homes || 1) >= COLONY_MAX) return;
     if (what === 'farm' && (base.farms || 1) >= COLONY_MAX) return;
-    if ((what === 'thp' || what === 'tspd') && (base.house < 3 || ((what === 'thp' ? base.trainHp : base.trainSpd) | 0) >= TRAIN_MAX)) return;
     if (shopScrap < c.scrap || (base.mat | 0) < c.mat) { Sound.play('hit'); netToast('Không đủ phế liệu hoặc vật liệu!', 1500); return; }
     shopScrap -= c.scrap; base.mat -= c.mat;
     if (what === 'home') base.homes = (base.homes || 1) + 1;
     else if (what === 'farm') base.farms = (base.farms || 1) + 1;
-    else if (what === 'thp') { base.trainHp = (base.trainHp | 0) + 1; for (let p of players) { p.maxHp += 30; p.hp += 30; } }
-    else { base.trainSpd = (base.trainSpd | 0) + 1; for (let p of players) p.baseSpeed += 12; }
     let k = colonySettle();
     if (k) netToast(`🏘 ${k} người đang chờ đã dọn vào căn cứ!`, 2500);
     Sound.play('upgrade');
@@ -484,14 +484,8 @@ function colonyPanelBuild() {
     html += '</div>';
     // Tính năng theo cấp Nhà Chính
     const lv = (n, t) => `<span class="${base.house >= n ? 'text-emerald-300' : 'text-gray-500'}">${base.house >= n ? '✔' : '🔒'} Cấp ${n}: ${t}</span>`;
-    html += `<div class="mt-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700 text-[11px] leading-5"><b class="text-white">Tính năng Nhà Chính</b><br>${lv(2, 'hồi 25% máu khi về căn cứ')}<br>${lv(3, 'hồi 50% máu khi về · mở PHÒNG TẬP (máu, tốc độ)')}<br>${lv(4, '4 THÁP CANH tự động bảo vệ trại · Radar mở rộng (tìm map mới — sắp có)')}<br>${lv(5, 'sắp có')}</div>`;
-    if (base.house >= 3) {
-        let th = base.trainHp | 0, ts = base.trainSpd | 0, ch = trainCost(th), cs = trainCost(ts);
-        html += `<div class="mt-2 mb-1 text-sm font-bold text-sky-300">🏋 PHÒNG TẬP — nâng chỉ số cả đội (giữ cả lượt chơi)</div><div class="grid grid-cols-1 sm:grid-cols-2 gap-2">`;
-        html += row(`❤ Thể lực ${th}/${TRAIN_MAX}`, '+30 máu tối đa mỗi cấp', th < TRAIN_MAX ? btn(`Tập ⚙${ch.scrap} 🧱${ch.mat}`, "colonyBuy('thp')", can(ch)) : maxed);
-        html += row(`👟 Tốc độ ${ts}/${TRAIN_MAX}`, '+12 tốc chạy mỗi cấp', ts < TRAIN_MAX ? btn(`Tập ⚙${cs.scrap} 🧱${cs.mat}`, "colonyBuy('tspd')", can(cs)) : maxed);
-        html += '</div>';
-    }
+    html += `<div class="mt-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700 text-[11px] leading-5"><b class="text-white">Tính năng Nhà Chính</b><br>${lv(2, 'hồi 25% máu khi về · mở KHU TẬP LUYỆN (máu, tốc độ, sát thương)')}<br>${lv(3, 'hồi 50% máu khi về')}<br>${lv(4, '4 THÁP CANH tự động bảo vệ trại')}<br>${lv(5, 'Nhà Chính tối đa')}</div>`;
+    html += trainingPanel();
     return html + '<div class="mb-3"></div>';
 }
 const _renderBasePanel1 = renderBasePanel;

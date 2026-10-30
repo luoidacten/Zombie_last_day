@@ -933,6 +933,7 @@ function gameLoop(time) {
             // Quái chết vì thiêu đốt / vùng điện / lính bắn... vẫn được ghi nhận (XP + tiến độ nhiệm vụ), Zombie hồi sinh vẫn hồi sinh
             if (z.type === 11 && !z.hasRevived) { zombieDown(z, null); continue; }
             if (!z._credited) zombieDown(z, null);
+            if (z.hp > 0) continue; // Human bandits can be downed for a medic instead of dying.
 
             if (z.type === 34) explode(z.x, z.y, 145, 100);
             else if (z.type === 1) explode(z.x, z.y, 180, 100);

@@ -939,6 +939,7 @@ class Player {
 
     shoot() {
         if (!this.weapon || arsenalBlockShot(this)) return;
+        if (typeof magazineCanFire === 'function' && !magazineCanFire(this)) return;
         if (empStorm.active && this.weapon.type !== 'melee' && !this.weapon.isThrown) {
             if (!(this.empTextCD > Date.now())) { this.empTextCD = Date.now() + 500; vfxList.push({ type: 'text', text: 'BỊ NHIỄU ĐIỆN TỪ!', x: this.x, y: this.y - 35, life: 0.5, color: '#48dbfb' }); }
             return;
@@ -1112,8 +1113,10 @@ class Player {
                 }
             }
         }
-        this.lastFireTime = now; if (!arsenalFreeShot(this)) this.weapon.ammo--;
-        if (this.weapon.ammo <= 0) { if (this.weapon.type === 'melee') { Sound.play('wbreak'); arsText(this, this.weapon.name + ' ĐÃ GÃY!', '#b2bec3', 0.9); } this.throwWeapon(); }
+        this.lastFireTime = now;
+        if (!arsenalFreeShot(this)) { this.weapon.ammo--; if (this.weapon.mag !== undefined) this.weapon.mag = Math.max(0,this.weapon.mag-1); }
+        if (this.weapon.mag === 0 && typeof requestReload === 'function') requestReload(this);
+        if (this.weapon.ammo <= 0 && this.weapon.mag === undefined) { if (this.weapon.type === 'melee') { Sound.play('wbreak'); arsText(this, this.weapon.name + ' ĐÃ GÃY!', '#b2bec3', 0.9); } this.throwWeapon(); }
     }
     throwWeapon() {
         if (!this.weapon) return;
@@ -2282,6 +2285,7 @@ class Zombie {
             }
         }
 
+        if (this.type === 12) this.type = 61; // Legacy bandit spawns join the human faction.
         this.nid = ++zombieIdSeq; this.hitFlash = 0;
         this.kbX = 0; this.kbY = 0; this.atkCD = 0; this.spCD = 0; this.isDashing = false;
         this.stunTimer = 0; this.isFrenzied = 0; this.shieldBoss = null; this.status = {}; this.phase2Done = false; this.skillTimer = 2.0 + Math.random() * 2.0; this.chargeTimer = 0; this.skillState = null;
@@ -2393,6 +2397,9 @@ class Zombie {
                 this.radius = 16; this.color = ['#a6d9c8', '#a3cb38', '#b8a4d9'][this.type - 52];
                 this.maxHp = (50 + survivalTime * 0.8) * diffMult * (this.type === 54 ? 1.8 : 1.1);
                 this.baseSpeed = this.type === 54 ? 80 : 105; this.labFire = 1; break;
+            case 60: case 61: case 62: case 63: case 64: case 65: case 66: case 67:
+                this.radius=this.type===65?29:18;this.color='#bd9a69';this.baseSpeed=this.type===60?155:100;
+                this.maxHp=(this.type===65?950:this.type===62?450:170)*diffMult*(1+(teamN-1)*.18);break;
             case 34: // Boomer bien the
                 this.radius = 17;
                 this.color = '#badc58';

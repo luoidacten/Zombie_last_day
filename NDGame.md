@@ -198,16 +198,22 @@ Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `packag
 | `js/20-queen.js` | Mở khóa Kiến Chúa, nâng cấp Acid, cánh bay và kiến hỗ trợ |
 | `js/21-lab-rework.js` | Sinh Lab, cửa/hack, khí độc, phòng/NPC, quái riêng và đồng bộ Lab |
 | `js/22-minecart.js` | Xe goòng, chia vai 1–4 người, radar/ping/bẫy/TNT và đồng bộ xe |
+| `js/23-supplies-training.js` | Thực phẩm, tập luyện theo cấp Nhà Chính, nội tại, băng đạn/nạp, thùng tiếp tế, toàn màn hình |
+| `js/24-bandits.js` | Ba phe, tám lớp cướp, hồi sinh/hóa zombie, morale, Scout và xe tải |
+| `js/25-chainsaw.js` | Cưa Máy, vòng tua, lao, Nộ, perk và tag Tiến Công |
+| `js/26-world-biome.js` | POI theo biome, tháp tín hiệu, vật thể tương tác, vùng dị biến |
+| `js/27-cave-expansion.js` | Công trình hang, xe bom hai nhánh ray, phá mạch, Kiến Chúa mới, thoát bộ rồi xe goòng |
+| `docs/update-implementation.md` | Hành vi thực tế, thông số và giới hạn đợt cập nhật 30/10/2026 |
 | `Audio-SoundEffect/` | Nhạc và hiệu ứng âm thanh chia theo nhóm |
 | `tests/defense-lifesteal.test.cjs` | Kiểm thử hồi quy cơ chế phòng thủ và hút máu |
 | `tests/browser-smoke.cjs` | Kiểm tra tích hợp trên Edge qua Playwright: trận phòng thủ, mua cửa, hướng dẫn |
-| `THIẾT KẾ.md` | Thiết kế chi tiết đợt làm lại Phòng Thí Nghiệm Z (Lab Z) & Xe Goòng Hầm Mỏ |
+| `THIẾT KẾ.md` | Tài liệu thiết kế tổng thể: Lab Z, Xe Goòng Hầm Mỏ, Băng Cướp Utility AI, Trang Bị 6 Món, Base-Building & Hệ Thống Bản Đồ 16 Map Biome/POI |
 
 Phụ thuộc bên ngoài hiện có: Tailwind tải từ CDN để dựng giao diện; PeerJS được tải khi dùng online. Logic trận online chủ yếu do **chủ phòng** quyết định, máy khách gửi đầu vào và nhận trạng thái.
 
 ## 12. Hướng dẫn nhanh cho người sửa / AI tiếp quản
 
-- Đọc `NDGame.md` để định vị tính năng, đọc `THIẾT KẾ.md` khi triển khai nhánh làm lại Phòng Thí Nghiệm Z (Lab Z) và Xe Goòng Hầm Mỏ, rồi kiểm tra mã thực tế.
+- Đọc `NDGame.md` để định vị tính năng, đọc `THIẾT KẾ.md` khi triển khai các nhánh cập nhật lớn (Lab Z, Xe Goòng, Băng Cướp, Trang Bị, Base-Building, Bản Đồ 16 Map), rồi kiểm tra mã thực tế.
 - Giữ thứ tự script trong `index.html`. Một số file sau **bọc lại hàm/prototype đã khai báo ở file trước**; tìm toàn bộ nơi gán và gọi hàm trước khi sửa.
 - Thêm thẻ cần kiểm tra đủ: dữ liệu `UPGRADES`, perk thật sự được áp dụng, tag/mốc, điều kiện chọn thẻ, mô tả và wiki. Một số thẻ được thêm bằng `UPGRADES.push()` ở file sau.
 - Thêm vũ khí cần kiểm tra key/ID, bảng kỹ năng, nhặt đồ, hình vẽ và mạng. Không chỉ thêm dòng vào bảng dữ liệu.
@@ -231,6 +237,12 @@ node --test tests/boss-progression.test.cjs
 Bộ kiểm thử tải cả 22 script theo thứ tự HTML, giả lập DOM/âm thanh. Bao gồm 12 nhóm phòng thủ/hút máu, 3 nhóm phục hồi nâng cấp và 11 nhóm Lab/xe goòng. Hai file kiểm thử trên cùng nạp 12 nhóm nền nên Node báo tổng 38 lượt. Kiểm thử mạng mô phỏng lệnh và trạng thái chủ phòng/máy khách; chưa xác nhận kết nối WebRTC thực tế trên nhiều thiết bị.
 
 ## 13. Trạng thái công việc gần nhất
+
+**30/10/2026 — cập nhật mới:** Nhà Chính cấp 2 mở Khu Tập Luyện dùng thực phẩm (mỗi cư dân tạo 3 thực phẩm/chiến dịch). Nhà cấp 2/3/4/5 có giới hạn 2/4/7/10 lần mỗi nhánh Máu/Tốc độ/Sát thương; Nhà cao tăng lượng chỉ số mỗi lần, tập đủ mở nội tại. Có thùng đạn/thùng máu; súng thường dùng băng riêng, Tiểu Liên 30 và AR 25 viên. Hết băng tự nạp hoặc nạp bằng **F/nút NẠP**; **R** dùng Nộ. Thêm tag và 5 perk Nạp Đạn, nút toàn màn hình và gợi ý xoay ngang khi online.
+
+Đã triển khai nội dung từ `docs/Cập nhâtz.txt` qua module 24–27: tám lớp cướp/ba phe và vòng đời chống thưởng lặp, xe tải, Cưa Máy, POI theo biome, công trình hang và chuỗi Kiến Chúa mới. Xem `docs/update-implementation.md` để biết hành vi và thông số thực tế. Bản hiện tại nạp **27 script**. Chạy kiểm thử phần mới bằng `node --test tests/modern-update.test.cjs`; kiểm tra giao diện bằng `node tests/modern-browser.cjs` (cần Playwright + Edge).
+
+Các đoạn bên dưới ghi lịch sử đợt trước; luồng Kiến Chúa mới ở module 27 thay thế việc lên xe khi boss còn 22% máu.
 
 Đợt mới nhất: triển khai **Lab Z và Xe Goòng** theo `THIẾT KẾ.md` cập nhật 29/10/2026. Hai module mới nạp sau module 20 và bọc hàm cũ; giữ màn tàu hỏa trước đó. Logic và lệnh tương tác do chủ phòng xử lý, máy khách nhận trạng thái.
 

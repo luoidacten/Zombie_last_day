@@ -1,0 +1,162 @@
+HỆ THỐNG BĂNG CƯỚP THÔNG MINH (3 PHE & UTILITY AI)
+1. Cơ Chế 3 Phe Độc Lập (Tri-Faction System)
+Ma trận Thù Địch (Aggro Matrix): Cướp và Zombie coi nhau là kẻ thù sinh tử. Zombie đánh hơi thấy cướp sẽ xông vào cắn xé; Cướp phát hiện Zombie sẽ chủ động nổ súng đẩy lùi.
+Chiến Thuật "Mượn Đao Giết Người": Người chơi có thể bắn nổ rào chắn hoặc tạo tiếng động dẫn bầy Zombie vào cứ điểm cướp để hai phe tự tiêu diệt lẫn nhau.
+2. 8 Lớp Cướp Chuyên Biệt Với Hồ Sơ Utility AI
+Cướp Do Thám (Scout): Dao găm/súng lục. Cơ động cao, né giao tranh trực diện, chuyên hôi của (nhặt hòm tiếp tế/vũ khí xịn rơi trên đất vào mảng stolenLoot). Bị áp sát sẽ lập tức lướt lùi tháo chạy.
+Xạ Thủ (Marksman): Đi từ 1–3 tên. Đứng sau lưng đồng đội bảo kê, giữ cự ly vàng (350–500px) để xả đạn liên tục.
+Càn Quét (Breacher): Rìu chiến + Khiên sắt. Kháng tầm xa 95%, kháng cận chiến 25%. Có skill Hút / Khiêu khích (Vortex) kéo mục tiêu lại gần để chém. Ép người chơi phải rút Katana/vũ khí cận chiến ra đánh.
+Gã Điên (Berserker): Cầm mã tấu đôi. Hét lớn "GIẾT! GIẾT!", lao thẳng vào mục tiêu gần nhất bất chấp bom đạn hay quái cắn; càng ít máu chạy càng nhanh.
+Ném Bom (Grenadier): Súng ngắn + Lựu đạn/Molotov. Nấp sau chướng ngại vật ném chai cháy tạo biển lửa ép người chơi và zombie lộ diện khỏi chỗ nấp.
+Gã Béo (Heavy Juggernaut): Máu cực trâu, cầm súng phun lửa hoặc súng phóng lựu càn quét diện rộng.
+Y Sĩ (Medic): Nấp sau cùng, hồi máu cho đồng đội. Có kỹ năng Hồi sinh cướp 1 lần (hồi 50% máu khi đồng đội gục).
+Cổ Vũ (Bard): Không có vũ khí tấn công, luôn nấp sau tảng đá/bờ tường; cầm loa phóng thanh buff: +30% Tốc chạy, +40% Sát thương, Kháng hoảng loạn cho toàn băng cướp.
+3. Ma Trận Hóa Zombie Khi Chết (Infection Mutation Matrix - Đủ Cả 8 Lớp)
+
+Khi cướp bị Zombie cắn chết hoặc chết lần 2 sau khi đã được Y Sĩ hồi sinh:
+
+Do Thám (Scout) 
+→
+→ Hóa thành Runner (Type 3): Chạy tốc độ cao, lao vào cào cấu.
+Xạ Thủ (Marksman) 
+→
+→ Hóa thành Zombie Bắn Gai / Súng (Type 8): Zombie tầm xa liên tục nhả gai độc.
+Càn Quét (Breacher) 
+→
+→ Hóa thành Crusher (Type 27): Cơ thể phình to, giữ nguyên khả năng húc đè tường và hất văng người chơi.
+Gã Điên (Berserker) 
+→
+→ Hóa thành Zombie Cuồng Nộ (Frenzy): Máu điên cuồng, tốc độ tăng gấp bội khi trúng đòn.
+Ném Bom (Grenadier) 
+→
+→ Hóa thành Zombie Tự Nổ (Bomber Type 34) / Phun Lửa-Độc: Xác phình to do thuốc nổ/hóa chất mang trên người, lao vào phát nổ diện rộng hoặc để lại bãi độc/cháy khi gục ngã.
+Gã Béo (Heavy Juggernaut) 
+→
+→ Hóa thành Zombie Bọc Thép Khổng Lồ (Type 14/Armor): Máu siêu trâu, kháng nổ cực cao.
+Y Sĩ (Medic) 
+→
+→ Hóa thành Zombie Nhầy Nhụa (Slime Spawner Type 15): Đột biến cực đại, liên tục sinh đệ zombie nhỏ và hồi máu cho bầy đàn.
+Cổ Vũ (Bard) 
+→
+→ Hóa thành Zombie Gào Thét (Screamer / Witch Type 26 / Triệu Hồi Type 6): Chiếc loa phóng thanh dung hợp với thanh quản đột biến, phát sóng âm gây Câm Lặng / Sợ Hãi và hú gọi thêm bầy Zombie xung quanh.
+4. Hành Vi Utility AI Khi Y Sĩ Và Cổ Vũ Bị Bỏ Lại Một Mình (Trạng Thái Tuyệt Vọng)
+
+Khi toàn bộ 6 lớp cướp chiến đấu phía trước đã bị tiêu diệt, Y Sĩ và Cổ Vũ không còn ai để hỗ trợ sẽ chuyển sang trạng thái Tuyệt Vọng (Desperation State):
+
+Phương án A (Tỉ lệ 50%): Tự động chạy đến nhặt vũ khí của đồng đội vừa chết rơi dưới đất (súng AK/Shotgun) để bắn trả trong hoảng loạn (độ chính xác thấp, độ giật đạn cao).
+Phương án B (Tỉ lệ 50%): Quay đầu tháo chạy thục mạng ra mép bản đồ để thoát thân, hoặc bắn một phát pháo hiệu đỏ (Flare) gọi Chiến Xa đến đón sớm.
+5. Cơ Chế Thanh "Nhuệ Khí / Hoảng Loạn (Morale & Panic)" Của Băng Cướp
+Khi còn Cổ Vũ (Bard) hoặc Thủ Lĩnh (The Leader): Toàn bộ băng cướp được duy trì nhuệ khí tối đa, miễn nhiễm hiệu ứng Sợ Hãi (Fear) và không bao giờ tháo chạy sớm.
+Khi Cổ Vũ bị hạ gục trước (hoặc Chỉ huy chết): Băng cướp bị sụp đổ tinh thần (Panic Crash) ngay lập tức:
+Giảm 20% tốc độ bắn.
+Tăng độ lệch đạn (spread) thêm 35%.
+Ngưỡng máu tháo chạy (Flee Threshold) tăng từ 25% lên 50% HP (dễ quay đầu bỏ chạy hơn).
+6. Quy Tắc Rơi Đồ Khi Cướp Do Thám (Scout) "Hôi Của" (stolenLoot)
+Mọi vật phẩm (Hòm thính, vũ khí, phế liệu, thẻ nâng cấp) mà Scout nhặt trên mặt đất được lưu vào mảng stolenLoot = [] gắn trên thực thể đó.
+Quy tắc thu hồi: Bất kể Scout bị hạ khi còn là người hay sau khi đã biến đổi thành Runner, toàn bộ vật phẩm trong stolenLoot đều văng trở lại mặt đất kèm theo phần thưởng thêm +5 Phế Liệu ⚙.
+Mất vĩnh viễn: Chỉ khi Scout nhảy lên Chiến Xa Bọc Thép và thoát khỏi bản đồ thành công thì các món đồ đó mới biến mất vĩnh viễn.
+7. Chiến Xa Bọc Thép (Technical Truck), Hỏa Lực Ụ Súng & Boss The Leader
+Hỏa Lực Của Chiến Xa: Xe tải bọc thép đỗ lại đổ quân được trang bị 1 Ụ Súng Máy gắn trên thùng xe (tương tự cơ chế ụ súng mg ở căn cứ), liên tục bắn yểm trợ trong lúc toán cướp giao tranh và chờ rút quân.
+Điều Kiện Tuyệt Đối KHÔNG Hóa Zombie:
+Cướp bị tiêu diệt do Nổ Banh Xác (Gibbing) bởi Súng phóng lựu, Pháo cối, Thùng TNT hoặc nổ Chiến Xa.
+Cướp bị chém tiêu diệt bằng Vũ Khí Liềm Đã Kích Hoạt Tế Phẩm.
+→
+→ Xác biến mất hoặc cháy rụi, Y Sĩ không thể hồi sinh và không thể biến đổi thành Zombie.
+Liên Kết Boss The Leader (Map 5 - Thị Trấn Cướp):
+The Leader là chỉ huy tối cao của toàn bộ 8 lớp cướp.
+Kỹ năng của Boss gọi chi viện Chiến Xa theo từng pha máu (Phase 1: Xe đổ quân Do Thám/Xạ Thủ; Phase 2: Xe càn quét phun lửa và pháo kích).
+8. Quy Tắc Chống Cày Điểm (Anti-Exploit Lifecycle) Trong zombieDown()
+
+Để triệt tiêu lỗi lạm dụng (người chơi cố tình nuôi Y Sĩ và để Zombie cắn Cướp nhằm cày vô hạn đồ/XP), chu trình sống chết được xử lý theo 3 nấc chặt chẽ:
+
+Lần chết 1 (Gục tạm thời chờ Y Sĩ cứu): Chỉ chuyển trạng thái isDowned = true, không tính mạng hạ gục, không rơi đồ.
+Lần chết 2 (Chết hẳn hoặc bị cắn hóa Zombie): Rơi đồ trang bị/phế liệu của Cướp, tính 1 mạng hạ cướp (kích hoạt nội tại Ám Ảnh của nhân vật Anthony nếu anh ta ra đòn).
+Lần chết 3 (Hạ xác Zombie biến dị): Chỉ cộng 50% kinh nghiệm (XP) của quái tương ứng; tuyệt đối KHÔNG rơi trang bị lần 2.
+9. Mật Độ Phân Bổ Băng Cướp Trên 16 Bản Đồ (4 Mức Độ Địa Hình & Cốt Truyện)
+Mức độ xuất hiện	Bản đồ áp dụng (currentMapType)	Tỷ lệ Cướp / Zombie	Đội hình Cướp & Hành vi đặc trưng
+Tier 1: Rất Nhiều (Đại bản doanh)	• Map 5: Thị Trấn Cướp
+• Map 4: Thành Trì
+• Nhiệm vụ: Đột kích sào huyệt cướp	70% – 90% Cướp
+(Zombie chỉ ở bìa rừng)	Đủ cả 8 lớp cướp, đóng chốt kiên cố có bao cát che chắn, Chiến Xa tuần tra liên tục và dẫn tới Boss The Leader.
+Tier 2: Trung Bình – Khá (Vùng tranh chấp)	• Map 1, 8, 13: Khu Phố Bỏ Hoang, Thành Phố Tàn Phá, Thành Phố N
+• Map 2, 3, 6: Rừng, Sông Lớn, Nhà Máy Điện
+• Map 16: Phòng thủ Nhà Chính (màn chia hết cho 5)	25% – 60% Cướp
+(Giao tranh 3 phe khốc liệt nhất)	Đi theo tiểu đội 4–6 tên đi hôi của (tranh hòm thính/vũ khí) hoặc lái Chiến Xa đổ quân phục kích trên các đại lộ rộng. Màn phòng thủ căn cứ có cướp xách súng cối phá cổng.
+Tier 3: Rất Ít (Vùng khắc nghiệt)	• Map 7, 9, 11, 12: Rừng Đêm, Rừng Sét, Rừng Cây Cao, Vườn Thực Vật
+• Map 15 (Sân ngoài): Vòng ngoài Phòng Thí Nghiệm Z	5% – 10% Cướp
+(Hiếm gặp)	Không có Chiến Xa. Chỉ gặp nhóm nhỏ Do Thám / Xạ Thủ đi lẻ tìm tài liệu hoặc đang hoảng loạn tháo chạy trước bầy zombie rừng sâu.
+Tier 4: Cấm Địa (0% Cướp)	• Map 10: Hang Z (nhiều tầng)
+• Map 14: Hầm Mỏ (Tổ Kiến Chúa)
+• Map 15 (Trong hầm & Tàu): Lab Z ngầm & Nóc tàu hỏa Nhà Ga X	0% Cướp
+(100% Quái / Kiến / Boss)	Địa hình hầm ngầm, tổ kiến độc hại hoặc nóc tàu cao tốc. Cướp hoàn toàn không thể tiếp cận. Bảo toàn nội tại Ám Ảnh của Anthony khi đi hang.
+10. Công Trình Điểm Nhấn Của Cướp: Tháp Tín Hiệu & Tiền Đồn (POIs)
+Tháp Tín Hiệu (Signal Tower):
+Công trình cao tầng nằm giữa các khu vực tranh chấp. Người chơi có thể đến gần khởi động bàn xoay (giữ 5 giây) để kích hoạt tín hiệu vô tuyến.
+Sau khi kích hoạt thành công: Trực thăng cứu viện thả 1 Thùng Viện Trợ Cực Hiếm (Airdrop) xuống chân tháp; đồng thời phát còi hú thu hút cả cướp và zombie xung quanh kéo đến giao tranh.
+Tiền Đồn Cướp (Mini-Outposts):
+Các công sự nhỏ bằng gỗ và tôn thép (gồm 1 chòi canh súng tỉa và 2 rào chắn bao cát).
+Cướp đóng chốt tại đây để kiểm soát các ngã tư đường. Khi người chơi hoặc xe cộ đi qua, cướp trong tiền đồn sẽ xả súng phục kích hoặc truy đuổi.
+Khi bị áp đảo, cướp rút lui vào tiền đồn để kích hoạt pháo sáng gọi Chiến Xa chi viện.
+Bọn Cướp cũng đứng canh tháp tín hiệu
+
+Ệ THỐNG MÔI TRƯỜNG & MAP CHUẨN CỐT TRUYỆN (js/26-world-biome.js)
+1. Bảng 16 Map Phân Tách Tuyệt Đối (Không Trộn Lẫn Phi Lý)
+Phân Loại Cụm	Map ID & Tên	Bản Sắc Địa Hình Riêng Biệt	POI Đặc Trưng (Bán Lộ Thiên / 3 Lối Thoát)	Vùng Dị Biến Cục Bộ (Góc Map 400–600px)
+I. Đô Thị Hậu Tận Thế	• Map 1: Khu Phố
+• Map 8: TP Tàn Phá
+• Map 13: TP N	• Map 1: Ngoại ô thấp tầng.
+• Map 8: Hố bom sâu, tường đổ sập.
+• Map 13: Cao ốc hiện đại, đại lộ lớn.	• Cây xăng (bồn dầu rò rỉ).
+• Siêu thị đổ nát (hộp lương thực).
+• Đồn cảnh sát (kho súng đạn).
+• Tháp tín hiệu vô tuyến (gọi Airdrop).	Chốt Chặn Chiến Xa Cướp dựng rào thu phí; hoặc Hố Sụt Cống Ngầm phun trào bầy Runner.
+II. Quân Sự & Cướp	• Map 4: Thành Trì
+• Map 5: Thị Trấn Cướp	• Map 4: Công sự bê tông quân đội, hào cát.
+• Map 5: Khu ổ chuột quây thép gai của cướp.	• Kho vũ khí quân sự.
+• Tiền đồn cướp có ụ súng máy bọc thép.
+• Đấu trường tử thần của Boss The Leader.	Bãi Mìn Quân Sự Cũ (dẫm nổ chuỗi); hoặc Chuồng Nhốt Zombie Của Cướp (bắn vỡ thả quái cắn cướp).
+III. Rừng & Sông	• Map 2: Rừng Cây
+• Map 3: Sông Lớn
+• Map 7: Rừng Đêm
+• Map 11: Rừng Cây Cao	• Map 2: Rừng thưa ôn đới.
+• Map 3: Dòng sông lớn cắt ngang bến phà.
+• Map 7: Rừng tối đen như mực.
+• Map 11: Thân cây khổng lồ chắn đạn.	• Trạm gác kiểm lâm.
+• Bến phà & Cầu treo qua sông.
+• Trạm máy phát điện đèn pha (Map 7).
+• Cụm cây cổ thụ làm bia chắn đạn.	Đầm Lầy Lún Bùn làm giảm 40% tốc chạy; hoặc Xác Trực Thăng Rơi chứa hòm tiếp tế quân sự vàng.
+IV. Sinh Học & Điện	• Map 6: Nhà Máy Điện
+• Map 9: Rừng Sét
+• Map 12: Vườn Thực Vật	• Map 6: Sàn thép nhà máy, tua-bin khổng lồ.
+• Map 9: Đất cháy sém, cột thu lôi bão điện.
+• Map 12: Khu phức hợp nhà kính thực vật.	• Trạm biến áp Lõi Quá Tải (Map 6, 9).
+• Cột phóng điện cao thế.
+• Lồng kính thực vật đột biến cần thiêu đốt (Map 12).	Vùng Nhiễm Từ Trường giật sét lan ngẫu nhiên; hoặc Vùng Bào Tử Độc gây hoảng loạn / Sợ Hãi.
+V. Ngầm & Cốt Truyện Cố Định	• Map 10: Hang Z
+• Map 14: Hầm Mỏ
+• Map 15: Lab Z & Ga X
+• Map 16: Căn Cứ	Thiết kế theo kịch bản và địa hình cố định:
+• Map 10/14: Hang đá, thùng TNT, xe goòng 3 làn.
+• Map 15: 9 phòng ngầm Lab Z & Nóc tàu Ga X.
+• Map 16: Căn cứ 2–4 cổng chắn & ụ súng.	• Trứng Kiến Chúa & Cửa hầm sập.
+• Máy khử độc, cửa hack mã Hex.
+• Lò rèn, Nhà chính, Quán rượu căn cứ.	❌ HOÀN TOÀN KHÔNG TRỘN NGẪU NHIÊN để bảo toàn chuỗi nhiệm vụ cốt truyện Boss và chế độ Base-Building.
+2. Các Cơ Chế Môi Trường Tối Ưu Cho 2D Shooter
+POI Bán Lộ Thiên (Open-Plan POI):
+Mỗi công trình là 1 không gian mở thông suốt rộng rãi, không ngăn vách nhỏ gây nghẽn pathfinding hay bẫy chết người chơi.
+Luôn có ít nhất 3 lối thoát (1 cửa chính + 2 mảng tường vỡ đục sẵn).
+Mái nhà mờ 70% (opacity: 0.3) ngay khi đứng cách cửa 80px, giúp quan sát rõ bầy quái bên trong trước khi bước vào.
+1 Vùng Dị Biến Cục Bộ (Anomaly Zone):
+Chiếm 1 góc bản đồ (bán kính 400–600px), đi kèm 1 Sự kiện phụ (Event) và rương xịn. Người chơi làm nhiệm vụ chính có thể đi vòng qua an toàn.
+Vật Thể Tương Tác:
+Bồn Nhiên Liệu: Bắn trúng nổ bán kính 300px, cháy trong 8 giây.
+Xe Cứu Thương / Xe Cảnh Sát: Bắn trúng hú còi đèn nháy gom toàn bộ quái trong 700px lại.
+Phá Hủy Môi Trường Chuẩn Hóa:
+Chỉ có Vũ khí Nổ (Phóng lựu, TNT, Lựu đạn), Búa Tạ / Rìu Chiến (sóng chấn động) và Chiến Xa mới húc sập được tường nứt (crackwall) và đốn ngã cây mục.
+1. Vũ Khí Mới: Cưa Máy (Chainsaw)Cưa Máy được xếp vào nhóm Cận chiến cơ giới / Hỏa lực đặc biệt, sử dụng Độ bền (Nhiên liệu động cơ) và mang bộ Tag [Cận Chiến, Tiến Công, Hút Máu]. Khác với các vũ khí cận chiến vung theo nhịp như Katana hay Búa, Cưa Máy gây sát thương cắt liên tục ở phía trước và thưởng tốc độ di chuyển khi người chơi càng hăng máu tấn công.   Cơ chế / Kỹ năngPhím điều khiểnChi tiết vận hành trong GameplayĐòn đánh thường: Lưỡi Cưa Xé XácGiữ Chuột trái / Space (Hành động A)   Giữ lưỡi cưa quay tốc độ cao phía trước mặt, gây sát thương liên tục (mỗi 0.12s/nhịp) và làm giảm giáp mục tiêu. Có khả năng cưa sập nhanh tường gạch nứt, rào gỗ, kén kiến và khiên của Cướp Càn Quét.   Nội tại: Động Cơ Cuồng NộTự động khi chiến đấuKhi lưỡi cưa đang bật tạo sát thương lên kẻ địch, nhân vật không bị giảm tốc mà còn nhận cộng dồn Vòng Tua Máy: tăng từ +10% đến tối đa +35% Tốc độ di chuyển và kháng 50% hiệu ứng làm chậm. Ngừng cưa 2 giây sẽ hạ dần vòng tua.   Kỹ năng C: Tăng Tốc Lao CưaPhím Q   Rồ ga cực đại và lao thẳng về phía trước một quãng dài (có thể lạng lách nhẹ theo hướng chuột). Trong suốt cú lao, lưỡi cưa gây sát thương liên tục cho mọi kẻ địch phía trước, kéo lê quái nhỏ và kết thúc bằng một cú hất văng diện rộng.   Kỹ năng Nộ D: Cơn Ác Mộng ĐỏPhím R (Khi đầy Nộ)   Động cơ bốc lửa quá tải trong 6 giây: tăng +50% Tốc độ chạy, mở rộng tầm cắt phía trước thêm 40%, nhận 3% Hút Máu thực và mỗi mạng hạ gục bằng Cưa Máy có tỉ lệ rơi mảnh máu cấp Máu Ảo (vHp).   Các Perk (Peak) chuyên biệt của Cưa Máy:Xích Cưa Răng Cá Mập: Các nhịp cắt liên tục gây hiệu ứng chảy máu và tăng 25% sát thương lên mục tiêu đã mất giáp hoặc đang bị Làm Chậm/Choáng.   Bộ Chế Hòa Khí Độ: Giảm 35% tốc độ hao hụt độ bền khi giữ cưa; nếu kỹ năng Q (Tăng Tốc Lao) cắt trúng từ 5 mục tiêu trở lên sẽ hoàn trả 50% thời gian hồi chiêu.   Mũi Cưa Phá Công Trình: Tăng 100% sát thương lên vật thể môi trường (tường nứt, thùng TNT, lõi tổ kiến, Chiến Xa cướp) và tạo sóng âm nhỏ đẩy lùi quái hai bên sườn khi đang lao.   2. Mở Rộng Công Trình & Khu Vực cho Hang Z (Map 10)Hang Z là bản đồ hang ngầm nhiều tầng với nhiệm vụ cốt lõi là hộ tống Tiến Sĩ đặt C4, chạy thoát và mở khóa Hầm Mỏ. Để mỗi tầng hang trong js/09-cave.js có điểm nhấn chiến thuật rõ rệt, bản đồ được bổ sung 4 khu vực và công trình tương tác sau:   Trạm Khảo Cổ & Dàn Đèn Pha Địa Chất (Abandoned Geo-Station): Khu lều bạt nghiên cứu bị bỏ hoang nằm ở giữa tầng hang, có Máy Phát Điện Dự Phòng và các thùng tài liệu. Khi người chơi khởi động máy phát điện, dàn đèn pha công suất lớn sẽ bật sáng toàn bộ khu vực tối xung quanh, làm lộ diện các zombie lẩn trốn và tăng 20% tốc độ cài C4 của Tiến Sĩ.   Đầm Lầy Phát Quang & Rừng Nấm Tinh Thể (Bioluminescent Grotto): Một phân khu sinh học ngầm có các vũng nước nông và cụm nấm khổng lồ phát sáng xanh tím. Bắn nổ cụm nấm sẽ phát tán bào tử gây hiệu ứng Sợ Hãi / Làm Chậm cho bầy zombie truy đuổi, trong khi vũng nước ngầm giúp khuếch đại diện tích giật lan của các vũ khí hệ Điện.   Cầu Đá Cổ & Khe Vực Sâu (Subterranean Chasm): Hẻm vực tự nhiên cắt ngang đường di chuyển giữa các điểm đặt C4, nối với nhau bằng một cây cầu đá hẹp và một cầu gỗ mục. Người chơi có thể dùng địa hình nút thắt này để tử thủ bảo vệ Tiến Sĩ, dùng kỹ năng đẩy lùi hoặc cú lao Q của Cưa Máy hất zombie rơi thẳng xuống vực, hoặc phá sập cầu gỗ sau khi Tiến Sĩ đã chạy qua để chặn đường quái.   Giếng Trời Tiếp Tế & Trạm Tời Kéo (Supply Shaft Elevator): Một hố sụt thông thẳng lên mặt đất có hệ thống ròng rọc sắt. Kích hoạt mô-tơ tời kéo sẽ thả xuống một Hòm Vũ Khí Quân Dụng (nơi có tỉ lệ cao mở ra Cưa Máy hoặc súng hạng nặng), nhưng tiếng ròng rọc kêu lớn sẽ gọi một đợt zombie leo từ vách hang lên trong 20 giây.   3. Mở Rộng Công Trình & Khu Vực cho Hầm Mỏ (Map 14)Hầm Mỏ xoay quanh hệ sinh thái tổ kiến, các vật thể phá hủy, TNT, xe mỏ, lõi tổ, Boss Kiến Chúa và màn chạy thoát khi hang sập (js/09-cave.js, js/20-queen.js). Để làm giàu trải nghiệm khai thác ngầm và săn Kiến Chúa, bản đồ bổ sung 5 công trình và khu vực chuyên biệt:   Tên Khu Vực / Công TrìnhThiết kế Địa hình & Nhận diệnCơ chế Tương tác trong Gameplay1. Trạm Điều Phối Đường Ray (Rail Switchyard)Hệ thống đường ray vòng cung chạy xuyên qua các ổ kiến phụ, có các cần gạt chuyển hướng và xe mỏ chở đầy quặng/thuốc nổ TNT.   Người chơi gạt cần đổi hướng ray rồi đẩy hoặc bắn kích hoạt Xe Mỏ TNT lao thẳng vào Lõi Tổ hoặc đàn kiến đông đúc để tạo vụ nổ dây chuyền.   2. Xưởng Nghiền Quặng & Băng Chuyền (Ore Crusher)Khu cơ khí của thợ mỏ cũ với mặt sàn băng chuyền tự động di chuyển và một Trục Lăn Nghiền Đá bằng thép gai ở cuối chuyền.Bật công tắc điện để khởi động trục nghiền: mọi con kiến lính hoặc zombie giáp sắt bị đẩy lùi/dụ lên băng chuyền sẽ bị cuốn vào hàm nghiền và tiêu diệt tức khắc.   3. Buồng Ấp Hoàng Gia & Hồ Acid (Royal Hatchery)Khu vực sinh học sát hang Kiến Chúa, chứa hàng chục bọc trứng phát sáng và các hồ dịch vị Acid sủi bọt.   Dùng Cưa Máy, Phun Lửa hoặc TNT phá hủy các Trụ Tuyến Dịch tại đây trước khi vào đánh Boss sẽ làm suy yếu khả năng gọi kiến con và giảm lượng Acid của Kiến Chúa.   4. Kho Thuốc Nổ & Trụ Chống Trần (Dynamite Vault)Nhà kho khóa sau vách đá nứt, xung quanh là các Cột Gỗ Chống Hầm chịu lực cho cả vòm hang.Dùng Cưa Máy hoặc nổ TNT phá vách đá để lấy hòm đồ hiếm. Trong lúc chạy thoát khi hang sập, bắn gãy các Cột Chống Hầm sẽ làm sập một mảng đá lớn đè chết bầy kiến truy đuổi phía sau.   5. Lò Luyện Kim Ngầm (Smelting Furnace)Lò nung quặng nhiệt độ cao vẫn còn than hồng rực sáng giữa hầm mỏ lạnh lẽo.Cho phép người chơi tương tác như một Lò Rèn Dã Chiến (cường hóa nhanh độ bền/sát thương vũ khí 1 lần trong trận) hoặc xả van kim loại nóng chảy tạo vùng Thiêu Đốt chặn cổng hầm.   
+
+Giai đoạn 1: Hộ Tống "Xe Mỏ Bom Nhiệt Áp" Mở Đường
+Thay vì chỉ đi bộ tìm đường, đầu màn người chơi phải đẩy và bảo vệ một Xe Mỏ Chở Thuốc Nổ Hạng Nặng chạy dọc hệ thống đường ray để đâm thủng vách đá chắn cửa ổ Kiến Chúa.   Tương tác đẩy xe: Xe mỏ chỉ di chuyển khi có ít nhất 1 người chơi đứng gần đẩy (nhiều người đứng gần trong chế độ Co-op 2–4 người sẽ đẩy nhanh hơn) hoặc khi nạp đủ bình nhiên liệu nhặt dọc đường.   Chọn nhánh đường ray: Tại ngã ba Trạm Điều Phối Đường Ray, người chơi gạt cần chọn 1 trong 2 lối đi với thử thách khác nhau.Nhánh Ngắn (Qua Hồ Acid): Đường ngắn hơn 40% nhưng nhiều vũng Acid rút máu xuống ngưỡng 50% và nhiều kiến phun độc.   Nhánh Dài (Qua Xưởng Nghiền Quặng): Đường xa hơn nhưng có Băng Chuyền & Trục Nghiền giúp nghiền nát đàn kiến giáp sắt và có sẵn hòm tiếp tế.   Giai đoạn 2: Phá Hoại 3 "Mạch Nuôi Tổ" (Quyết Định Sức Mạnh Kiến Chúa)
+Sau khi xe mỏ nổ tung cổng đá lộ ra Lõi Tổ, người chơi có thể đánh thẳng Lõi Tổ ngay hoặc đi phá 3 công trình sinh học phụ quanh hầm mỏ để làm suy yếu Kiến Chúa trước khi Boss xuất hiện:   Công trình phụCách phá hủySuy yếu của Kiến ChúaThưởng nếu GIỮ LẠI (Đánh khó)1. Hồ Tuyến Dịch AcidXả van kim loại nóng chảy hoặc nổ TNT   Giảm 40% diện tích vũng Acid của Boss   Tăng tỉ lệ rơi thẻ Acid hiếm   2. Buồng Ấp Trứng CánhDùng Phun Lửa hoặc Cưa Máy phá kén   Khóa chiêu gọi đàn Kiến Bay cảm tử   Nhận gấp đôi Phế liệu và Kinh nghiệm   3. Tinh Thể Giáp KhoángGạt cần cho Xe Mỏ TNT đâm thẳng vào   Kiến Chúa mất 35% Giáp cơ bản   Rơi thêm Vật liệu xây Khu Sống Sót   Cơ chế này cho phép đội hình yếu chọn phá hết 3 mạch để đánh Boss dễ thở hơn, trong khi đội hình mạnh có thể đập thẳng Lõi Tổ ngay lập tức để săn phần thưởng tối đa.   Giai đoạn 3: Đại Chiến Kiến Chúa Đa Tương Tác
+Trận đấu với Kiến Chúa được chia làm 2 pha gắn liền với vật thể trong hầm mỏ thay vì chỉ đứng bắn thông thường:   Pha 1 — Đường Ray Tử Thần: Kiến Chúa càn quét mặt đất và phun Acid. Hai bên sườn đấu trường có 2 đường ray xe mỏ: người chơi canh lúc Boss lao vào giữa đường ray để bắn thùng TNT đẩy xe mỏ tông ngang bụng Boss, làm nó bị Lật Ngửa (Choáng 4s) và lộ điểm yếu nhận 100% Chí mạng.   Pha 2 — Bóng Tối & Sập Trần (Dưới 45% Máu): Kiến Chúa gầm rú làm nổ hệ thống điện (chuyển bản đồ sang trạng thái Bóng Tối) rồi trèo lên vòm hang đẻ trứng liên tục. Một người phải đi khởi động lại Máy Phát Điện để bật đèn pha chiếu sáng mục tiêu, người còn lại bắn rơi các Khối Thạch Nhũ / Thùng TNT treo trên trần để đè Kiến Chúa rớt xuống đất.   Giai đoạn 4: Cuộc Đào Thoát Khi Hang Sập — "Chuyến Xe Goòng Sinh Tử"
+Ngay khi Kiến Chúa gục ngã và người chơi nhặt lõi phần thưởng (mở khóa súng Acid cải tiến, cánh bay, 5 thẻ Acid), toàn bộ hầm mỏ rung chuyển dữ dội và bắt đầu sụp đổ theo thời gian thực:   Đoạn 1 — Chạy bộ & Đánh sập cột chống: Đá tảng rơi liên tục từ phía sau kèm hàng trăm con kiến tràn ra từ vách hầm. Người chơi vừa chạy vừa dùng Cưa Máy, súng hoặc TNT bắn gãy các Cột Gỗ Chống Hầm để làm sập trần đá chặn đứt đường truy đuổi của đàn kiến.   Đoạn 2 — Nhảy lên Xe Goòng Cơ Giới: Cả đội nhảy lên một chiếc xe mỏ lớn chạy dọc đường ray chính hướng ra cửa hang. Trong lúc xe lao đi, người chơi phải bắn phá các tảng đá rơi chắn trước mũi xe và gạt nhanh các cần chuyển ray trên đường (tương tự nhịp độ dồn dập của màn tàu hỏa Nhà Ga X) trước khi vòm hang sập kín sau lưng.   Nhiệm vụ phụ ngẫu nhiên trong Hầm Mỏ (Liên kết với Khu Sống Sót)Giải cứu Thợ Mỏ bị bọc kén: Dọc các ngách hầm có 2–3 kén tơ đang co giật. Nếu dùng vũ khí cận chiến cắt kén cứu kịp trước khi kén nổ thành kiến đột biến, người thợ mỏ sẽ được đưa về Khu Sống Sót làm cư dân (tăng tốc độ tạo vật liệu và sửa Nhà Chính).   Nung Vũ Khí tại Lò Luyện Kim Ngầm: Tìm thấy lò luyện quặng còn hoạt động và bảo vệ lò trong 30 giây khi tiếng máy thu hút kiến sẽ giúp cả đội cường hóa miễn phí +1 cấp Lò Rèn cho vũ khí đang cầm ngay trong trận.   

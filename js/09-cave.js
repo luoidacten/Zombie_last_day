@@ -270,6 +270,7 @@ function genMine(level) {
 
     // Đá chặn đường chính + thùng thuốc nổ / xe thuốc nổ gần đó để phá nhanh
     let path = mazePath(mz, bf, ei), L = path.length;
+    caveRun.railPath=path.map(v=>mz.center(v.x,v.y));
     let picks = [Math.round(L * 0.4), Math.round(L * 0.75)].filter((v, k, arr) => v >= 2 && v < L - 1 && arr.indexOf(v) === k);
     for (let v of picks) {
         let a = path[v], b = path[v + 1], dx = b.x - a.x, dy = b.y - a.y, ac = mz.center(a.x, a.y), rect;

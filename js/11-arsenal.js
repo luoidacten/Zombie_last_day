@@ -602,7 +602,7 @@ function savePlayer(p) {
     return {
         hp: p.hp, maxHp: p.maxHp, hunger: p.hunger, baseSpeed: p.baseSpeed, level: p.level, xp: p.xp, pend: p.pendingUpgrades,
         dmgMult: p.dmgMult, critBonus: p.critBonus, armorMult: p.armorMult, tags: p.tags, perks: p.perks, st: p.perkStacks,
-        w: p.weapon ? { k: p.weapon.key, a: p.weapon.ammo, m: p.weapon.maxAmmo } : null,
+        w: p.weapon ? { k: p.weapon.key, a: p.weapon.ammo, m: p.weapon.maxAmmo, mag:p.weapon.mag } : null,
         sk: p.swordKills, ck: p.cKills, dc: p.dCharge, dk: p.droneKills, lk: p.luckyKills, rc: p.reviveCount, tox: p.caveToxinResist || 0, rage: p.rage || 0, vhp: Math.round(p.vHp || 0), down: p.isDowned ? 1 : 0
     };
 }
@@ -683,7 +683,7 @@ function loadGame() {
         if (d.tags) for (let t in TAG_DEFS) if (typeof d.tags[t] === 'number') p.tags[t] = d.tags[t];
         if (d.perks) for (let k in d.perks) { let v = d.perks[k]; if (/^[a-zA-Z_]\w{0,40}$/.test(k) && (typeof v === 'boolean' || typeof v === 'number')) p.perks[k] = v; }
         if (d.st) for (let k in STACKABLE_PERKS) if (typeof d.st[k] === 'number') p.perkStacks[k] = d.st[k];
-        if (d.w && WEAPON_TYPES[d.w.k]) { p.weapon = { ...WEAPON_TYPES[d.w.k] }; p.weapon.maxAmmo = num(d.w.m, p.weapon.maxAmmo); p.weapon.ammo = Math.max(1, num(d.w.a, p.weapon.ammo)); }
+        if (d.w && WEAPON_TYPES[d.w.k]) { p.weapon = { ...WEAPON_TYPES[d.w.k] }; p.weapon.maxAmmo = num(d.w.m, p.weapon.maxAmmo); p.weapon.ammo = Math.max(0, num(d.w.a, p.weapon.ammo)); if(Number.isFinite(d.w.mag))p.weapon.mag=Math.max(0,d.w.mag|0); }
         p.swordKills = num(d.sk, 0); p.cKills = num(d.ck, 0); p.dCharge = num(d.dc, 0); p.droneKills = num(d.dk, 0); p.luckyKills = num(d.lk, 0);
         p.reviveCount = num(d.rc, 0); p.caveToxinResist = num(d.tox, 0); p.rage = num(d.rage, 0); p.vHp = Math.max(0, num(d.vhp, 0)); p.isDowned = !!d.down;
         players.push(p);
