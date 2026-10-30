@@ -29,6 +29,17 @@ Các mô phỏng AI và POI là quy tắc chạy được trên hệ canvas hi�
 
 ## Kiểm tra
 
+### Đợt hình ảnh và UI/UX toàn game
+
+- Module 29 vẽ lại người chơi (mũ, giáp, ba lô, màu đội, dáng đi/gục), zombie thường/đặc biệt, tám boss, kiến, thương điện, xúc tu và đồng minh. Sửa chỉ số vai hiển thị cướp từ ID 60–67 sang vị trí 0–7 để khiên, cứu thương, loa, dao và súng xuất hiện đúng lớp. Giữ dấu hiệu lá chắn, giáp vỡ, thời gian quét và vòng nguy hiểm của boss.
+- Module 30 thêm chất liệu nền theo biome, đường đô thị, cây, vách đá, mái nhà, máy móc Lab, tháp nhiệm vụ, tàu/xe goòng/xe tăng; dựng lại Nhà Chính theo cấp, cửa chắn, khu trại, quầy tương tác, nhà ở, ruộng, tháp canh, NPC và cư dân. Hình ảnh mới giữ nguyên vùng va chạm và khoảng cách tương tác.
+- `css/presentation.css` và minh họa vector `assets/survivor-outpost.svg` dựng menu hai cột trên PC, cuộn dọc trên điện thoại. Chọn chế độ, bản lưu, cài đặt âm thanh/độ khó, wiki/phòng online đều giữ hành vi hiện có. Cửa hàng, xưởng, bảng nhiệm vụ, tạm dừng, xác nhận và nâng cấp dùng cùng bảng màu, độ tương phản và nút bấm.
+- Module 31 thống nhất thanh thể lực, máu ảo, no/XP, tài nguyên, nhiệm vụ, bộ đàm, trạng thái boss và bảng nhiệm vụ trại. Thẻ đọc đủ mô tả, hiển thị thứ tự và phân biệt mốc Độc Tôn/Bứt Phá. Thẻ và tuyến có thao tác Enter/Space; hộp thoại giữ focus bên trong và trả focus khi đóng. Hai người chung máy giữ bố cục đối diện; online P3/P4 dùng một khung chọn riêng. Nút Fix Nhanh giữ nguyên.
+- Chất lượng **Tự động / Cao / Thấp** chỉ thay mật độ chi tiết nền và tán cây. Tự động dùng mức nhẹ dưới chiều rộng 900px; lựa chọn được lưu bằng `zs_visual_quality`. CSS tôn trọng thiết lập giảm chuyển động. Không thay chỉ số, AI, lịch spawn hoặc cơ chế lưu/đồng bộ.
+- Đồ họa vẽ bằng Canvas/SVG/CSS, không cần tải ảnh mới hoặc thư viện đồ họa. Đây là phong cách minh họa nhìn từ trên xuống; hiệu ứng cảnh báo và các lớp thời tiết đã có được giữ để trận đánh dễ đọc.
+
+`node tests/presentation-browser.cjs` kiểm tra menu/cài đặt, hộp thoại, chọn thẻ/tuyến bằng bàn phím, 16 map, căn cứ/xưởng, các loại boss/zombie/cướp, hai người chung máy và màn nâng cấp khách P3, bố cục desktop/dọc/ngang điện thoại. Ảnh kiểm tra xuất vào thư mục tạm `zombie-presentation-*.png`. Kiểm tra logic tổng hợp bằng lệnh 5 file trong `NDGame.md`: **107/107 lượt đạt**. Mạng ở đây vẫn là trạng thái/lệnh mô phỏng, chưa phải bốn máy WebRTC thực tế.
+
 `node --test tests/modern-update.test.cjs` kiểm tra tập luyện, tiếp tế, băng đạn, vòng đời ba phe, Cưa Máy, POI và chuỗi Kiến Chúa. `node tests/modern-browser.cjs` (Playwright + Edge) bấm nút nạp/tập thật, mô phỏng chín map, chuyển tới boss mới và vẽ ở kích thước ngang điện thoại. Đây chưa phải kiểm tra WebRTC trên bốn máy thật.
 
 `node --test tests/bandit-encounters.test.cjs` kiểm tra mốc map 8, chốt không sinh lại, vòng spawn thường, ngân sách xe/quân và mô phỏng 10 phút không bổ sung cướp. `node tests/world-art-browser.cjs` kiểm tra bằng Edge và xuất ảnh các nhân vật/công trình ở desktop và màn hình ngang điện thoại.

@@ -11,6 +11,7 @@
     <title>Zombie Survival PC & Mobile</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link rel="stylesheet" href="css/zombie.css">
+    <link rel="stylesheet" href="css/presentation.css">
 </head>
 
 <body class="bg-gray-900 text-white font-sans">
@@ -35,15 +36,23 @@
 
     <!-- MENU CHÍNH -->
     <div id="menu" class="absolute inset-0 flex flex-col justify-center items-center z-10 p-4 overflow-y-auto">
+      <div class="menu-shell">
+        <section class="menu-story" aria-label="Zombie Survival">
+        <div class="menu-eyebrow"><i></i> TÍN HIỆU CUỐI CÙNG · KHU VỰC Z</div>
         <h1 id="menuTitle"
-            class="text-4xl md:text-6xl font-extrabold text-red-500 uppercase tracking-wider mb-2 text-center">Zombie Survival</h1>
+            class="text-4xl md:text-6xl font-extrabold text-red-500 uppercase tracking-wider mb-2 text-center">ZOMBIE <span>SURVIVAL</span></h1>
         <p id="menuInfo"
             class="text-sm md:text-base text-gray-300 max-w-xl text-center mb-6 leading-relaxed border-b border-gray-700 pb-4">
-            - Tiêu diệt Zombie để <span class="text-yellow-400 font-bold">Tăng Cấp</span> nhận lượt nâng cấp.<br>
-            - <span class="text-red-400 font-bold">Hệ thống Chiến Xa</span> - Biến xe tăng thành cỗ máy bất tử!<br>
-            - <span class="text-cyan-400 font-bold">MỚI: Chơi Online Co-op 2–4 người</span> bằng mã phòng.<br>
-            <span class="text-xs text-gray-400">PC: WASD di chuyển · Chuột ngắm/bắn · Chuột phải/E: ném · Q: kỹ năng C · R: kỹ năng D</span>
+            Ra ngoài tìm tiếp tế. Đưa người sống sót về trại.<br>Giữ căn cứ qua một đêm nữa.
         </p>
+        <div class="menu-landscape" aria-hidden="true"></div>
+        <div class="menu-features"><span><b>01—04</b> NGƯỜI SỐNG SÓT</span><span><b>16</b> VÙNG NHIỆM VỤ</span><span><b>∞</b> CÁCH SINH TỒN</span></div>
+        <p class="menu-keyboard"><kbd>WASD</kbd> Di chuyển <kbd>Q</kbd> Kỹ năng <kbd>R</kbd> Nộ <kbd>F</kbd> Nạp đạn</p>
+        </section>
+        <section class="menu-command" aria-label="Bắt đầu chơi">
+        <div class="menu-eyebrow">TRẠM CHỈ HUY / SẴN SÀNG</div>
+        <h2>Chọn cách sinh tồn.</h2>
+        <p class="menu-subtitle">Một mình, chung máy hoặc cùng đồng đội.</p>
 
         <!-- LƯU / TẢI: tự lưu ở đầu mỗi map (chế độ 1 người và 2 người chung máy) -->
         <div id="saveBox" class="w-full max-w-xl mb-3 gap-2" style="display:none;">
@@ -52,21 +61,21 @@
             <button class="game-btn px-3 py-3 bg-gray-800 hover:bg-gray-700 text-red-300 text-xs font-semibold rounded-xl border border-gray-600"
                 onclick="askConfirm('XOÁ BẢN LƯU?', 'Bản lưu lượt chơi hiện tại sẽ bị xoá vĩnh viễn.', deleteSave)">🗑 Xoá</button>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 w-full max-w-xl">
+        <div id="menuModes" class="mode-grid grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 w-full max-w-xl">
             <button
-                class="px-6 py-4 bg-blue-600 hover:bg-blue-500 font-bold text-base rounded-xl shadow-lg transition transform active:scale-95 border-b-4 border-blue-800"
-                onclick="startCampaign(true)">💻 1 NGƯỜI CHƠI (PC)</button>
+                class="mode-card mode-primary"
+                onclick="startCampaign(true)"><span class="mode-number">01 / SOLO</span><strong>Chơi trên máy tính</strong><span>Chuột &amp; bàn phím <b>↗</b></span></button>
             <button
-                class="px-6 py-4 bg-orange-600 hover:bg-orange-500 font-bold text-base rounded-xl shadow-lg transition transform active:scale-95 border-b-4 border-orange-800"
-                onclick="startCampaignMobileSingle()">📱 1 NGƯỜI CHƠI (MOBILE)</button>
+                class="mode-card"
+                onclick="startCampaignMobileSingle()"><span class="mode-number">01 / CẢM ỨNG</span><strong>Chơi trên điện thoại</strong><span>Điều khiển trực tiếp <b>↗</b></span></button>
             <button
-                class="px-6 py-4 bg-green-600 hover:bg-green-500 font-bold text-base rounded-xl shadow-lg transition transform active:scale-95 border-b-4 border-green-800"
-                onclick="startCampaign(false)">👥 2 NGƯỜI (MOBILE - 1 MÁY)</button>
+                class="mode-card"
+                onclick="startCampaign(false)"><span class="mode-number">02 / CHUNG MÁY</span><strong>Hai người một màn hình</strong><span>Ngồi đối diện, cùng sống sót <b>↗</b></span></button>
             <button
-                class="px-6 py-4 bg-cyan-600 hover:bg-cyan-500 font-bold text-base rounded-xl shadow-lg transition transform active:scale-95 border-b-4 border-cyan-800"
-                onclick="netOpenLobby()">🌐 ONLINE CO-OP (2–4 MÁY)</button>
+                class="mode-card"
+                onclick="netOpenLobby()"><span class="mode-number">02—04 / ONLINE</span><strong>Lập đội trực tuyến</strong><span>Kết nối bằng mã phòng <b>↗</b></span></button>
         </div>
-
+        <details id="menuSettings"><summary>CÀI ĐẶT &amp; HƯỚNG DẪN <span>+</span></summary><div class="settings-body">
         <button
             class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-yellow-400 text-sm font-semibold rounded-lg border border-yellow-500/30 transition"
             onclick="toggleGuideModal(true)">📖 WIKI &amp; HƯỚNG DẪN</button>
@@ -105,6 +114,11 @@
             <label class="flex items-center gap-2 cursor-pointer"><input id="killScream" type="checkbox"
                     onchange="setKillScream(this.checked)"> Tiếng hét khi zombie chết</label>
         </div>
+        <div class="graphics-setting"><label for="visualQuality">CHI TIẾT HÌNH ẢNH</label><select id="visualQuality" onchange="setPresentationQuality(this.value)"><option value="auto">Tự động theo thiết bị</option><option value="high">Chi tiết cao</option><option value="low">Nhẹ · tiết kiệm hiệu năng</option></select></div>
+        </div></details>
+        <div class="menu-footer"><span>KHÔNG CÓ ĐƯỜNG LÙI.</span><span>CHỈ CÓ ĐỒNG ĐỘI.</span></div>
+        </section>
+      </div>
     </div>
 
     <!-- SẢNH ONLINE -->
@@ -439,6 +453,9 @@
     <script src="js/26-world-biome.js"></script>
     <script src="js/27-cave-expansion.js"></script>
     <script src="js/28-world-art.js"></script>
+    <script src="js/29-character-art.js"></script>
+    <script src="js/30-environment-art.js"></script>
+    <script src="js/31-interface.js"></script>
 </body>
 
 </html>

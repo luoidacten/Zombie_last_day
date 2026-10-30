@@ -429,11 +429,7 @@ function drawPlayerEntity(p, idx, T) {
     // Vòng nhận diện người chơi của mình (online)
     if (NET.mode && idx === NET.localIdx && !p.isDowned) { ctx.beginPath(); ctx.ellipse(p.x, p.y + p.radius * 0.6, p.radius + 6, (p.radius + 6) * 0.5, 0, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2; ctx.stroke(); }
 
-    let g = ctx.createRadialGradient(p.x - 5, p.y - 6, 2, p.x, p.y, p.radius);
-    if (p.isDowned) { g.addColorStop(0, '#aab7b8'); g.addColorStop(1, '#616a6b'); }
-    else { g.addColorStop(0, '#ffffff'); g.addColorStop(0.25, p.color); g.addColorStop(1, p.color); }
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = p.hurtFlash > 0 ? '#ff4757' : '#fff'; ctx.lineWidth = p.hurtFlash > 0 ? 4 : 2; ctx.stroke();
+    drawSurvivorBody(p,idx,T);
     drawStatusEffects(p);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
@@ -829,6 +825,7 @@ function draw() {
     for (let gx = Math.max(0, Math.floor(x0 / 200) * 200); gx <= Math.min(MAP_SIZE.w, x1); gx += 200) { ctx.moveTo(gx, Math.max(0, y0)); ctx.lineTo(gx, Math.min(MAP_SIZE.h, y1)); }
     for (let gy = Math.max(0, Math.floor(y0 / 200) * 200); gy <= Math.min(MAP_SIZE.h, y1); gy += 200) { ctx.moveTo(Math.max(0, x0), gy); ctx.lineTo(Math.min(MAP_SIZE.w, x1), gy); }
     ctx.stroke();
+    drawBiomeTerrain(x0,x1,y0,y1,T);
     if (isRainyWeather() || caveSlippery()) drawPuddles(x0, x1, y0, y1, T); // hang tầng 1-2: nước rỉ từ trần đọng thành vũng
     ctx.fillStyle = 'rgba(0,0,0,0.16)';
     for (let d of GROUND_DOTS) { if (!vis(d.x, d.y, 5)) continue; ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 1.6, 0, Math.PI * 2); ctx.fill(); }
@@ -900,6 +897,7 @@ function draw() {
         drawMiniBar(t.x, t.y + 35, 80, 8, t.progress, maxProg, t.active ? '#2ecc71' : '#f1c40f');
     }
 
+    drawMissionObjectiveArt(T,vis);
     if (evacZone) {
         let ev = objState === 'EVAC', roof = objState === 'ROOFTOP';
         let col = ev ? '46, 204, 113' : (roof ? '0, 210, 211' : '241, 196, 15');
@@ -1044,6 +1042,7 @@ function draw() {
     // --- VẬT CẢN ---
     for (let obs of obstacles) {
         if (!visRect(obs.x - 6, obs.y - 6, obs.w + 12, obs.h + 12)) continue;
+        if(drawWorldObstacle(obs,T))continue;
         if (obs.type === 'rubble') { drawRubble(obs, T); continue; }
         if (obs.type === 'tree') {
             let cx = obs.x + obs.w / 2, cy = obs.y + obs.h / 2, r = obs.w / 2;
@@ -1452,28 +1451,9 @@ function drawHud(T) {
     let bannerY = 14;
 
     if (solo && p) {
-        let x = 10, y = 10, w = Math.min(236, W * 0.5), h = 74;
-        ctx.fillStyle = 'rgba(8,12,18,0.62)'; ctx.fillRect(x, y, w, h);
-        ctx.strokeStyle = 'rgba(148,163,184,0.25)'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w, h);
-        ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial';
-        ctx.fillText(`MAP ${currentLevel} · ${getMapName()}`, x + 8, y + 12);
+        let x = 10, y = 10, w = Math.min(small?196:250, W * 0.5), h = small?78:88;
+        drawModernPlayerPanel(p,x,y,w,h,T);
         const bar = (bx, by, bw, bh, pct, col) => { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by, bw, bh); ctx.fillStyle = col; ctx.fillRect(bx, by, bw * Math.max(0, Math.min(1, pct)), bh); };
-        let lowHp = p.hp < p.maxHp * 0.3;
-        bar(x + 8, y + 22, w - 16, 13, p.hp / p.maxHp, lowHp ? (Math.floor(T * 6) % 2 ? '#ff4757' : '#c0392b') : '#e74c3c');
-        if ((p.vHp || 0) >= 1 && !p.isDowned) {
-            let vw = (w - 16) * Math.min(1, p.vHp / Math.max(1, p.maxHp));
-            ctx.fillStyle = 'rgba(72, 219, 251, 0.72)'; ctx.fillRect(x + 8, y + 22, vw, 4);
-            ctx.strokeStyle = '#48dbfb'; ctx.lineWidth = 1; ctx.strokeRect(x + 8.5, y + 22.5, w - 17, 12);
-        }
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
-        let vTxt = (p.vHp || 0) >= 1 && !p.isDowned ? ` (+${Math.ceil(p.vHp)})` : '';
-        ctx.fillText(p.isDowned ? 'GỤC NGÃ' : `${Math.max(0, Math.ceil(p.hp))} / ${Math.round(p.maxHp)}${vTxt}`, x + w / 2, y + 29);
-        bar(x + 8, y + 38, w - 16, 5, p.hunger / 100, '#f39c12');
-        bar(x + 8, y + 46, w - 16, 5, p.xp / getXpRequired(p.level), '#f1c40f');
-        ctx.textAlign = 'left'; ctx.font = 'bold 11px Arial';
-        ctx.fillStyle = '#f1c40f'; ctx.fillText(`Lv ${p.level}`, x + 8, y + 63);
-        ctx.fillStyle = '#cbd5e1'; ctx.fillText(`⚙ ${shopScrap}  ◆ ${breakthroughShards}  ☠ ${killCount}`, x + 50, y + 63);
-        if (p.pendingUpgrades > 0) { ctx.textAlign = 'right'; ctx.fillStyle = '#2ecc71'; ctx.fillText(`+${p.pendingUpgrades} thẻ`, x + w - 8, y + 63); }
 
         let mateRows = 0;
         if (NET.mode && players.length > 1) {
@@ -1525,7 +1505,8 @@ function drawHud(T) {
     // 2 người chung máy: băng nhiệm vụ, thanh máu Boss và bộ đàm xoay DỌC ở giữa mép trái
     // (hai người ngồi đối diện đều đọc được, không đè lên vùng chơi hay cụm phím ảo ở 4 góc)
     const side = !solo;
-    const BW = side ? H * 0.5 : W;   // bề dài tối đa dành cho băng thông báo
+    const BW = side ? H * 0.5 : (W>H&&H<500?Math.max(260,W-440):W);
+    if(solo&&W>H&&H<500)bannerY=10;
     if (side) { ctx.save(); ctx.translate(26, H / 2); ctx.rotate(-Math.PI / 2); ctx.translate(-W / 2, 0); bannerY = 0; }
 
     // Băng nhiệm vụ
@@ -1536,9 +1517,8 @@ function drawHud(T) {
         do { ctx.font = `bold ${ofs}px Arial`; } while (ctx.measureText(obj[0]).width + 28 > BW - 8 && --ofs > 9);
         let tw = Math.min(BW - 8, ctx.measureText(obj[0]).width + 28), bh = small || side ? 26 : 32;
         let blink = (objState === 'EVAC' || objState === 'ROOFTOP') && Math.floor(T * 4) % 2 === 0;
-        ctx.fillStyle = blink ? 'rgba(20,60,40,0.8)' : 'rgba(0,0,0,0.62)'; ctx.fillRect(W / 2 - tw / 2, bannerY, tw, bh);
-        ctx.strokeStyle = obj[1]; ctx.globalAlpha = 0.5; ctx.lineWidth = 1; ctx.strokeRect(W / 2 - tw / 2 + 0.5, bannerY + 0.5, tw, bh); ctx.globalAlpha = 1;
-        ctx.fillStyle = obj[1]; ctx.fillText(obj[0], W / 2, bannerY + bh / 2 + 1, tw - 12);
+        artBox(W / 2 - tw / 2,bannerY,tw,bh,blink?'rgba(56,89,64,.95)':'rgba(15,36,43,.94)','#637d68',6);
+        ctx.fillStyle = '#d8d9bb'; ctx.fillText(obj[0], W / 2, bannerY + bh / 2 + 1, tw - 12);
         bannerY += bh + 6;
     }
 
@@ -1554,9 +1534,8 @@ function drawHud(T) {
         // Câu dài tự xuống dòng (trước đây bị ép dẹt thành chữ tí hon trên màn hình hẹp)
         let rfs = small ? 11 : 13; ctx.font = `bold ${rfs}px Arial`;
         let rl = storyWrap('📻 ' + r.text, bw - 18).slice(0, 4), rh = 12 + rl.length * (rfs + 4);
-        ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(W / 2 - bw / 2, bannerY, bw, rh);
-        ctx.strokeStyle = '#00d2d3'; ctx.lineWidth = 1; ctx.strokeRect(W / 2 - bw / 2 + 0.5, bannerY + 0.5, bw, rh);
-        ctx.fillStyle = '#dff9fb'; ctx.textAlign = 'center';
+        artBox(W / 2 - bw / 2,bannerY,bw,rh,'rgba(15,36,43,.95)','#668e83',6);
+        ctx.fillStyle = '#c5d7c6'; ctx.textAlign = 'center';
         rl.forEach((ln, i) => ctx.fillText(ln, W / 2, bannerY + 7 + rfs / 2 + i * (rfs + 4), bw - 12));
         ctx.globalAlpha = 1;
     }
@@ -1690,8 +1669,8 @@ function drawVirtualControls(stick, btnA, btnB, btnC, btnD, isTopPlayer, p) {
     };
 
     let aKind = gun ? 'aim' : (w && w.type === 'melee' ? 'blade' : (w && w.key === 'BOW' ? 'bow' : 'aim'));
-    btn(btnA, 30, '231,76,60', aKind, 'A', w || gun ? ammoPct : -1, false, !w && !gun);
-    btn(btnB, 23, '52,152,219', tr ? 'mortar' : 'throw', 'B', bPct, tr ? bPct >= 1 : false, !w && !tr);
-    btn(btnC, 21, '245,158,11', 'dash', 'C', cPct > 0 ? cPct : -1, cReady, cPct <= 0);
-    btn(btnD, 21, '224,86,253', 'rage', 'D', dPct > 0 ? dPct : -1, dReady, dPct <= 0);
+    btn(btnA, 30, '194,126,102', aKind, 'A', w || gun ? ammoPct : -1, false, !w && !gun);
+    btn(btnB, 23, '136,183,177', tr ? 'mortar' : 'throw', 'B', bPct, tr ? bPct >= 1 : false, !w && !tr);
+    btn(btnC, 21, '214,183,126', 'dash', 'C', cPct > 0 ? cPct : -1, cReady, cPct <= 0);
+    btn(btnD, 21, '171,155,190', 'rage', 'D', dPct > 0 ? dPct : -1, dReady, dPct <= 0);
 }

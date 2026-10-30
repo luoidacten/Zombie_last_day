@@ -1016,13 +1016,12 @@ function drawStoryOverlay(T) {
         let shown = ln.text.substring(0, Math.floor(d.t * 46)), lines = storyWrap(ln.text, bw - pad * 2 - 74);
         let bh = Math.max(92, 44 + lines.length * (fs + 6) + 30), py = H - bh - (showTouchUI ? Math.min(170, H * 0.3) : 26);
         ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = 'rgba(8, 12, 20, 0.93)'; ctx.fillRect(px, py, bw, bh);
-        ctx.strokeStyle = ln.color; ctx.lineWidth = 2; ctx.strokeRect(px + 1, py + 1, bw - 2, bh - 2);
-        ctx.fillStyle = ln.color; ctx.fillRect(px, py, 5, bh);
+        artBox(px,py,bw,bh,'rgba(15,35,42,.97)','#739383',8);
+        artBox(px+1,py+15,3,bh-30,'#c7b27d',null,1);
         // Chân dung
-        ctx.beginPath(); ctx.arc(px + pad + 28, py + 40, 26, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fill(); ctx.strokeStyle = ln.color; ctx.lineWidth = 2; ctx.stroke();
+        ctx.beginPath(); ctx.arc(px + pad + 28, py + 40, 26, 0, Math.PI * 2); ctx.fillStyle = '#304c4c'; ctx.fill(); ctx.strokeStyle = '#819d87'; ctx.lineWidth = 2; ctx.stroke();
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '30px Arial'; ctx.fillStyle = '#fff'; ctx.fillText(ln.icon, px + pad + 28, py + 42);
-        ctx.textAlign = 'left'; ctx.font = `bold ${fs}px Arial`; ctx.fillStyle = ln.color; ctx.fillText(ln.who, px + pad + 68, py + 20);
+        ctx.textAlign = 'left'; ctx.font = `bold ${fs}px Arial`; ctx.fillStyle = '#dac28d'; ctx.fillText(ln.who, px + pad + 68, py + 20);
         ctx.font = `${fs}px Arial`; ctx.fillStyle = '#f1f2f6';
         let left = shown.length;
         lines.forEach((l, i) => { if (left <= 0) return; ctx.fillText(l.substring(0, left), px + pad + 68, py + 44 + i * (fs + 6)); left -= l.length + 1; });

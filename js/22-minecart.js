@@ -155,14 +155,10 @@ function drawMinecart(){
         for(let h of c.hazards){
             if(!radar&&h.eta>.8)continue;
             let y=bottom-Math.min(1,h.eta/3.2)*(bottom-top);
-            ctx.fillStyle=h.type==='collapse'?'#ffc857':h.type==='rubble'?'#ed6a5a':'#99c1de';
-            ctx.fillRect(lx(h.lane)-32,y-23,64,46);
-            outlinedText(h.type==='collapse'?'⚠ SẬP':h.type==='rubble'?'✕ ĐÁ':'◆ RƠI',lx(h.lane),y,'#101820','bold 12px Arial');
+            drawCartHazard(h,lx(h.lane),y);
             if(radar)outlinedText(h.eta.toFixed(1)+'s',lx(h.lane),y-34,'#fff','12px Arial');
         }
-        let y=bottom;ctx.fillStyle=c.hit>0?'#ff7675':'#71869b';ctx.fillRect(lx(c.lane)-30,y-22,60,44);ctx.strokeStyle='#d3e5ee';ctx.strokeRect(lx(c.lane)-30,y-22,60,44);
-        for(let ox of [-29,29]){ctx.fillStyle='#161c23';ctx.fillRect(lx(c.lane)+ox-5,y+15,10,20);}
-        ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(lx(c.lane),y-4,11,0,Math.PI*2);ctx.fill();
+        drawEscapeCart(c,p,lx(c.lane),bottom);
         if(c.pingT>0)outlinedText(['← TRÁI','↑ GIỮA','PHẢI →'][c.ping],cx,top+35,'#69f0ae','bold 27px Arial');
         outlinedText(`P${p.id} · XE ${c.id?'BETA':'ALPHA'} · ${cartRole(c,p.id)}`,cx,65,'#d2edf2','bold 15px Arial');
         outlinedText(radar?'RADAR 3,2s · báo làn an toàn':'BỤI ĐÁ · theo mũi tên đồng đội',cx,90,'#b0bec5','12px Arial');

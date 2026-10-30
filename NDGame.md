@@ -170,12 +170,14 @@ Môi trường có chướng ngại và tìm đường, vùng độc/cháy/đi�
 
 ## 11. Kiến trúc và bản đồ mã nguồn
 
-Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `package.json` hoặc bước build ứng dụng trong thư mục hiện tại. `index.html` tải 20 file JavaScript theo thứ tự; chúng dùng chung phạm vi toàn cục, không phải ES modules.
+Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `package.json` hoặc bước build ứng dụng trong thư mục hiện tại. `index.html` tải 31 file JavaScript theo thứ tự; chúng dùng chung phạm vi toàn cục, không phải ES modules.
 
 | File / thư mục | Trách nhiệm chính |
 | --- | --- |
 | `index.html` | Điểm vào, menu, các bảng giao diện, hướng dẫn, thứ tự nạp script |
 | `css/zombie.css` | CSS giao diện, bố cục và hiệu ứng |
+| `css/presentation.css` | Giao diện mới: menu, bảng/nút, thẻ nâng cấp, bố cục điện thoại, focus và giảm chuyển động |
+| `assets/survivor-outpost.svg` | Minh họa menu, vẽ vector nội bộ không phụ thuộc ảnh ngoài |
 | `js/01-core.js` | Canvas, đầu vào nền tảng, âm thanh/nhạc và các thành phần lõi |
 | `js/02-data.js` | Trạng thái toàn cục, vũ khí, thẻ, tag, hằng số |
 | `js/03-world.js` | Trạng thái hiệu ứng, sinh bản đồ/nhiệm vụ, va chạm, vùng nguy hiểm và tiện ích thế giới |
@@ -204,6 +206,9 @@ Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `packag
 | `js/26-world-biome.js` | POI theo biome, tháp tín hiệu, vật thể tương tác, vùng dị biến |
 | `js/27-cave-expansion.js` | Công trình hang, xe bom hai nhánh ray, phá mạch, Kiến Chúa mới, thoát bộ rồi xe goòng |
 | `js/28-world-art.js` | Đồ họa cướp theo vai trò, chiến xa, tiền đồn, POI, vật thể hang và thùng tiếp tế |
+| `js/29-character-art.js` | Người chơi, zombie, boss, kiến, xúc tu, thương điện và đồng minh |
+| `js/30-environment-art.js` | Nền biome, kiến trúc/vật cản, căn cứ/cửa chắn, NPC/cư dân, xe tăng, Lab và xe goòng |
+| `js/31-interface.js` | HUD, chất lượng chi tiết, tương tác bàn phím/ARIA, focus hộp thoại và bố cục nâng cấp |
 | `docs/update-implementation.md` | Hành vi thực tế, thông số và giới hạn đợt cập nhật 30/10/2026 |
 | `Audio-SoundEffect/` | Nhạc và hiệu ứng âm thanh chia theo nhóm |
 | `tests/defense-lifesteal.test.cjs` | Kiểm thử hồi quy cơ chế phòng thủ và hút máu |
@@ -231,17 +236,19 @@ Mở `index.html` bằng trình duyệt; để phát triển có thể phục v�
 Kiểm thử tự động hiện có, yêu cầu Node.js:
 
 ```sh
-node --test tests/expeditions.test.cjs tests/upgrade-recovery.test.cjs
-node --test tests/boss-progression.test.cjs
+node --test tests/bandit-encounters.test.cjs tests/modern-update.test.cjs tests/boss-progression.test.cjs tests/expeditions.test.cjs tests/upgrade-recovery.test.cjs
+node tests/presentation-browser.cjs
 ```
 
-Bộ kiểm thử tải cả 22 script theo thứ tự HTML, giả lập DOM/âm thanh. Bao gồm 12 nhóm phòng thủ/hút máu, 3 nhóm phục hồi nâng cấp và 11 nhóm Lab/xe goòng. Hai file kiểm thử trên cùng nạp 12 nhóm nền nên Node báo tổng 38 lượt. Kiểm thử mạng mô phỏng lệnh và trạng thái chủ phòng/máy khách; chưa xác nhận kết nối WebRTC thực tế trên nhiều thiết bị.
+Bộ kiểm thử logic tải cả 31 script theo thứ tự HTML, giả lập DOM/âm thanh. Lệnh trên báo 107 lượt đạt (mỗi file cùng nạp 12 nhóm nền). Kiểm thử trình duyệt cần Playwright và Edge: mở menu, chọn thẻ/tuyến bằng bàn phím, 16 map, căn cứ/cửa hàng, các loại quái và bố cục PC/điện thoại. Có kiểm tra màn nâng cấp hai người chung máy và khách P3. Kiểm thử mạng mô phỏng lệnh và trạng thái chủ phòng/máy khách; chưa xác nhận kết nối WebRTC thực tế trên nhiều thiết bị.
 
 ## 13. Trạng thái công việc gần nhất
 
+**30/10/2026 — làm mới hình ảnh và UI/UX:** dùng tông xanh trầm, ngà và vàng cát thống nhất. Người chơi có giáp/mũ/ba lô và dấu màu đội; zombie, boss, kiến, xúc tu, thương điện và các lớp cướp có hình dáng/trang bị riêng. Cập nhật nền 16 map theo nhóm biome, cây/đá/nhà/tường, Lab, tàu/xe goòng, xe tăng, quầy căn cứ, nhà dân/nông trại/tháp canh, NPC và cư dân. Menu có minh họa riêng, lựa chọn chế độ rõ ràng, cài đặt thu gọn. HUD, hội thoại, cửa hàng và thẻ nâng cấp cùng phong cách; thẻ/tuyến hỗ trợ Enter/Space, hộp thoại hỗ trợ focus và bàn phím. Có tùy chọn chi tiết **Tự động / Cao / Thấp** lưu theo trình duyệt; Tự động giảm mật độ nền/tán cây dưới 900px. Chi tiết này không đổi chỉ số hoặc va chạm. Bản hiện tại nạp **31 script**; xem `tests/presentation-browser.cjs`.
+
 **30/10/2026 — cập nhật mới:** Nhà Chính cấp 2 mở Khu Tập Luyện dùng thực phẩm (mỗi cư dân tạo 3 thực phẩm/chiến dịch). Nhà cấp 2/3/4/5 có giới hạn 2/4/7/10 lần mỗi nhánh Máu/Tốc độ/Sát thương; Nhà cao tăng lượng chỉ số mỗi lần, tập đủ mở nội tại. Có thùng đạn/thùng máu; súng thường dùng băng riêng, Tiểu Liên 30 và AR 25 viên. Hết băng tự nạp hoặc nạp bằng **F/nút NẠP**; **R** dùng Nộ. Thêm tag và 5 perk Nạp Đạn, nút toàn màn hình và gợi ý xoay ngang khi online.
 
-Đã triển khai nội dung từ `docs/Cập nhâtz.txt` qua module 24–27: tám lớp cướp/ba phe và vòng đời chống thưởng lặp, xe tải, Cưa Máy, POI theo biome, công trình hang và chuỗi Kiến Chúa mới. Xem `docs/update-implementation.md` để biết hành vi và thông số thực tế. Bản hiện tại nạp **28 script**. Chạy kiểm thử phần mới bằng `node --test tests/modern-update.test.cjs`; kiểm tra giao diện bằng `node tests/modern-browser.cjs` (cần Playwright + Edge).
+Đã triển khai nội dung từ `docs/Cập nhâtz.txt` qua module 24–27: tám lớp cướp/ba phe và vòng đời chống thưởng lặp, xe tải, Cưa Máy, POI theo biome, công trình hang và chuỗi Kiến Chúa mới. Xem `docs/update-implementation.md` để biết hành vi và thông số thực tế. Chạy kiểm thử phần mới bằng `node --test tests/modern-update.test.cjs`; kiểm tra giao diện bằng `node tests/modern-browser.cjs` (cần Playwright + Edge).
 
 **Điều chỉnh cướp và hình ảnh:** cướp chỉ xuất hiện từ map thứ 8 của run. Map thường không có cướp trong vòng spawn ngẫu nhiên; chúng là nhóm gác cố định (tiền đồn 3, tháp 2) hoặc tối đa 4 lính từ một xe. Map thường có ngân sách tổng 10 cướp/1 xe; map 4/5/16 có 24 cướp/2 xe. Chốt bị dọn không sinh lại; xe rời đi/bị phá không được bổ sung. Module 28 vẽ lại nhân vật theo vai, chiến xa, công trình và tiếp tế. Kiểm tra bằng `tests/bandit-encounters.test.cjs` và `tests/world-art-browser.cjs`.
 

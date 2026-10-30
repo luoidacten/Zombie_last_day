@@ -172,10 +172,7 @@ function drawResidents(T) {
             y = home.y + 70 + Math.sin(a * 1.3) * 50; job = k % 2 ? '🔨' : '🧺';
         }
         let bob = Math.sin(T * 6 + k) * 1.5;
-        drawShadow(x, y + 6, 8);
-        ctx.beginPath(); ctx.arc(x, y + bob, 8, 0, Math.PI * 2); ctx.fillStyle = ['#f5cd79', '#e17055', '#74b9ff', '#a29bfe', '#55efc4'][k % 5]; ctx.fill();
-        ctx.strokeStyle = '#2d3436'; ctx.lineWidth = 2; ctx.stroke();
-        ctx.beginPath(); ctx.arc(x, y - 3 + bob, 4, 0, Math.PI * 2); ctx.fillStyle = '#f8c291'; ctx.fill();
+        drawResidentBody(x,y+bob,k);
         ctx.font = '10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText(job, x + 10, y - 10 + bob);
     }
 }
@@ -544,9 +541,7 @@ function drawColonyBuildings(T) {
         outlinedText(`🌾 NÔNG TRẠI (nuôi ${(base.farms || 1) * FARM_CAP})`, FARM_SPOTS[1][0], FARM_SPOTS[0][1] + 40, '#7bed9f', 'bold 10px Arial');
     }
     if (base.house >= 4) for (let [x, y] of TOWER_SPOTS) {
-        ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(x - 13, y - 13, 36, 36);
-        ctx.fillStyle = '#6d4c41'; ctx.fillRect(x - 18, y - 18, 36, 36); ctx.strokeStyle = '#3e2723'; ctx.lineWidth = 3; ctx.strokeRect(x - 18, y - 18, 36, 36);
-        ctx.fillStyle = '#2f3542'; ctx.beginPath(); ctx.arc(x, y - 4, 10, 0, Math.PI * 2); ctx.fill();
+        drawWatchtowerBody(x,y);
         outlinedText('THÁP CANH', x, y + 28, '#f1c40f', 'bold 9px Arial');
     }
 }
