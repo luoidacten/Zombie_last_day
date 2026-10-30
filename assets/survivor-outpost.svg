@@ -26,4 +26,12 @@
  <circle cx="481" cy="219" r="13" fill="#c3b38d"/><path d="M467 219q-3-24 17-20 15 3 13 21z" fill="#506b5e"/><path d="M474 215h19" stroke="#c8ba91" stroke-width="3"/>
  <path d="M424 348h101M106 354h201M568 345h122" stroke="#547267" stroke-width="3"/>
  <g fill="#d6bb80" opacity=".6"><circle cx="90" cy="65" r="1.5"/><circle cx="260" cy="52" r="1"/><circle cx="470" cy="33" r="1"/><circle cx="665" cy="65" r="1.5"/></g>
+ <!-- Shapes at the wire, with only their faces catching the camp light. -->
+ <g fill="#112321" stroke="#1d302a" stroke-width="3">
+  <path d="m38 310 6-35 16-15 15 8 8 39-11 7-9-29-9 9-4 21z"/><path d="m56 262-7-13 4-15 16-4 9 10-4 18-10 9z"/>
+  <path d="m640 310-8-31 13-17 19-2 12 18-4 35-12 3-3-30-7 6 2 22z"/><path d="m647 263-6-15 7-14 16 2 6 17-8 13z"/>
+  <path d="m691 314 1-25 12-13 14 4 12 34-12 6-10-25-4 24z"/><path d="m703 277-5-14 10-10 13 5 2 13-11 10z"/>
+ </g>
+ <g stroke="#b29973" stroke-width="2" opacity=".55"><path d="m57 245 5 1m4-3 5 1m578 5 4-1m5 0 4 1m48 16 4 1"/></g>
+ <path d="m17 298 9-7 7 9 9-8 8 7 8-7 8 7m514-2 9-8 8 9 10-9 8 8 9-8 7 8 9-8 7 8" stroke="#9da48b" opacity=".45"/>
 </svg>

@@ -784,8 +784,7 @@ class Scientist extends RescueNPC {
     }
     draw(ctx) {
         if (this.down > 0 && this.hp > 0) {
-            drawShadow(this.x, this.y, this.radius);
-            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = '#95a5a6'; ctx.fill(); ctx.strokeStyle = '#ff7675'; ctx.lineWidth = 2; ctx.stroke();
+            artCivilian(this,'#777a6d',true);
             ctx.beginPath(); ctx.arc(this.x, this.y, 80, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,118,117,0.4)'; ctx.stroke();
             drawMiniBar(this.x, this.y + 22, 42, 5, this.rescueProgress || 0, 3, '#2ecc71');
             outlinedText(`GỤC — CỨU! ${Math.ceil(this.down)}s`, this.x, this.y - 28, '#ff7675', 'bold 10px Arial');
@@ -793,7 +792,6 @@ class Scientist extends RescueNPC {
         }
         super.draw(ctx);
         if (this.hp <= 0) return;
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius - 3, 0.2, Math.PI - 0.2); ctx.fillStyle = '#f5f6fa'; ctx.fill();   // áo blouse
         outlinedText('NHÀ KHOA HỌC', this.x, this.y - 33, '#dff9fb', 'bold 9px Arial', 2);
     }
 }
@@ -888,6 +886,7 @@ function drawStoryProps(T, vis) {
     else if (currentMapType === 16) drawHub(T);
     for (let p of story.props) {
         if (!vis(p.x, p.y, 260)) continue;
+        if (drawStoryPropArt(p,T)) continue;
         if (p.kind === 'wreck') { drawWreck(p, T); continue; }
         if (p.kind === 'chain') { drawRailChain(p, T); continue; }
         if (p.kind === 'holdpt') { drawHoldPoint(p, T); continue; }
@@ -1016,10 +1015,10 @@ function drawStoryOverlay(T) {
         let shown = ln.text.substring(0, Math.floor(d.t * 46)), lines = storyWrap(ln.text, bw - pad * 2 - 74);
         let bh = Math.max(92, 44 + lines.length * (fs + 6) + 30), py = H - bh - (showTouchUI ? Math.min(170, H * 0.3) : 26);
         ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H);
-        artBox(px,py,bw,bh,'rgba(15,35,42,.97)','#739383',8);
+        artBox(px,py,bw,bh,'rgba(24,26,22,.97)','#747861',5);
         artBox(px+1,py+15,3,bh-30,'#c7b27d',null,1);
         // Chân dung
-        ctx.beginPath(); ctx.arc(px + pad + 28, py + 40, 26, 0, Math.PI * 2); ctx.fillStyle = '#304c4c'; ctx.fill(); ctx.strokeStyle = '#819d87'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.beginPath(); ctx.arc(px + pad + 28, py + 40, 26, 0, Math.PI * 2); ctx.fillStyle = '#383c30'; ctx.fill(); ctx.strokeStyle = '#878c71'; ctx.lineWidth = 2; ctx.stroke();
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '30px Arial'; ctx.fillStyle = '#fff'; ctx.fillText(ln.icon, px + pad + 28, py + 42);
         ctx.textAlign = 'left'; ctx.font = `bold ${fs}px Arial`; ctx.fillStyle = '#dac28d'; ctx.fillText(ln.who, px + pad + 68, py + 20);
         ctx.font = `${fs}px Arial`; ctx.fillStyle = '#f1f2f6';

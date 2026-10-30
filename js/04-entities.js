@@ -148,6 +148,7 @@ class Player {
         if (this.perks.ls_overheal) capMult += 0.4;
         if ((this.tags['HÚT MÁU'] || 0) >= 5) capMult += 0.5;
         if ((this.tags['PHÒNG THỦ'] || 0) >= 4) capMult += 0.25;
+        if (this.perks.vh_reservoir) capMult += 0.35;
         return Math.round(this.maxHp * capMult);
     }
 
@@ -214,6 +215,9 @@ class Player {
         else if (defLvl >= 2) m *= 0.88;
         if (this.perks.df_plate) m *= 0.85;
         if (this.perks.df_bastion && this.isNearBastion()) m *= 0.8;
+        if (this.perks.dr_veil && this.vHp > 0) m *= 0.88;
+        if (this.perks.dr_laststand && this.hp <= this.maxHp * 0.35) m *= 0.8;
+        if (this.perks.dr_aftershock && this.perks.rhBreakT > 0) m *= 0.8;
         // Link ĐỒNG MINH mốc 3: có lính còn sống đứng gần thì giảm 15% sát thương nhận
         if ((this.tags['DONG_MINH'] || 0) >= 3 && allies.some(a => a.hp > 0 && Math.hypot(a.x - this.x, a.y - this.y) < 320)) m *= 0.85;
         return m;
@@ -240,11 +244,13 @@ class Player {
         if (this.isDowned || this.perks.invulnTimer > 0 || !(amount > 0)) return;
         this.noHitT = 0;
         let finalDmg = amount * this.getDefenseMult();
+        let hadVHp = this.vHp > 0;
         if (this.vHp > 0) {
             let ab = Math.min(this.vHp, finalDmg);
             this.vHp -= ab; finalDmg -= ab;
         }
         this.hp -= finalDmg;
+        resilienceShieldBreak(this,hadVHp);
         this.hurtFlash = Math.max(this.hurtFlash || 0, 0.1);
         if (this.hp <= 0) this.goDown();
     }
@@ -319,6 +325,7 @@ class Player {
         }
 
         this.hp -= finalDmg; this.hurtFlash = 0.3;
+        resilienceShieldBreak(this,hadVHp);
         vfxList.push({ type: 'scratch', x: this.x, y: this.y, life: 0.2 });
         Sound.play('hit');
 
@@ -345,6 +352,9 @@ class Player {
 
     onKill(zombieType, zObj = null) {
         killCount++;
+        if (this.perks.vh_harvest && !this.isDowned && zombieType !== 51 && !(this.perks.rhHarvestCD > 0)) {
+            this.addVirtualHp(this.maxHp * 0.02); this.perks.rhHarvestCD = 0.4;
+        }
         recordMissionKill(zombieType);
         arsenalAddRage(this, isBossType(zombieType) ? 40 : 4); // Nộ [D] của vũ khí
         if (this.tags['MAY MẮN'] >= 2) {
@@ -498,6 +508,7 @@ class Player {
     }
     update(dt) {
         arsenalPlayerTick(this, dt);
+        resilienceTick(this,dt);
         if (this.swordWaveTimer > 0) this.swordWaveTimer -= dt;
         if (this.xpShowTimer > 0) this.xpShowTimer -= dt;
         if (this.perks.invulnTimer > 0) this.perks.invulnTimer -= dt;
@@ -516,9 +527,9 @@ class Player {
             this.noHitT = (this.noHitT || 0) + dt;
             // Lá Chắn Tái Tạo / Link PHÒNG THỦ 4+: sau 5 giây không bị tấn công, tự nạp dần Máu Ảo
             let defLvl = this.tags['PHÒNG THỦ'] || 0;
-            if (this.noHitT >= 5.0 && (this.perks.df_aegis || defLvl >= 4)) {
-                let regenLim = this.maxHp * ((this.perks.df_aegis ? 0.35 : 0) + (defLvl >= 4 ? 0.20 : 0));
-                let rate = this.maxHp * ((this.perks.df_aegis ? 0.045 : 0) + (defLvl >= 4 ? 0.025 : 0));
+            if (this.noHitT >= 5.0 && (this.perks.df_aegis || this.perks.vh_recovery || defLvl >= 4)) {
+                let regenLim = this.maxHp * ((this.perks.df_aegis ? 0.35 : 0) + (this.perks.vh_recovery ? 0.25 : 0) + (defLvl >= 4 ? 0.20 : 0));
+                let rate = this.maxHp * ((this.perks.df_aegis ? 0.045 : 0) + (this.perks.vh_recovery ? 0.03 : 0) + (defLvl >= 4 ? 0.025 : 0));
                 if ((this.vHp || 0) < regenLim) this.vHp = Math.min(Math.min(this.getMaxVHp(), regenLim), (this.vHp || 0) + rate * dt);
             }
             // Bức Phá PHÒNG THỦ (mốc 5): định kỳ phóng xung phản chấn đẩy lùi & làm chậm quái áp sát
@@ -1464,6 +1475,7 @@ class Slash {
         this.range = wepData.range; this.spread = wepData.spread; this.dmg = wepData.dmg; this.kbForce = wepData.kb;
         this.isSaber = (wepData.name === 'Laser'); this.isFire = !!wepData.isFire;
         this.life = 0.15; this.active = true; this.hitTargets = new Set();
+        this.isChainsaw = !!wepData.isChainsaw;
         // VFX quét: lưỡi chém quét qua cung đánh rồi để lại vệt trăng khuyết mờ dần (đồng bộ sang máy khách qua vfxList)
         let sweepCol = this.isSaber ? '0,255,255' : (this.isFire ? '255,159,67' : (wepData.isElectric ? '72,219,251' : (wepData.isLegendary ? '255,200,90' : '236,240,241')));
         // Mỗi vũ khí một kiểu chém riêng (vẽ ở drawSweep)
@@ -1473,8 +1485,9 @@ class Slash {
         if ((this.spread || 1) <= 0.45 || nm === 'Giáo') st = 'spear';
         if (st === 'axe') sweepCol = '255,140,110'; else if (st === 'hammer') sweepCol = '214,196,170';
         let swLife = st === 'hammer' ? 0.45 : (st === 'axe' ? 0.38 : (st === 'knife' || st === 'spear' ? 0.22 : 0.3));
-        vfxList.push({ type: 'sweep', st, pi: sourcePlayer && sourcePlayer.id ? sourcePlayer.id - 1 : undefined, thin: nm === 'Dao Quân Sự' ? 1 : 0, x, y, angle, r: this.range, spread: Math.min(Math.PI * 2, this.spread || 1), dir: (this.dirSign = wepData.dirSign || (Math.random() < 0.5 ? 1 : -1)), col: sweepCol, life: swLife, max: swLife });
-        if (NET.mode === 'host') NET.ev.push(['sl', sourcePlayer && sourcePlayer.id ? sourcePlayer.id : 1, +angle.toFixed(2), Math.round(this.range), +(+this.spread).toFixed(2), this.isSaber ? 1 : 0, this.isFire ? 1 : 0]);
+        if(this.isChainsaw)sawSwingFx(x,y,angle,this.range,sourcePlayer);
+        else vfxList.push({ type: 'sweep', st, pi: sourcePlayer && sourcePlayer.id ? sourcePlayer.id - 1 : undefined, thin: nm === 'Dao Quân Sự' ? 1 : 0, x, y, angle, r: this.range, spread: Math.min(Math.PI * 2, this.spread || 1), dir: (this.dirSign = wepData.dirSign || (Math.random() < 0.5 ? 1 : -1)), col: sweepCol, life: swLife, max: swLife });
+        if (NET.mode === 'host') NET.ev.push(['sl', sourcePlayer && sourcePlayer.id ? sourcePlayer.id : 1, +angle.toFixed(2), Math.round(this.range), +(+this.spread).toFixed(2), this.isSaber ? 1 : 0, this.isFire ? 1 : 0,this.isChainsaw?1:0]);
     }
     update(dt, pX, pY) {
         this.x = pX; this.y = pY; this.life -= dt; if (this.life <= 0) this.active = false;
@@ -1512,6 +1525,7 @@ class Slash {
         }
     }
     draw(ctx) {
+        if(this.isChainsaw)return; // The synchronized saw VFX owns this attack's image.
         let a = Math.max(0, Math.min(1, this.life / 0.15));
         let col = this.isSaber ? '0,255,255' : (this.isFire ? '255,159,67' : '236,240,241');
         let half = Math.min(Math.PI, this.spread / 2);
@@ -2126,10 +2140,7 @@ class Ally {
     }
     draw(ctx) {
         if (this.hp <= 0) return;
-        drawShadow(this.x, this.y, this.radius);
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.kind === 'medic' ? '#2ecc71' : (this.kind === 'vanguard' ? '#95a5a6' : '#3498db');
-        ctx.fill(); ctx.strokeStyle = this.elite ? '#f1c40f' : '#fff'; ctx.lineWidth = 2; ctx.stroke();
+        drawAllyBody(this,performance.now()/1000);
         ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(Math.atan2(this.facingY, this.facingX));
         ctx.fillStyle = '#bdc3c7'; ctx.fillRect(this.radius, -3, this.kind === 'vanguard' ? 14 : 22, 6); ctx.restore();
         drawMiniBar(this.x, this.y - 27, 34, 4, this.hp, this.maxHp, '#2ecc71');
@@ -2220,9 +2231,7 @@ class RescueNPC {
             drawMiniBar(this.x, this.y + 22, 42, 5, this.rescueProgress || 0, 5, '#2ecc71');
         }
         if (this.hp <= 0) return;
-        drawShadow(this.x, this.y, this.radius);
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = '#f8c291'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+        artCivilian(this,this.kind==='scientist'?'#b5b2a6':'#827b6e',this.kind==='scientist');
         drawMiniBar(this.x, this.y - 23, 28, 4, this.hp, this.maxHp, '#2ecc71');
     }
 }

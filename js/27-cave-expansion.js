@@ -93,7 +93,11 @@ resetCaveState=function(){mineReset();mineSabotage={gland:false,eggs:false,miner
 const mineObjective=caveObjectiveText;
 caveObjectiveText=function(){if(objState==='MINE_ESCORT')return [`ĐẨY XE BOM: ${mineRail?.step||0}/${mineRail?.path.length||0} · Xe ${Math.ceil(mineRail?.hp||0)} HP · Nhánh ${mineRail?.branch==='short'?'ngắn (Acid)':'dài (an toàn)'}`,'#ffc857'];if(objState==='MINE_PREP')return ['Phá 3 mạch phụ làm yếu Boss hoặc đến LÕI TỔ để vào đấu trường.','#77ddbb'];if(mineEscape)return ['HẦM ĐANG SẬP! Chạy về phía Bắc để lên xe goòng!','#ff7777'];return mineObjective();};
 const mineDrawProps=drawStoryProps;
-drawStoryProps=function(T,vis){mineDrawProps(T,vis);if(mineRail){let c=mineRail;ctx.fillStyle='#a46639';ctx.fillRect(c.x-38,c.y-25,76,50);drawMiniBar(c.x,c.y-45,80,7,c.hp,c.maxHp,'#e7a95a');outlinedText('XE BOM · ĐỨNG CẠNH ĐỂ ĐẨY',c.x,c.y-60,'#ffcf8a','11px Arial');}if(mineEscape){ctx.strokeStyle='#ff6740';ctx.lineWidth=14;ctx.beginPath();ctx.moveTo(1600,mineEscape.front);ctx.lineTo(2400,mineEscape.front);ctx.stroke();}};
+drawStoryProps=function(T,vis){
+    mineDrawProps(T,vis);
+    if(currentMapType===14&&mineRail&&['MINE_ESCORT','MINE_PREP'].includes(objState)&&(!vis||vis(mineRail.x,mineRail.y,110)))drawMineBombCart(mineRail,T);
+    if(currentMapType===14&&objState==='MINE_COLLAPSE_RUN'&&mineEscape){ctx.strokeStyle='#b16a47';ctx.lineWidth=14;ctx.beginPath();ctx.moveTo(1600,mineEscape.front);ctx.lineTo(2400,mineEscape.front);ctx.stroke();}
+};
 const mineNetState=storyNetState,mineNetApply=storyNetApply;
 storyNetState=function(){return {...mineNetState(),mx:{rail:mineRail,escape:mineEscape,sabotage:mineSabotage}};};
 storyNetApply=function(x){mineNetApply(x);mineRail=x?.mx?.rail||null;mineEscape=x?.mx?.escape||null;mineSabotage=x?.mx?.sabotage||{gland:false,eggs:false,mineral:false};};

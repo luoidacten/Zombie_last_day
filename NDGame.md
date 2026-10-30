@@ -1,6 +1,6 @@
 # NDGame — Tổng quan nội dung và cấu trúc game
 
-Cập nhật: **29/10/2026**, đối chiếu mã nguồn hiện có.
+Cập nhật: **30/10/2026**, đối chiếu mã nguồn hiện có.
 
 Tài liệu dành cho người mới tiếp nhận dự án, người muốn chỉnh sửa game hoặc AI cần hiểu nhanh game đang có gì. Thông số cân bằng chi tiết nằm trong mã nguồn; thiết kế chi tiết của đợt làm lại Phòng Thí Nghiệm Z (Lab Z Rework) nằm ở `THIẾT KẾ.md`.
 
@@ -170,7 +170,7 @@ Môi trường có chướng ngại và tìm đường, vùng độc/cháy/đi�
 
 ## 11. Kiến trúc và bản đồ mã nguồn
 
-Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `package.json` hoặc bước build ứng dụng trong thư mục hiện tại. `index.html` tải 31 file JavaScript theo thứ tự; chúng dùng chung phạm vi toàn cục, không phải ES modules.
+Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `package.json` hoặc bước build ứng dụng trong thư mục hiện tại. `index.html` tải 32 file JavaScript theo thứ tự; chúng dùng chung phạm vi toàn cục, không phải ES modules.
 
 | File / thư mục | Trách nhiệm chính |
 | --- | --- |
@@ -209,6 +209,7 @@ Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `packag
 | `js/29-character-art.js` | Người chơi, zombie, boss, kiến, xúc tu, thương điện và đồng minh |
 | `js/30-environment-art.js` | Nền biome, kiến trúc/vật cản, căn cứ/cửa chắn, NPC/cư dân, xe tăng, Lab và xe goòng |
 | `js/31-interface.js` | HUD, chất lượng chi tiết, tương tác bàn phím/ARIA, focus hộp thoại và bố cục nâng cấp |
+| `js/32-resilience.js` | Sáu perk Máu Ảo/giảm sát thương, cooldown và nâng sức chứa súng từ bản lưu cũ |
 | `docs/update-implementation.md` | Hành vi thực tế, thông số và giới hạn đợt cập nhật 30/10/2026 |
 | `Audio-SoundEffect/` | Nhạc và hiệu ứng âm thanh chia theo nhóm |
 | `tests/defense-lifesteal.test.cjs` | Kiểm thử hồi quy cơ chế phòng thủ và hút máu |
@@ -236,15 +237,20 @@ Mở `index.html` bằng trình duyệt; để phát triển có thể phục v�
 Kiểm thử tự động hiện có, yêu cầu Node.js:
 
 ```sh
-node --test tests/bandit-encounters.test.cjs tests/modern-update.test.cjs tests/boss-progression.test.cjs tests/expeditions.test.cjs tests/upgrade-recovery.test.cjs
+node --test tests/bandit-encounters.test.cjs tests/modern-update.test.cjs tests/boss-progression.test.cjs tests/expeditions.test.cjs tests/upgrade-recovery.test.cjs tests/resilience.test.cjs
 node tests/presentation-browser.cjs
+node tests/horror-browser.cjs
 ```
 
-Bộ kiểm thử logic tải cả 31 script theo thứ tự HTML, giả lập DOM/âm thanh. Lệnh trên báo 107 lượt đạt (mỗi file cùng nạp 12 nhóm nền). Kiểm thử trình duyệt cần Playwright và Edge: mở menu, chọn thẻ/tuyến bằng bàn phím, 16 map, căn cứ/cửa hàng, các loại quái và bố cục PC/điện thoại. Có kiểm tra màn nâng cấp hai người chung máy và khách P3. Kiểm thử mạng mô phỏng lệnh và trạng thái chủ phòng/máy khách; chưa xác nhận kết nối WebRTC thực tế trên nhiều thiết bị.
+Bộ kiểm thử logic tải cả 32 script theo thứ tự HTML, giả lập DOM/âm thanh. Lệnh trên báo 127 lượt đạt (mỗi file cùng nạp 12 nhóm nền). Kiểm thử trình duyệt cần Playwright và Edge: mở menu, chọn thẻ/tuyến bằng bàn phím, 16 map, căn cứ/cửa hàng, các loại quái và bố cục PC/điện thoại. Có kiểm tra màn nâng cấp hai người chung máy và khách P3. Kiểm thử mạng mô phỏng lệnh và trạng thái chủ phòng/máy khách; chưa xác nhận kết nối WebRTC thực tế trên nhiều thiết bị.
 
 ## 13. Trạng thái công việc gần nhất
 
-**30/10/2026 — làm mới hình ảnh và UI/UX:** dùng tông xanh trầm, ngà và vàng cát thống nhất. Người chơi có giáp/mũ/ba lô và dấu màu đội; zombie, boss, kiến, xúc tu, thương điện và các lớp cướp có hình dáng/trang bị riêng. Cập nhật nền 16 map theo nhóm biome, cây/đá/nhà/tường, Lab, tàu/xe goòng, xe tăng, quầy căn cứ, nhà dân/nông trại/tháp canh, NPC và cư dân. Menu có minh họa riêng, lựa chọn chế độ rõ ràng, cài đặt thu gọn. HUD, hội thoại, cửa hàng và thẻ nâng cấp cùng phong cách; thẻ/tuyến hỗ trợ Enter/Space, hộp thoại hỗ trợ focus và bàn phím. Có tùy chọn chi tiết **Tự động / Cao / Thấp** lưu theo trình duyệt; Tự động giảm mật độ nền/tán cây dưới 900px. Chi tiết này không đổi chỉ số hoặc va chạm. Bản hiện tại nạp **31 script**; xem `tests/presentation-browser.cjs`.
+**Cưa Máy:** có hiệu ứng cắt riêng, mạt/bụi máu khi chạm địch, tia lửa khi chạm giáp/kim loại, mạt gỗ khi phá vật thể, vệt lao và vòng quá tải. Xích/răng cưa chạy theo trạng thái, thân máy rung; hiệu ứng và trạng thái vòng tua/Nộ/đang lao gửi tới máy khách.
+
+**Bổ sung cân bằng:** 6 perk mới: Huyết Nang (+35% trần Máu Ảo), Thu Gom Sinh Lực (+2% Máu Ảo khi hạ địch, hồi 0,4s), Màng Máu Tái Sinh (đợi 5s, hồi 3%/s tới 25%), Da Kết Huyết (có Máu Ảo giảm 12% sát thương), Cầm Cự (máu ≤35% giảm 20%), Dư Chấn Huyết Giáp (vỡ Máu Ảo giảm 20% trong 4s, hồi 12s). Lục/Tiểu Liên/AR/Súng Săn/Ngắm/Phóng Lựu tăng sát thương thành 175/28/80/240/440/155 và tổng đạn thành 84/360/200/72/35/14. Băng giữ 12/30/25/6/5/1; sức chứa trong bản lưu cũ được nâng một lần, giữ số viên hiện có và hệ số perk.
+
+**30/10/2026 — làm mới hình ảnh và UI/UX:** dùng tông than đen, xám ngà và điểm nhấn đỏ sẫm; giảm màu cạnh tranh trong thẻ/wiki. Hình cũ được bỏ ở tháp tín hiệu, NPC, nhà dân, máy Lab, tổ kiến và xe mỏ. Zombie đánh xa có dáng phun axit, cung, súng và điện riêng, thêm chuyển động thở/đi/tấn công; người chơi có động tác nạp, vật thể có quạt, đèn, sóng, cây/ruộng đung đưa và khói. Người chơi có giáp/mũ/ba lô và dấu màu đội; zombie, boss, kiến, xúc tu, thương điện và các lớp cướp có hình dáng/trang bị riêng. Cập nhật nền 16 map theo nhóm biome, cây/đá/nhà/tường, Lab, tàu/xe goòng, xe tăng, quầy căn cứ, nhà dân/nông trại/tháp canh, NPC và cư dân. Menu có minh họa riêng, lựa chọn chế độ rõ ràng, cài đặt thu gọn. HUD, hội thoại, cửa hàng và thẻ nâng cấp cùng phong cách; thẻ/tuyến hỗ trợ Enter/Space, hộp thoại hỗ trợ focus và bàn phím. Có tùy chọn chi tiết **Tự động / Cao / Thấp** lưu theo trình duyệt; Tự động giảm mật độ nền/tán cây dưới 900px. Chi tiết này không đổi chỉ số hoặc va chạm. Bản hiện tại nạp **32 script**; xem `tests/presentation-browser.cjs`.
 
 **30/10/2026 — cập nhật mới:** Nhà Chính cấp 2 mở Khu Tập Luyện dùng thực phẩm (mỗi cư dân tạo 3 thực phẩm/chiến dịch). Nhà cấp 2/3/4/5 có giới hạn 2/4/7/10 lần mỗi nhánh Máu/Tốc độ/Sát thương; Nhà cao tăng lượng chỉ số mỗi lần, tập đủ mở nội tại. Có thùng đạn/thùng máu; súng thường dùng băng riêng, Tiểu Liên 30 và AR 25 viên. Hết băng tự nạp hoặc nạp bằng **F/nút NẠP**; **R** dùng Nộ. Thêm tag và 5 perk Nạp Đạn, nút toàn màn hình và gợi ý xoay ngang khi online.
 

@@ -15,7 +15,7 @@ function artCrate(x,y,size=25,col='#947047'){
 }
 function artSandbags(x,y,n=5){for(let i=0;i<n;i++)artBox(x+i*22,y+(i%2?2:0),27,14,i%2?'#8e8260':'#a3956b','#4b4b37',6);}
 function drawSupplyCrate(d,T){
-    ctx.save();ctx.translate(d.x,d.y);artShadow(0,0,25,15);
+    ctx.save();ctx.translate(d.x,d.y+Math.sin(artMotion(T)*2+d.x)*1.5);artShadow(0,0,25,15);
     artBox(-21,-15,42,32,d.type==='AMMOBOX'?'#7a8056':'#bac6b3','#2a4246',4);
     artBox(-19,-13,38,10,d.type==='AMMOBOX'?'#a49e68':'#d6dfcb',null,2);artBox(-14,-17,28,3,'#52665b',null,1);
     for(let x of [-18,15])artBox(x,-11,3,26,'#3f574f',null,1);

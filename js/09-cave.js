@@ -591,6 +591,7 @@ function updateQueenRunStage(dt, allAt) {
 function updateCaveProps(dt) {
     for (let i = caveProps.length - 1; i >= 0; i--) {
         let p = caveProps[i];
+        if (p.flash > 0) p.flash = Math.max(0,p.flash-dt);
         if (p.kind === 'nest') {
             if (p.hp <= 0) {
                 caveProps.splice(i, 1);
@@ -700,6 +701,7 @@ function caveSlashProps(s) {
         if (Math.abs(diff) > s.spread / 2) continue;
         s.hitTargets.add(p);
         caveHurtProp(p, s.dmg * (s.source && s.source.getTotalDamageMult ? s.source.getTotalDamageMult() : 1));
+        if(s.wepData?.isChainsaw&&s.source)sawImpactFx(s.source,p,p.kind==='nest'?'flesh':'metal');
         createParticles(p.x, p.y, '#8d6e63', 8, 220);
     }
     for (let o of obstacles) {
@@ -1356,6 +1358,7 @@ function drawCaveProps(T, vis) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (let p of caveProps) {
         if (!vis(p.x, p.y, 120)) continue;
+        if (drawCavePropArt(p,T)) continue;
         if (p.kind === 'nest') {
             let pul = 1 + Math.sin(T * 3 + p.x) * 0.04;
             ctx.beginPath(); ctx.ellipse(p.x, p.y + 6, p.r * 1.25 * pul, p.r * 0.95 * pul, 0, 0, Math.PI * 2); ctx.fillStyle = '#3e2a1c'; ctx.fill();

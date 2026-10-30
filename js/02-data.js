@@ -229,11 +229,11 @@ const UPGRADES = [
 ];
 
 const WEAPON_TYPES = {
-    PISTOL: { id: 1, name: 'Lục', color: '#bdc3c7', ammo: 50, range: 1000, fireRate: 300, dmg: 140, critCh: 0.8, critMult: 2.0, type: 'gun', maxAmmo: 50, pierce: 5 },
-    SMG: { id: 2, name: 'Tiểu Liên', color: '#f39c12', ammo: 240, range: 700, fireRate: 60, dmg: 20, critCh: 0.05, type: 'gun', maxAmmo: 240 },
-    AR: { id: 9, name: 'AR', color: '#2ecc71', ammo: 120, range: 850, fireRate: 120, dmg: 60, critCh: 0.15, type: 'gun', maxAmmo: 120, pierce: 3 },
-    SHOTGUN: { id: 3, name: 'Súng Săn', color: '#8e44ad', ammo: 50, range: 350, fireRate: 800, dmg: 200, bullets: 10, spread: 0.5, type: 'gun', maxAmmo: 50 },
-    SNIPER: { id: 4, name: 'Ngắm', color: '#57606f', ammo: 20, range: 1500, fireRate: 1500, dmg: 350, critCh: 0.5, armorPiercing: true, type: 'gun', maxAmmo: 20, pierce: 10 },
+    PISTOL: { id: 1, name: 'Lục', color: '#bdc3c7', ammo: 84, range: 1000, fireRate: 300, dmg: 175, critCh: 0.8, critMult: 2.0, type: 'gun', maxAmmo: 84, pierce: 5 },
+    SMG: { id: 2, name: 'Tiểu Liên', color: '#f39c12', ammo: 360, range: 700, fireRate: 60, dmg: 28, critCh: 0.05, type: 'gun', maxAmmo: 360 },
+    AR: { id: 9, name: 'AR', color: '#2ecc71', ammo: 200, range: 850, fireRate: 120, dmg: 80, critCh: 0.15, type: 'gun', maxAmmo: 200, pierce: 3 },
+    SHOTGUN: { id: 3, name: 'Súng Săn', color: '#8e44ad', ammo: 72, range: 350, fireRate: 800, dmg: 240, bullets: 10, spread: 0.5, type: 'gun', maxAmmo: 72 },
+    SNIPER: { id: 4, name: 'Ngắm', color: '#57606f', ammo: 35, range: 1500, fireRate: 1500, dmg: 440, critCh: 0.5, armorPiercing: true, type: 'gun', maxAmmo: 35, pierce: 10 },
     BOW: { id: 16, name: 'Cung', color: '#e056fd', ammo: 25, range: 1500, fireRate: 300, dmg: 60, type: 'charge', maxAmmo: 25 },
     KATANA: { id: 6, name: 'Kiếm', color: '#ecf0f1', ammo: 80, range: 100, fireRate: 200, dmg: 100, critCh: 0.4, type: 'melee', spread: 1.2, kb: 150, maxAmmo: 80 },
     AXE: { id: 7, name: 'Rìu', color: '#c0392b', ammo: 85, range: 90, fireRate: 500, dmg: 200, type: 'melee', spread: 5.0, kb: 300, maxAmmo: 85 },
@@ -249,7 +249,7 @@ const WEAPON_TYPES = {
     SHURIKEN: { id: 31, name: 'Phi Tiêu', color: '#b2bec3', ammo: 24, range: 620, fireRate: 260, dmg: 150, critCh: 0.25, type: 'gun', isThrown: true, bk: 14, spd: 1000, pierce: 1, maxAmmo: 24 },
     MOLOTOV: { id: 32, name: 'Bom Lửa', color: '#e17055', ammo: 3, type: 'explosive', fuseTime: 2500, isMolotov: true, maxAmmo: 3 },
 
-    GLAUNCHER: { id: 13, name: 'Phóng Lựu', color: '#16a085', ammo: 8, range: 1000, fireRate: 900, dmg: 120, type: 'gun', isExplosiveProj: true, maxAmmo: 8 },
+    GLAUNCHER: { id: 13, name: 'Phóng Lựu', color: '#16a085', ammo: 14, range: 1000, fireRate: 900, dmg: 155, type: 'gun', isExplosiveProj: true, maxAmmo: 14 },
     MINIGUN: { id: 10, name: 'Minigun', color: '#d35400', ammo: 250, range: 650, fireRate: 20, dmg: 50, wallPiercing: true, type: 'gun', slowDown: 0.65, maxAmmo: 550 },
     FLAMETHROWER: { id: 15, name: 'Phun Lửa', color: '#e67e22', ammo: 140, range: 760, fireRate: 50, dmg: 80, type: 'gun', isFlamethrower: true, pierce: 99, maxAmmo: 350 },
     ACID_SPRAYER: { id: 27, name: 'Phun Acid', color: '#2ecc71', ammo: 160, range: 680, fireRate: 55, dmg: 40, type: 'gun', isAcidSprayer: true, pierce: 99, maxAmmo: 320 },

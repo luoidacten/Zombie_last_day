@@ -82,7 +82,7 @@ spawnDrop=function(x,y,boss,forced){if(!forced&&!boss&&Math.random()<.16)forced=
 NET_DROP_T.push('AMMOBOX','HEALTHBOX');
 const supplyNetEncode=netEncodePlayer,supplyNetDecode=netDecodePlayer;
 netEncodePlayer=function(p){let e=supplyNetEncode(p),w=magazineInit(p);e.push(w?[w.mag,w.magSize,Math.ceil((p.reloadT||0)*100),Math.ceil((p.reloadMax||0)*100)]:null);return e;};
-netDecodePlayer=function(p,e,local){supplyNetDecode(p,e,local);if(e[30]&&p.weapon){let [mag,size,t,max]=e[30];p.weapon.mag=mag;p.weapon.magSize=size;p.reloadT=t/100;p.reloadMax=max/100;p.reloadW=t>0?p.weapon:null;}};
+netDecodePlayer=function(p,e,local){supplyNetDecode(p,e,local);if(e[30]&&p.weapon){let [mag,size,t,max]=e[30];p.weapon.mag=mag;p.weapon.magSize=size;p.reloadT=t/100;p.reloadMax=max/100;p.reloadW=t>0?p.weapon:null;}else{p.reloadW=null;p.reloadT=0;p.reloadMax=0;}};
 const supplyStoryNet=storyNetState,supplyStoryApply=storyNetApply;
 storyNetState=function(){return {...supplyStoryNet(),sf:[base.food|0,base.trainDmg|0,base.house|0,base.trainHp|0,base.trainSpd|0]};};
 storyNetApply=function(x){supplyStoryApply(x);if(x?.sf){base.food=x.sf[0];base.trainDmg=x.sf[1];base.house=x.sf[2];base.trainHp=x.sf[3];base.trainSpd=x.sf[4];}};

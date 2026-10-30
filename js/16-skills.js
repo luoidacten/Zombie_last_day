@@ -558,8 +558,9 @@ function renderWiki() {
     let maps = Object.keys(ROUTE_MAPS).map(k => `<b class="text-white">${ROUTE_NAMES[k]}</b> ⚙ ${ROUTE_MAPS[k]}`).join(' · ');
     box.innerHTML = sec('📚 WIKI — TOÀN BỘ LINK (HỆ) VÀ MỐC HIỆU ỨNG', '#f1c40f', tags)
         + sec('🩸 HÚT MÁU & 🛡 PHÒNG THỦ — THẺ NÂNG CẤP', '#54a0ff',
-            UPGRADES.filter(u => /^(ls_|df_|sc_)/.test(u.id)).map(u => `<div class="mb-2"><b class="text-white">${u.name}</b>: ${u.desc}</div>`).join('')
+            UPGRADES.filter(u => /^(ls_|df_|sc_|vh_|dr_)/.test(u.id)).map(u => `<div class="mb-2"><b class="text-white">${u.name}</b>: ${u.desc}</div>`).join('')
             + '<br>Máu Ảo hấp thụ sát thương trước máu thật, có giới hạn và mất khi bị hạ. Liềm có sẵn hút máu; khi hạ địch có tỉ lệ tạo Tế Phẩm để nhận thêm Máu Ảo.')
+        + sec('BĂNG ĐẠN & SÚNG NẠP', '#b9b49e',Object.entries(MAGAZINES).map(([key,[size]])=>{let w=WEAPON_TYPES[key];return `<div><b class="text-white">${w.name}</b>: ${w.dmg} sát thương cơ bản · ${w.ammo} tổng đạn · băng ${size} viên.</div>`;}).join('')+'<br>F/nút NẠP để thay băng; hết băng tự nạp. Tổng đạn gồm cả các viên trong băng.')
         + sec('⚔ KỸ NĂNG VŨ KHÍ [C / phím Q] — có sẵn, chỉ cần chờ hồi chiêu', '#ffeaa7', sk)
         + sec('💢 NỘ [D / phím R] — cần thẻ "Thịnh Nộ"', '#e056fd', rage + '<br>Hạ quái để nạp Nộ. Katana dùng Nộ KIẾM CƯỜNG theo Link Kiếm Sư 5, không cần thẻ.')
         + sec('🎯 VŨ KHÍ NÉM', '#fab1a0', '<b class="text-white">Phi Tiêu</b>: bắn 1 phi tiêu; Ném [B] tung vòng quanh người theo số còn lại. <b class="text-white">Bom Lửa</b>: giữ bắn để châm, [B] để ném, vỡ thành biển lửa. <b class="text-white">Lựu Đạn</b>: giữ bắn rút chốt, [B] ném.')

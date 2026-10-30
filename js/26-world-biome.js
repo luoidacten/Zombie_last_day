@@ -43,7 +43,7 @@ function damageFeature(f,damage,w,src){
     if(f.on||f.hp<=0)return;
     const tool=w?.isChainsaw||w?.type==='explosive'||w?.isExplosiveProj||w?.isTankShell||['AXE','HAMMER'].includes(w?.key);
     if(['vault','bridge','pillar','cocoon','eggs','gland','mineral','crackwall','rottenTree'].includes(f.kind)&&!tool)return;
-    f.hp-=damage*(w?.isChainsaw&&src?.perks.saw_demolition?2:1);if(f.hp>0)return;
+    f.hp-=damage*(w?.isChainsaw&&src?.perks.saw_demolition?2:1);if(w?.isChainsaw&&src)sawImpactFx(src,f,['rottenTree','cage','bridge','pillar'].includes(f.kind)?'wood':'metal');if(f.hp>0)return;
     f.on=true;
     if(['crackwall','rottenTree'].includes(f.kind)){obstacles=obstacles.filter(o=>o.featureId!==f.id);navRebuild();if(NET.mode==='host')netSendMap();}
     if(['fuel','minefield'].includes(f.kind)){explode(f.x,f.y,300,250,src,true);fireZones.push({x:f.x,y:f.y,radius:180,life:8,dmg:35,source:src});}

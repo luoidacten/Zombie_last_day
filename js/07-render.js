@@ -889,15 +889,8 @@ function draw() {
 
     for (let t of towers) {
         if (!vis(t.x, t.y, 220)) continue;
-        let maxProg = t.needsBattery ? 8.0 : 5.0;
-        ctx.beginPath(); ctx.arc(t.x, t.y, 150, 0, Math.PI * 2); ctx.fillStyle = t.active ? 'rgba(46, 204, 113, 0.2)' : 'rgba(231, 76, 60, 0.1)'; ctx.fill(); ctx.strokeStyle = t.active ? '#2ecc71' : '#e74c3c'; ctx.lineWidth = 4; ctx.stroke();
-        if (t.active) { let pr = (T * 0.6 + t.x * 0.01) % 1; ctx.beginPath(); ctx.arc(t.x, t.y, 150 + pr * 60, 0, Math.PI * 2); ctx.strokeStyle = `rgba(46,204,113,${0.5 * (1 - pr)})`; ctx.lineWidth = 3; ctx.stroke(); }
-        ctx.fillStyle = '#34495e'; ctx.fillRect(t.x - 10, t.y - 30, 20, 60); ctx.beginPath(); ctx.arc(t.x, t.y - 35, 10, 0, Math.PI * 2); ctx.fillStyle = t.active ? '#2ecc71' : (Math.floor(Date.now() / 500) % 2 === 0 ? '#e74c3c' : '#c0392b'); ctx.fill();
-        if (!t.active && t.progress > 0) { ctx.beginPath(); ctx.arc(t.x, t.y, 150, -Math.PI / 2, -Math.PI / 2 + (t.progress / maxProg) * Math.PI * 2); ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 6; ctx.stroke(); }
-        drawMiniBar(t.x, t.y + 35, 80, 8, t.progress, maxProg, t.active ? '#2ecc71' : '#f1c40f');
+        drawMissionTower(t,T);
     }
-
-    drawMissionObjectiveArt(T,vis);
     if (evacZone) {
         let ev = objState === 'EVAC', roof = objState === 'ROOFTOP';
         let col = ev ? '46, 204, 113' : (roof ? '0, 210, 211' : '241, 196, 15');
@@ -1090,7 +1083,6 @@ function draw() {
         let boss = isBossType(z.type);
         let rage = z.isFrenzied > 0;
         ctx.globalAlpha = alpha;
-        drawShadow(z.x, z.y, (z.flying || z.airborne) ? z.radius * 0.7 : z.radius);
         if (boss) {
             ctx.globalAlpha = alpha * 0.35;
             ctx.beginPath(); ctx.arc(z.x, z.y, z.radius + 12 + Math.sin(T * 4) * 5, 0, Math.PI * 2); ctx.strokeStyle = z.color; ctx.lineWidth = 7; ctx.stroke();
@@ -1517,7 +1509,7 @@ function drawHud(T) {
         do { ctx.font = `bold ${ofs}px Arial`; } while (ctx.measureText(obj[0]).width + 28 > BW - 8 && --ofs > 9);
         let tw = Math.min(BW - 8, ctx.measureText(obj[0]).width + 28), bh = small || side ? 26 : 32;
         let blink = (objState === 'EVAC' || objState === 'ROOFTOP') && Math.floor(T * 4) % 2 === 0;
-        artBox(W / 2 - tw / 2,bannerY,tw,bh,blink?'rgba(56,89,64,.95)':'rgba(15,36,43,.94)','#637d68',6);
+        artBox(W / 2 - tw / 2,bannerY,tw,bh,blink?'rgba(64,54,40,.95)':'rgba(25,27,23,.94)','#706d58',5);
         ctx.fillStyle = '#d8d9bb'; ctx.fillText(obj[0], W / 2, bannerY + bh / 2 + 1, tw - 12);
         bannerY += bh + 6;
     }
@@ -1534,7 +1526,7 @@ function drawHud(T) {
         // Câu dài tự xuống dòng (trước đây bị ép dẹt thành chữ tí hon trên màn hình hẹp)
         let rfs = small ? 11 : 13; ctx.font = `bold ${rfs}px Arial`;
         let rl = storyWrap('📻 ' + r.text, bw - 18).slice(0, 4), rh = 12 + rl.length * (rfs + 4);
-        artBox(W / 2 - bw / 2,bannerY,bw,rh,'rgba(15,36,43,.95)','#668e83',6);
+        artBox(W / 2 - bw / 2,bannerY,bw,rh,'rgba(25,27,23,.95)','#6d7560',5);
         ctx.fillStyle = '#c5d7c6'; ctx.textAlign = 'center';
         rl.forEach((ln, i) => ctx.fillText(ln, W / 2, bannerY + 7 + rfs / 2 + i * (rfs + 4), bw - 12));
         ctx.globalAlpha = 1;

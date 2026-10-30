@@ -842,7 +842,7 @@ function netApplySnapshot(s) {
             else if (ev[0] === 'sk') playKillSound(+ev[1] || 0, +ev[2] || 0, ev[3] ? 1 : 0);
             else if (ev[0] === 'd') addDecal(ev[1], ev[2], String(ev[3]), +ev[4] || 10, +ev[5] || 0.4);
             else if (ev[0] === 'r') radioDialogs.push({ text: String(ev[1]), life: 5, maxLife: 5 });
-            else if (ev[0] === 'sl') slashes.push(Object.assign(Object.create(Slash.prototype), { src: Math.max(0, Math.min(players.length - 1, (ev[1] | 0) - 1)), x: 0, y: 0, angle: +ev[2] || 0, range: +ev[3] || 80, spread: +ev[4] || 1, isSaber: !!ev[5], isFire: !!ev[6], life: 0.15 }));
+            else if (ev[0] === 'sl') slashes.push(Object.assign(Object.create(Slash.prototype), { src: Math.max(0, Math.min(players.length - 1, (ev[1] | 0) - 1)), x: 0, y: 0, angle: +ev[2] || 0, range: +ev[3] || 80, spread: +ev[4] || 1, isSaber: !!ev[5], isFire: !!ev[6],isChainsaw:!!ev[7], life: 0.15 }));
         }
         NET.applying = false;
     }

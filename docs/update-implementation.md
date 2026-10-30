@@ -16,6 +16,25 @@ Nguồn yêu cầu: tin nhắn người dùng, `Cập nhâtz.txt` và GDD hiện
 - Thùng đạn hồi 50% sức chứa, perk Tiếp Tế tăng thành 75%; thùng máu hồi 50% máu tối đa. Tag NẠP ĐẠN có mốc 2/3/5, năm perk liên quan được thêm vào pool và wiki.
 - Nút toàn màn hình gọi API trình duyệt từ thao tác người dùng, thử khóa ngang nếu thiết bị hỗ trợ; có chỉ dẫn xoay ngang khi online trên màn hình dọc. Khả năng khóa xoay phụ thuộc trình duyệt/thiết bị.
 
+## Chỉnh sửa hình ảnh, animation và cân bằng tiếp theo
+
+- Sửa gốc lỗi vẽ chồng: tháp tín hiệu gọi một renderer; máy Lab, bản thiết kế, tổ kiến, TNT/xe mỏ được xử lý một lần rồi bỏ qua hình cũ. NPC/đồng minh và nhà dân/nông trại thay body cũ trực tiếp. Bản thiết kế đã thu không còn xuất hiện; xe bom chỉ vẽ trong map mỏ ở bước hộ tống/chuẩn bị, không lạc sang map khác hoặc đấu trường boss.
+- Zombie thường có da tái, áo rách, xương sườn và hàm; nhóm đánh xa tách túi axit/yết hầu chảy dịch, cung và dây cung, súng hai nòng cầm bên thân, điện cực. Animation gồm bước chân, thở, co giật và tư thế phun/bắn; người chơi có tay nạp và giật vai khi bắn; NPC, cây, ruộng, quạt máy, đèn/sóng tháp, thùng đồ và khói căn cứ có chuyển động nhẹ. Các hiệu ứng chỉ đọc trạng thái; ưu tiên giảm chuyển động của hệ thống được cập nhật trực tiếp.
+- UI chuyển sang nền than đen, chữ xám ngà, đỏ gỉ cho hành động/cảnh báo. Giảm nhiều màu cạnh tranh trên thẻ và wiki; thanh máu/máu ảo/no/XP vẫn có màu chức năng riêng.
+- Module 32 thêm sáu perk, dùng cờ và cooldown số trong payload perk lưu/đồng bộ sẵn có. `vh_reservoir`: trần Máu Ảo +35% máu tối đa. `vh_harvest`: mỗi mạng hạ nhận 2% máu tối đa thành Máu Ảo, hồi 0,4s, loại trừ Tế Phẩm. `vh_recovery`: sau 5s không nhận sát thương, hồi 3%/s tới 25%; cộng trần/tốc với Lá Chắn Tái Tạo và tag Phòng Thủ, vẫn bị giới hạn Máu Ảo chung.
+- `dr_veil`: còn Máu Ảo giảm thêm 12% sát thương. `dr_laststand`: máu thật ≤35% giảm thêm 20%. `dr_aftershock`: khi Máu Ảo vừa vỡ mà người chơi còn sống, giảm 20% trong 4s tiếp theo, hồi 12s; đòn phá vỡ không được giảm ngược. Các hệ số nhân với phòng thủ sẵn có và áp dụng cả sát thương theo thời gian. Né, phản đòn hoặc khiên chặn trọn đòn không kích hoạt vỡ Máu Ảo.
+
+| Súng nạp | Sát thương cũ → mới | Tổng đạn cũ → mới | Viên/băng |
+| --- | --- | --- | --- |
+| Lục | 140 → 175 | 50 → 84 | 12 |
+| Tiểu Liên | 20 → 28 | 240 → 360 | 30 |
+| AR | 60 → 80 | 120 → 200 | 25 |
+| Súng Săn | 200 → 240 | 50 → 72 | 6 |
+| Ngắm | 350 → 440 | 20 → 35 | 5 |
+| Phóng Lựu | 120 → 155 | 8 → 14 | 1 |
+
+Bản lưu đánh dấu cân bằng súng `bv:2`. Khi đọc bản cũ, sức chứa được đổi theo tỷ lệ nền mới/cũ để giữ bonus đã mua; số đạn còn lại không được tự hồi khi tải. Wiki lấy số súng và mô tả perk trực tiếp từ dữ liệu.
+
 ## Nội dung từ tệp cập nhật
 
 - Module 24: tám lớp cướp, chọn mục tiêu theo phe và khoảng cách, chạy/giữ cự ly/hỗ trợ/hoảng loạn; Scout lấy đồ, Medic cứu một lần, xác chết có thể hóa zombie. Nấc gục không nhận thưởng; xác nhiễm chỉ nhận nửa XP và không rơi đồ lần nữa. Xe tải đổ quân, yểm trợ, nhận sát thương và rời đi. **Điều chỉnh theo yêu cầu mới: chỉ có cướp từ map thứ 8 của run.** Vòng spawn thường chỉ sinh zombie, kể cả Thị Trấn Cướp. Tiền đồn có 3 lính, tháp tín hiệu có 2 lính; mỗi chốt chỉ sinh nhóm gác một lần, không bổ sung sau khi chết. Lính gác hoạt động quanh chốt, quay lại khi mục tiêu đi xa.
@@ -38,8 +57,17 @@ Các mô phỏng AI và POI là quy tắc chạy được trên hệ canvas hi�
 - Chất lượng **Tự động / Cao / Thấp** chỉ thay mật độ chi tiết nền và tán cây. Tự động dùng mức nhẹ dưới chiều rộng 900px; lựa chọn được lưu bằng `zs_visual_quality`. CSS tôn trọng thiết lập giảm chuyển động. Không thay chỉ số, AI, lịch spawn hoặc cơ chế lưu/đồng bộ.
 - Đồ họa vẽ bằng Canvas/SVG/CSS, không cần tải ảnh mới hoặc thư viện đồ họa. Đây là phong cách minh họa nhìn từ trên xuống; hiệu ứng cảnh báo và các lớp thời tiết đã có được giữ để trận đánh dễ đọc.
 
-`node tests/presentation-browser.cjs` kiểm tra menu/cài đặt, hộp thoại, chọn thẻ/tuyến bằng bàn phím, 16 map, căn cứ/xưởng, các loại boss/zombie/cướp, hai người chung máy và màn nâng cấp khách P3, bố cục desktop/dọc/ngang điện thoại. Ảnh kiểm tra xuất vào thư mục tạm `zombie-presentation-*.png`. Kiểm tra logic tổng hợp bằng lệnh 5 file trong `NDGame.md`: **107/107 lượt đạt**. Mạng ở đây vẫn là trạng thái/lệnh mô phỏng, chưa phải bốn máy WebRTC thực tế.
+`node tests/presentation-browser.cjs` kiểm tra menu/cài đặt, hộp thoại, chọn thẻ/tuyến bằng bàn phím, 16 map, căn cứ/xưởng, các loại boss/zombie/cướp, hai người chung máy và màn nâng cấp khách P3, bố cục desktop/dọc/ngang điện thoại. Ảnh kiểm tra xuất vào thư mục tạm `zombie-presentation-*.png`. Kiểm tra logic tổng hợp bằng lệnh 6 file trong `NDGame.md`: **127/127 lượt đạt**. Mạng ở đây vẫn là trạng thái/lệnh mô phỏng, chưa phải bốn máy WebRTC thực tế.
 
 `node --test tests/modern-update.test.cjs` kiểm tra tập luyện, tiếp tế, băng đạn, vòng đời ba phe, Cưa Máy, POI và chuỗi Kiến Chúa. `node tests/modern-browser.cjs` (Playwright + Edge) bấm nút nạp/tập thật, mô phỏng chín map, chuyển tới boss mới và vẽ ở kích thước ngang điện thoại. Đây chưa phải kiểm tra WebRTC trên bốn máy thật.
 
 `node --test tests/bandit-encounters.test.cjs` kiểm tra mốc map 8, chốt không sinh lại, vòng spawn thường, ngân sách xe/quân và mô phỏng 10 phút không bổ sung cướp. `node tests/world-art-browser.cjs` kiểm tra bằng Edge và xuất ảnh các nhân vật/công trình ở desktop và màn hình ngang điện thoại.
+
+`node tests/horror-browser.cjs` kiểm tra không còn body cũ của tháp/NPC, mỗi prop chỉ vẽ một lần, xe bom đúng giai đoạn, animation thay đổi pixel nhưng giữ nguyên dữ liệu chiến đấu, và chế độ giảm chuyển động. Xuất ảnh `zombie-horror-ranged.png`, `zombie-horror-towers.png` trong thư mục tạm. `node --test tests/resilience.test.cjs` kiểm tra trần/hồi Máu Ảo, giảm sát thương/cooldown, lựa chọn perk, đồng bộ và nâng sức chứa bản lưu.
+
+## Hiệu ứng đòn đánh Cưa Máy
+
+- Slash Cưa Máy dùng `saw_swing` riêng thay vệt kiếm/fan trắng cũ; vệt cắt mảnh và dư ảnh theo hướng đánh. Chạm địch có vết cắt, mạt đỏ; chạm giáp/kim loại có tia lửa và tiếng kim loại; vật thể gỗ có mạt gỗ. Hiệu ứng va đập giới hạn một lần mỗi 65ms/người và không tạo thêm sát thương.
+- Lao cưa để lại vệt tốc độ mỗi 70ms, chạm mục tiêu dùng hiệu ứng vật liệu; kích Nộ có vòng quá tải, xích nóng và thân máy rung. Răng cưa chạy khi máy hoạt động.
+- VFX sống 0,18–0,5s, dùng hàng đợi mạng hiện có; không sinh thêm khi hàng đợi đạt 220. Chất lượng thấp giảm số mạt; giảm chuyển động tắt rung máy và rung màn hình của va đập. Snapshot thêm slot 31 cho vòng tua/tiếp xúc/Nộ/lao và cờ Slash cưa; khách cũ thiếu trường nhận mặc định 0.
+- `tests/resilience.test.cjs` kiểm tra vệt cưa không bị lẫn vệt kiếm, không gây sát thương hai lần, giới hạn/thu hồi VFX và gửi trạng thái/hiệu ứng sang khách. `tests/horror-browser.cjs` xuất thêm ảnh `zombie-horror-chainsaw.png`.
