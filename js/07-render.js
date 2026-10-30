@@ -923,8 +923,7 @@ function draw() {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (let d of drops) {
         if(d.type==='AMMOBOX'||d.type==='HEALTHBOX'){
-            ctx.fillStyle=d.type==='AMMOBOX'?'#b88b31':'#a83940';ctx.fillRect(d.x-17,d.y-14,34,28);
-            outlinedText(d.type==='AMMOBOX'?'ĐẠN':'+ MÁU',d.x,d.y+4,'#fff','bold 11px Arial');continue;
+            drawSupplyCrate(d,T);continue;
         }
         if (!vis(d.x, d.y, 40)) continue;
         let y = d.y + Math.sin(T * 3 + d.x * 0.05) * 3;

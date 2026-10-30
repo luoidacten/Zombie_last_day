@@ -3,15 +3,28 @@ const BANDIT_NAMES=['DO THÁM','XẠ THỦ','CÀN QUÉT','GÃ ĐIÊN','NÉM BOM'
 const BANDIT_MUTATIONS=[3,8,27,10,34,14,15,6];
 const isBandit=z=>z&&z.type>=60&&z.type<=67;
 const factionOf=z=>z?.faction||(isBandit(z)||z?.type===32?'bandit':z instanceof Zombie?'zombie':'survivor');
-let banditTrucks=[],banditWaveT=18;
+let banditTrucks=[],banditConvoyT=18;
+let banditEncounter={units:0,trucks:0,sources:{}};
 function banditDensity(){
-    if([10,14].includes(currentMapType)||objState==='TRAIN'||labDungeon()||(currentMapType===15&&story.lab?.stage!=='c4'&&story.lab?.stage!=='breach')||objState==='HUB')return 0;
+    if(currentLevel<8||[10,14].includes(currentMapType)||objState==='TRAIN'||labDungeon()||(currentMapType===15&&story.lab?.stage!=='c4'&&story.lab?.stage!=='breach')||objState==='HUB')return 0;
     if([4,5].includes(currentMapType))return .8;
     return [7,9,11,12,15].includes(currentMapType)?.075:.35;
 }
-banditRandomType=()=>60+Math.floor(Math.random()*8);
+banditRandomType=()=>currentLevel>=8?60+Math.floor(Math.random()*8):0;
 const banditRoster=rosterPick;
-rosterPick=function(){return Math.random()<banditDensity()?banditRandomType():banditRoster();};
+// Ambient waves contain zombies. Humans come only from finite, named encounters.
+rosterPick=function(){let t=banditRoster();return t===12||(t>=60&&t<=67)?0:t;};
+function banditLimits(){return [4,5,16].includes(currentMapType)?{units:24,trucks:2}:{units:10,trucks:1};}
+function spawnBanditSquad(x,y,types,source,guard=false){
+    if(NET.mode==='guest'||!banditDensity()||banditEncounter.sources[source])return [];
+    banditEncounter.sources[source]=true;
+    let squad=[],left=Math.max(0,banditLimits().units-banditEncounter.units);
+    for(let type of types.slice(0,left)){
+        let p=findSafePoint(x+(squad.length-(types.length-1)/2)*45,y+40,20),z=new Zombie(p.x,p.y,type);
+        if(guard){z.postX=x;z.postY=y;}
+        z.encounterSource=source;zombies.push(z);squad.push(z);banditEncounter.units++;
+    }return squad;
+}
 function banditShoot(z,target,type='arrow',spread=0){
     let a=Math.atan2(target.y-z.y,target.x-z.x)+(Math.random()-.5)*spread;
     let b=new EnemyBullet(z.x,z.y,z.x+Math.cos(a)*600,z.y+Math.sin(a)*600,type);b.faction='bandit';b.owner=z;enemyBullets.push(b);
@@ -32,7 +45,7 @@ function banditTick(z,dt){
     let flee=z.desperate==='flee'||(!inspired&&z.hp<z.maxHp*(z.panic?.5:.25));
     if(flee){
         let truck=banditTrucks.find(t=>t.hp>0&&t.time<25);
-        if(!truck&&z.desperate==='flee'&&!z.flared&&banditDensity()>.1){z.flared=true;spawnBanditTruck(z.x,z.y);}
+        if(!truck&&z.desperate==='flee'&&!z.flared&&banditDensity()>.1){z.flared=true;spawnBanditTruck(z.x,z.y,'extraction',false);}
         let x=truck?truck.x:(z.x<2000?30:3970),y=truck?truck.y:z.y;
         banditMove(z,x,y,z.baseSpeed*1.4,dt);
         if(Math.hypot(z.x-x,z.y-y)<65){z.hp=0;z.gone=true;z._credited=true;z.stolenLoot=[];}return;
@@ -46,7 +59,11 @@ function banditTick(z,dt){
         if(loot&&Math.hypot(loot.x-z.x,loot.y-z.y)<450){banditMove(z,loot.x,loot.y,165,dt);if(Math.hypot(loot.x-z.x,loot.y-z.y)<35){(z.stolenLoot||=[]).push({...loot});drops.splice(drops.indexOf(loot),1);}}
     }
     if(z.desperate==='arm'&&!z.armed){let loot=drops.find(d=>['BLINDBOX','SUPERBOX'].includes(d.type)&&Math.hypot(d.x-z.x,d.y-z.y)<650);if(loot){banditMove(z,loot.x,loot.y,140,dt);if(Math.hypot(z.x-loot.x,z.y-loot.y)<40){drops.splice(drops.indexOf(loot),1);z.armed=true;}}else z.desperate='flee';return;}
-    let target=banditEnemy(z);if(!target)return;let dist=Math.hypot(target.x-z.x,target.y-z.y),a=Math.atan2(target.y-z.y,target.x-z.x);
+    let target=banditEnemy(z);
+    if(z.postX!==undefined&&(Math.hypot(z.x-z.postX,z.y-z.postY)>550||!target||Math.hypot(target.x-z.postX,target.y-z.postY)>650)){
+        if(Math.hypot(z.x-z.postX,z.y-z.postY)>70)banditMove(z,z.postX,z.postY,z.baseSpeed,dt);return;
+    }
+    if(!target)return;let dist=Math.hypot(target.x-z.x,target.y-z.y),a=Math.atan2(target.y-z.y,target.x-z.x);
     let speed=z.baseSpeed*(friends.some(o=>o.type===67)?1.3:1),buff=friends.some(o=>o.type===67)?1.4:1;
     if(z.type===63)speed*=1+(1-z.hp/z.maxHp)*1.4;
     let melee=[62,63].includes(z.type),support=z.type>=66&&!z.desperate;
@@ -101,27 +118,30 @@ zombieDown=function(z,src){
 };
 const banditOnKill=Player.prototype.onKill;
 Player.prototype.onKill=function(type,z){if(z?.infectedBandit){let xp=({0:10,1:25,4:150,6:50,9:30,10:30,11:30,27:120,28:120,13:60,14:60,15:60,20:60})[type]||15;this.xp+=xp*.5*(1+(this.tags['TĂNG TIẾN']||0)*.15+(this.perks.fastLearn?.5:0));let req=getXpRequired(this.level);if(this.xp>=req){this.xp-=req;this.level++;this.pendingUpgrades++;}return;}return banditOnKill.call(this,type,z);};
-function spawnBanditTruck(x=500,y=500){if(banditDensity()<=.1||banditTrucks.length>=3)return;let s=findSafePoint(x,y,50);banditTrucks.push({x:s.x,y:s.y,hp:800+currentLevel*90,time:0,cd:0,wave:false});}
+function spawnBanditTruck(x=500,y=500,source='convoy',deploy=true){
+    if(NET.mode==='guest'||banditDensity()<=.1||banditEncounter.trucks>=banditLimits().trucks||banditEncounter.sources['truck:'+source])return false;
+    banditEncounter.sources['truck:'+source]=true;let s=findSafePoint(x,y,50);
+    banditTrucks.push({x:s.x,y:s.y,hp:800+currentLevel*90,maxHp:800+currentLevel*90,time:0,cd:0,wave:false,deploy,source});banditEncounter.trucks++;return true;
+}
 function tickBanditWorld(dt){
     if(NET.mode==='guest'||objState==='HUB'||!banditDensity()){banditTrucks=[];return;}
-    banditWaveT-=dt;
-    if(banditWaveT<=0){banditWaveT=30;let p=labLiving()[0];if(p&&banditDensity()>.1)spawnBanditTruck(p.x+650,p.y-350);}
+    if(banditConvoyT>=0){banditConvoyT-=dt;if(banditConvoyT<=0){banditConvoyT=-1;let p=labLiving()[0];if(p)spawnBanditTruck(p.x+650,p.y-350,'convoy');}}
     for(let t of banditTrucks){t.time+=dt;t.cd-=dt;
         for(let b of bullets)if(b.active&&Math.hypot(b.x-t.x,b.y-t.y)<70){t.hp-=b.dmg;b.active=false;}
         for(let s of slashes)if(!t.hits?.has(s)&&Math.hypot(s.x-t.x,s.y-t.y)<s.range+70){(t.hits||=new Set()).add(s);t.hp-=s.dmg*(s.wepData?.isChainsaw&&s.source?.perks.saw_demolition?2:1);}
         if(t.hp<=0){explode(t.x,t.y,240,300,null,true);t.time=99;continue;}
-        if(!t.wave){t.wave=true;for(let i=0;i<4+Math.floor(Math.random()*3);i++)zombies.push(new Zombie(t.x+i*25,t.y+70,banditRandomType()));}
+        if(!t.wave){t.wave=true;if(t.deploy)spawnBanditSquad(t.x,t.y+70,[60,61,61,64],'cargo:'+t.source);}
         let p=labLiving().find(p=>Math.hypot(p.x-t.x,p.y-t.y)<800);if(p&&t.cd<=0){t.cd=.18;banditShoot({x:t.x,y:t.y,type:61},p);}
     }banditTrucks=banditTrucks.filter(t=>t.time<30);
     for(let h of hazards)if(h.type==='banditbomb'&&h.timer<=0&&!h.done){h.done=true;explode(h.x,h.y,h.radius,h.dmg,null,false);fireZones.push({x:h.x,y:h.y,radius:100,life:4,dmg:16,source:null});}
-    let leader=zombies.find(z=>z.type===32&&z.hp>0);if(leader){let phase=Math.floor((1-leader.hp/leader.maxHp)*3);if(phase>(leader.truckPhase??-1)){leader.truckPhase=phase;spawnBanditTruck(leader.x+350,leader.y+200);}}
+    let leader=zombies.find(z=>z.type===32&&z.hp>0);if(leader){let phase=Math.floor((1-leader.hp/leader.maxHp)*3);if(phase>(leader.truckPhase??-1)){leader.truckPhase=phase;spawnBanditTruck(leader.x+350,leader.y+200,'leader:'+phase);}}
 }
 const banditStoryUpdate=updateStory;
 updateStory=function(dt){banditStoryUpdate(dt);if(!storyBusy())tickBanditWorld(dt);};
 const banditGenerate=generateMap;
-generateMap=function(level){banditTrucks=[];banditWaveT=18;return banditGenerate(level);};
+generateMap=function(level){banditTrucks=[];banditConvoyT=18;banditEncounter={units:0,trucks:0,sources:{}};return banditGenerate(level);};
 const banditDrawBody=drawZombieBody;
-drawZombieBody=function(z,...args){if(!isBandit(z))return banditDrawBody(z,...args);ctx.save();ctx.fillStyle=z.banditDown||z.downed?'#666':z.type>=66?'#73b9a1':'#b78d5e';ctx.fillRect(z.x-z.radius,z.y-z.radius,z.radius*2,z.radius*2);ctx.fillStyle='#25262b';ctx.fillRect(z.x-9,z.y-5,18,8);outlinedText(BANDIT_NAMES[z.type-60]+(z.panic?' !':''),z.x,z.y-z.radius-10,'#ffdcaa','bold 10px Arial');ctx.restore();};
+drawZombieBody=function(z,...args){if(!isBandit(z))return banditDrawBody(z,...args);drawBanditDetailed(z,...args);};
 const banditNetState=storyNetState,banditNetApply=storyNetApply;
 storyNetState=function(){return {...banditNetState(),bt:banditTrucks.map(({hits,...t})=>t)};};
 storyNetApply=function(x){banditNetApply(x);banditTrucks=x?.bt||[];};

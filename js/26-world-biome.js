@@ -12,9 +12,9 @@ function setupBiome(){
         if(['market','arsenal','ranger','outpost','greenhouse'].includes(k)){
             f.building=true;
             for(let [dx,dy,w,h]of [[-155,-130,100,20],[55,-130,100,20],[-155,110,100,20],[55,110,100,20]])obstacles.push({type:'wall',x:f.x+dx,y:f.y+dy,w,h,poi:true});
-            if(k==='outpost'&&banditDensity()>0)for(let n=0;n<3;n++)zombies.push(new Zombie(f.x+(n-1)*60,f.y,61));
+            if(k==='outpost')spawnBanditSquad(f.x,f.y,[60,61,62],'poi:'+f.id,true);
         }
-        if(k==='signal'&&banditDensity()>0)for(let n=0;n<2;n++)zombies.push(new Zombie(f.x+(n?60:-60),f.y+90,61));
+        if(k==='signal')spawnBanditSquad(f.x,f.y+90,[60,61],'poi:'+f.id,true);
     });
     let wall=addFeature([2,3,7,11].includes(currentMapType)?'rottenTree':'crackwall',2500,2600);
     FEATURE_LABELS.crackwall='TƯỜNG NỨT';FEATURE_LABELS.rottenTree='CÂY MỤC';
@@ -27,7 +27,7 @@ function setupBiome(){
 function featureAction(f,p){
     if(f.on)return;f.on=true;Sound.play('upgrade');
     switch(f.kind){
-        case 'signal':spawnDrop(f.x,f.y,true);for(let i=0;i<8;i++)zombies.push(new Zombie(f.x+(Math.random()-.5)*650,f.y+350,-1));spawnBanditTruck(f.x+350,f.y);break;
+        case 'signal':spawnDrop(f.x,f.y,true);for(let i=0;i<8;i++)zombies.push(new Zombie(f.x+(Math.random()-.5)*650,f.y+350,-1));spawnBanditTruck(f.x+350,f.y,'signal:'+f.id);break;
         case 'market':case 'ranger':spawnDrop(f.x,f.y,false,'HEALTHBOX');spawnDrop(f.x+50,f.y,false,'AMMOBOX');break;
         case 'arsenal':case 'heli':case 'vault':spawnDrop(f.x,f.y,true);break;
         case 'ferry':for(let q of labLiving()){q.x=f.x;q.y=Math.max(150,f.y-450);resolveCollision(q);}break;
@@ -68,7 +68,7 @@ function tickFeatures(dt){
             for(let s of slashes){let a=Math.atan2(f.y-s.y,f.x-s.x);if(!f.hits?.has(s)&&Math.hypot(s.x-f.x,s.y-f.y)<s.range+hitR&&Math.abs(Math.atan2(Math.sin(a-s.angle),Math.cos(a-s.angle)))<=s.spread/2){(f.hits||=new Set()).add(s);damageFeature(f,s.dmg,s.wepData,s.source);}}
         }
         if(f.anomaly&&!f.eventStarted&&labLiving().some(p=>Math.hypot(p.x-f.x,p.y-f.y)<f.r)){
-            f.eventStarted=true;for(let n=0;n<4;n++){let p=findSafePoint(f.x+(Math.random()-.5)*350,f.y+(Math.random()-.5)*350,20),z=new Zombie(p.x,p.y,currentMapType===5?banditRandomType():3);z.anomalyGroup=f.id;zombies.push(z);}
+            f.eventStarted=true;for(let n=0;n<4;n++){let p=findSafePoint(f.x+(Math.random()-.5)*350,f.y+(Math.random()-.5)*350,20),z=new Zombie(p.x,p.y,3);z.anomalyGroup=f.id;zombies.push(z);}
         }
         if(f.eventStarted&&!f.rewarded&&!zombies.some(z=>z.hp>0&&z.anomalyGroup===f.id)){f.rewarded=true;shopScrap+=10;spawnDrop(f.x,f.y,true);netToast('Đã giải quyết vùng dị biến! +10 phế liệu và hòm hiếm.',2200);}
         if(!f.on&&!FEATURE_DESTRUCTIBLE.has(f.kind)&&!f.anomaly&&f.kind!=='switch'){
@@ -95,14 +95,8 @@ Zombie.prototype.update=function(dt){if(this.noiseT>0){this.noiseT-=dt;navMoveTo
 const featureDrawProps=drawStoryProps;
 drawStoryProps=function(T,vis){featureDrawProps(T,vis);for(let f of worldFeatures){
     if(vis&&!vis(f.x,f.y,230))continue;ctx.save();ctx.textAlign='center';
-    if(f.kind==='chasm'){ctx.fillStyle='#03050b';ctx.fillRect(f.x-180,f.y-55,360,110);ctx.fillStyle='#7f7668';ctx.fillRect(f.x-44,f.y-65,88,130);}
-    if(f.anomaly){ctx.strokeStyle='#92599c';ctx.lineWidth=4;ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,Math.PI*2);ctx.stroke();}
-    if(f.building){ctx.fillStyle='#394752';ctx.globalAlpha=labLiving().some(p=>Math.hypot(p.x-f.x,p.y-f.y)<240)?.3:.7;ctx.fillRect(f.x-150,f.y-120,300,240);ctx.globalAlpha=1;}
-    ctx.fillStyle=f.on?'#38685a':f.anomaly?'#593c60':FEATURE_DESTRUCTIBLE.has(f.kind)?'#8d663c':'#46657a';ctx.fillRect(f.x-30,f.y-25,60,50);
-    outlinedText(FEATURE_LABELS[f.kind]||f.kind,f.x,f.y-40,f.on?'#94c9a3':'#e3d3a5','bold 11px Arial');
-    if(!f.on&&!FEATURE_DESTRUCTIBLE.has(f.kind)&&!f.anomaly)outlinedText(f.kind==='switch'?'TƯƠNG TÁC [G]':'Đứng cạnh '+(f.kind==='signal'?'5':'3')+'s',f.x,f.y+46,'#cddde2','10px Arial');
-    if(f.progress>0)drawMiniBar(f.x,f.y+31,60,5,f.progress,f.kind==='signal'?5:3,'#82c1d0');ctx.restore();
-}for(let t of banditTrucks){ctx.fillStyle='#46544c';ctx.fillRect(t.x-65,t.y-35,130,70);outlinedText('CHIẾN XA CƯỚP',t.x,t.y-45,'#ffbb77','bold 12px Arial');}};
+    drawWorldFeature(f,T);ctx.restore();
+}for(let t of banditTrucks)if(!vis||vis(t.x,t.y,170))drawBanditTruck(t,T);};
 const featureNetState=storyNetState,featureNetApply=storyNetApply;
 storyNetState=function(){return {...featureNetState(),wf:worldFeatures.map(({hits,...f})=>f),az:anomalyZone};};
 storyNetApply=function(x){featureNetApply(x);worldFeatures=x?.wf||[];anomalyZone=x?.az||null;};

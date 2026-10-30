@@ -203,6 +203,7 @@ Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `packag
 | `js/25-chainsaw.js` | Cưa Máy, vòng tua, lao, Nộ, perk và tag Tiến Công |
 | `js/26-world-biome.js` | POI theo biome, tháp tín hiệu, vật thể tương tác, vùng dị biến |
 | `js/27-cave-expansion.js` | Công trình hang, xe bom hai nhánh ray, phá mạch, Kiến Chúa mới, thoát bộ rồi xe goòng |
+| `js/28-world-art.js` | Đồ họa cướp theo vai trò, chiến xa, tiền đồn, POI, vật thể hang và thùng tiếp tế |
 | `docs/update-implementation.md` | Hành vi thực tế, thông số và giới hạn đợt cập nhật 30/10/2026 |
 | `Audio-SoundEffect/` | Nhạc và hiệu ứng âm thanh chia theo nhóm |
 | `tests/defense-lifesteal.test.cjs` | Kiểm thử hồi quy cơ chế phòng thủ và hút máu |
@@ -240,7 +241,9 @@ Bộ kiểm thử tải cả 22 script theo thứ tự HTML, giả lập DOM/âm
 
 **30/10/2026 — cập nhật mới:** Nhà Chính cấp 2 mở Khu Tập Luyện dùng thực phẩm (mỗi cư dân tạo 3 thực phẩm/chiến dịch). Nhà cấp 2/3/4/5 có giới hạn 2/4/7/10 lần mỗi nhánh Máu/Tốc độ/Sát thương; Nhà cao tăng lượng chỉ số mỗi lần, tập đủ mở nội tại. Có thùng đạn/thùng máu; súng thường dùng băng riêng, Tiểu Liên 30 và AR 25 viên. Hết băng tự nạp hoặc nạp bằng **F/nút NẠP**; **R** dùng Nộ. Thêm tag và 5 perk Nạp Đạn, nút toàn màn hình và gợi ý xoay ngang khi online.
 
-Đã triển khai nội dung từ `docs/Cập nhâtz.txt` qua module 24–27: tám lớp cướp/ba phe và vòng đời chống thưởng lặp, xe tải, Cưa Máy, POI theo biome, công trình hang và chuỗi Kiến Chúa mới. Xem `docs/update-implementation.md` để biết hành vi và thông số thực tế. Bản hiện tại nạp **27 script**. Chạy kiểm thử phần mới bằng `node --test tests/modern-update.test.cjs`; kiểm tra giao diện bằng `node tests/modern-browser.cjs` (cần Playwright + Edge).
+Đã triển khai nội dung từ `docs/Cập nhâtz.txt` qua module 24–27: tám lớp cướp/ba phe và vòng đời chống thưởng lặp, xe tải, Cưa Máy, POI theo biome, công trình hang và chuỗi Kiến Chúa mới. Xem `docs/update-implementation.md` để biết hành vi và thông số thực tế. Bản hiện tại nạp **28 script**. Chạy kiểm thử phần mới bằng `node --test tests/modern-update.test.cjs`; kiểm tra giao diện bằng `node tests/modern-browser.cjs` (cần Playwright + Edge).
+
+**Điều chỉnh cướp và hình ảnh:** cướp chỉ xuất hiện từ map thứ 8 của run. Map thường không có cướp trong vòng spawn ngẫu nhiên; chúng là nhóm gác cố định (tiền đồn 3, tháp 2) hoặc tối đa 4 lính từ một xe. Map thường có ngân sách tổng 10 cướp/1 xe; map 4/5/16 có 24 cướp/2 xe. Chốt bị dọn không sinh lại; xe rời đi/bị phá không được bổ sung. Module 28 vẽ lại nhân vật theo vai, chiến xa, công trình và tiếp tế. Kiểm tra bằng `tests/bandit-encounters.test.cjs` và `tests/world-art-browser.cjs`.
 
 Các đoạn bên dưới ghi lịch sử đợt trước; luồng Kiến Chúa mới ở module 27 thay thế việc lên xe khi boss còn 22% máu.
 

@@ -18,13 +18,17 @@ Nguồn yêu cầu: tin nhắn người dùng, `Cập nhâtz.txt` và GDD hiện
 
 ## Nội dung từ tệp cập nhật
 
-- Module 24: tám lớp cướp, chọn mục tiêu theo phe và khoảng cách, chạy/giữ cự ly/hỗ trợ/hoảng loạn; Scout lấy đồ, Medic cứu một lần, xác chết có thể hóa zombie. Nấc gục không nhận thưởng; xác nhiễm chỉ nhận nửa XP và không rơi đồ lần nữa. Xe tải đổ quân, yểm trợ, nhận sát thương và rời đi; Leader gọi thêm xe theo máu. Vùng ngầm, Lab bên trong và tàu loại trừ cướp.
+- Module 24: tám lớp cướp, chọn mục tiêu theo phe và khoảng cách, chạy/giữ cự ly/hỗ trợ/hoảng loạn; Scout lấy đồ, Medic cứu một lần, xác chết có thể hóa zombie. Nấc gục không nhận thưởng; xác nhiễm chỉ nhận nửa XP và không rơi đồ lần nữa. Xe tải đổ quân, yểm trợ, nhận sát thương và rời đi. **Điều chỉnh theo yêu cầu mới: chỉ có cướp từ map thứ 8 của run.** Vòng spawn thường chỉ sinh zombie, kể cả Thị Trấn Cướp. Tiền đồn có 3 lính, tháp tín hiệu có 2 lính; mỗi chốt chỉ sinh nhóm gác một lần, không bổ sung sau khi chết. Lính gác hoạt động quanh chốt, quay lại khi mục tiêu đi xa.
+- Map thường giới hạn **10 cướp và 1 xe** tổng cộng; map Thành Trì/Thị Trấn Cướp/Phòng Thủ giới hạn **24 cướp và 2 xe**. Một xe chỉ đổ tối đa 4 lính một lần. Xe tự tới có đúng một lịch hẹn, không lặp. Xe do tháp/Leader/pháo hiệu gọi cùng tiêu ngân sách xe này; xe rút đi hoặc bị phá không trả ngân sách. Vùng ngầm, Lab bên trong và tàu loại trừ cướp. Các giới hạn này thay thế bảng mật độ cũ trong tệp thiết kế gốc.
 - Module 25: Cưa Máy trong pool vũ khí, nhịp cưa 0,12s, phá khiên, chảy máu, vòng tua, kháng chậm, lao Q và Nộ R, ba perk riêng, tag Tiến Công và hình vẽ riêng.
 - Module 26: POI theo nhóm bản đồ, nhà có lối mở, tháp tín hiệu giữ 5s gọi đồ/địch, bồn nhiên liệu nổ/cháy, còi xe thu hút địch, chuồng thả zombie, nấm gây sợ, vùng dị biến 450px với thưởng sau khi dọn nhóm canh. Không trộn các POI này vào map 10/14/15/16.
 - Module 27: trạm khảo cổ, nấm/giật lan điện, cầu/cột phá được, tời tiếp tế; xe bom theo lộ trình mê cung, chọn chế độ nhánh ngắn có Acid/nhánh dài an toàn, ba mạch làm yếu boss, máy nghiền, lò rèn giữ 30s, cứu thợ mỏ từ kén. Đấu trường Kiến Chúa có xe TNT, máy phát và thạch nhũ. Boss xuống 45% kích tối; nhặt lõi sau khi hạ boss mới chạy bộ phá cột rồi tới xe goòng. Phần xe goòng tiếp tục dùng cơ chế ba làn/chia vai đã có.
+- Module 28: đồ họa Canvas cho đủ tám vai cướp (trang phục, vũ khí/khiên/túi cứu thương/loa), chiến xa có giáp–bánh–kính–ụ súng–đèn, tiền đồn, tháp tín hiệu, siêu thị, nhà kính, vật thể hang và hai thùng tiếp tế. Dùng hình khối vẽ trực tiếp với vật liệu, bóng đổ, animation nhẹ và nhãn theo khoảng cách; không cần tải ảnh hoặc thư viện đồ họa mới.
 
 Các mô phỏng AI và POI là quy tắc chạy được trên hệ canvas hiện tại. Nhánh ray có lối tắt Acid được đục riêng qua mê cung và đường dài quanh co; chọn ở điểm xuất phát trước khi xe đi qua ngã rẽ. Những chi tiết trình diễn như mái có hình kiến trúc theo từng loại cao ốc, animation hồi sinh/đổ quân, hoặc nhân vật Anthony không được khai báo trong game hiện tại cần nội dung riêng; không coi các chi tiết đó là đã hoàn thành chỉ vì có trong đặc tả.
 
 ## Kiểm tra
 
 `node --test tests/modern-update.test.cjs` kiểm tra tập luyện, tiếp tế, băng đạn, vòng đời ba phe, Cưa Máy, POI và chuỗi Kiến Chúa. `node tests/modern-browser.cjs` (Playwright + Edge) bấm nút nạp/tập thật, mô phỏng chín map, chuyển tới boss mới và vẽ ở kích thước ngang điện thoại. Đây chưa phải kiểm tra WebRTC trên bốn máy thật.
+
+`node --test tests/bandit-encounters.test.cjs` kiểm tra mốc map 8, chốt không sinh lại, vòng spawn thường, ngân sách xe/quân và mô phỏng 10 phút không bổ sung cướp. `node tests/world-art-browser.cjs` kiểm tra bằng Edge và xuất ảnh các nhân vật/công trình ở desktop và màn hình ngang điện thoại.

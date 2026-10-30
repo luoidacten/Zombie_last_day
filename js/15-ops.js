@@ -172,7 +172,7 @@ function baseShopBanner() {
 // ---------------------------------------------------------------------------
 function genBaseDefense(level) {
     bgMapColor = '#2f3b2c'; currentWeather = 1;
-    base.def = { wave: 0, total: Math.min(8, 4 + Math.floor(level / 5)), left: 0, spawnT: 0, breakT: 6, kind: Math.random() < 0.5 ? 'bandit' : 'zombie', endT: 0, win: false, spikeT: 0, gates: baseGates(), barriers: [] };
+    base.def = { wave: 0, total: Math.min(8, 4 + Math.floor(level / 5)), left: 0, spawnT: 0, breakT: 6, kind: level>=8 && Math.random() < 0.5 ? 'bandit' : 'zombie', endT: 0, win: false, spikeT: 0, gates: baseGates(), barriers: [] };
     buildCamp(true);
 }
 function baseAfterGenerate(level) {
@@ -371,7 +371,9 @@ function updateBase(dt) {
             let x = L.sx + (horiz ? (Math.random() - 0.5) * 60 : (Math.random() - 0.5) * 130), y = L.sy + (horiz ? (Math.random() - 0.5) * 130 : (Math.random() - 0.5) * 60);
             let t = d.kind === 'bandit' ? banditRandomType() : -1;
             if (last && d.left % 9 === 0) t = d.kind === 'bandit' ? 27 : 4;
-            let nz = new Zombie(x, y, t); nz.maxHp *= 1.5; nz.hp = nz.maxHp; zombies.push(nz); d.left--;
+            let nz=t>=60&&t<=67?spawnBanditSquad(x,y,[t],'base:'+d.wave+':'+d.left)[0]:null;
+            if(!nz){nz=new Zombie(x,y,t>=60&&t<=67?0:t);zombies.push(nz);}
+            nz.maxHp *= 1.5; nz.hp = nz.maxHp; d.left--;
         }
     } else if (enemies === 0) {
         if (d.wave >= d.total) { d.win = true; d.endT = 3; for (let p of players) vfxList.push({ type: 'text', text: 'ĐÃ ĐẨY LÙI CUỘC TẤN CÔNG!', x: p.x, y: p.y - 90, life: 2.8, color: '#2ecc71' }); Sound.play('level'); return; }
@@ -576,7 +578,7 @@ function genBanditTown(level) {
         obstacles.push({ type: 'wall', x: c.x - W2, y: c.y + W2 - 28, w: W2 - 70, h: 28 }); obstacles.push({ type: 'wall', x: c.x + 70, y: c.y + W2 - 28, w: W2 - 70, h: 28 });
         obstacles.push({ type: 'wall', x: c.x - W2, y: c.y - W2, w: 28, h: W2 - 70 }); obstacles.push({ type: 'wall', x: c.x - W2, y: c.y + 70, w: 28, h: W2 - 70 });
         obstacles.push({ type: 'wall', x: c.x + W2 - 28, y: c.y - W2, w: 28, h: W2 * 2 });
-        for (let g = 0; g < 4 + Math.floor(level / 4); g++) zombies.push(new Zombie(c.x + (Math.random() - 0.5) * 300, c.y + (Math.random() - 0.5) * 300, banditRandomType()));
+        op.garrisonSeeded=true;spawnBanditSquad(c.x,c.y,[60,61,62],'outpost:'+op.x+':'+op.y,true);
     }
     mission = { type: 'RAID', progress: 0, required: 3, complete: false }; objState = 'RAID';
 }

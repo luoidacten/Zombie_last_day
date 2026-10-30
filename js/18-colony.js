@@ -23,7 +23,7 @@ function zombieTypePool() {
         if (currentMapType === 3) pool.push(11, 11);
         if (currentMapType === 6) pool.push(16, 16, 17, 17);
         if (currentMapType === 7) pool.push(21, 21, 22, 22);
-        if (currentMapType === 8) pool.push(12, 12, 20);
+        if (currentMapType === 8) pool.push(20); // Human garrisons use separate finite encounters.
         if (currentMapType === 5) pool.push(13, 13);
         if (currentLevel >= 6) pool.push(14, 14);
         if (currentLevel >= 8) pool.push(15, 15);

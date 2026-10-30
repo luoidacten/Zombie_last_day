@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {game}=require('./defense-lifesteal.test.cjs');
-function active(){let g=game();g.run(`gameState='PLAYING';objState='KILL';story=newStory();Math.random=()=>.9;players[0].x=2000;players[0].y=2000;`);return g;}
+function active(){let g=game();g.run(`currentLevel=8;gameState='PLAYING';objState='KILL';story=newStory();Math.random=()=>.9;players[0].x=2000;players[0].y=2000;`);return g;}
 test('training unlocks at house 2, caps at 2/4/7/10, uses food and scales gains',()=>{
  const {run}=active();run(`objState='HUB';base.food=99999;base.house=1`);assert.equal(run(`buyTraining('tspd')`),false);
  for(const [house,cap]of [[2,2],[3,4],[4,7],[5,10]]){

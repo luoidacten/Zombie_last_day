@@ -2245,10 +2245,9 @@ class Outpost {
             return;
         }
         this.spawnTimer -= dt;
-        if (this.spawnTimer <= 0) { // Đẻ cướp, càng lâu càng đông
-            let count = 1 + Math.floor(survivalTime / 80) + Math.floor(currentLevel / 4);
-            for (let i = 0; i < count; i++) zombies.push(new Zombie(this.x + this.w / 2 + (Math.random() - 0.5) * 220, this.y + this.h / 2 + (Math.random() - 0.5) * 220, this.raid ? banditRandomType() : 12));
-            this.spawnTimer = Math.max(0.9, 3.0 - survivalTime / 180);
+        if (this.spawnTimer <= 0 && !this.garrisonSeeded) {
+            this.garrisonSeeded=true;
+            spawnBanditSquad(this.x+this.w/2,this.y+this.h/2,[60,61,61],'outpost:'+this.x+':'+this.y,true);
         }
     }
     draw(ctx) {
@@ -2274,7 +2273,6 @@ class Zombie {
         let maxSpecial = 15 + currentLevel * 2; // Tăng giới hạn quái đặc biệt
 
         if (forcedType === -1 && currentMapType === 14) forcedType = antRandomType(); // Hầm Mỏ: chỉ có loài kiến
-        if (forcedType === -1 && currentMapType === 5) forcedType = banditRandomType(); // Thị Trấn Cướp: chỉ có băng cướp
         if (forcedType !== -1) {
             this.type = forcedType;
         } else {
@@ -2285,7 +2283,7 @@ class Zombie {
             }
         }
 
-        if (this.type === 12) this.type = 61; // Legacy bandit spawns join the human faction.
+        if (this.type === 12 || (currentLevel < 8 && this.type >= 60 && this.type <= 67)) this.type = 0;
         this.nid = ++zombieIdSeq; this.hitFlash = 0;
         this.kbX = 0; this.kbY = 0; this.atkCD = 0; this.spCD = 0; this.isDashing = false;
         this.stunTimer = 0; this.isFrenzied = 0; this.shieldBoss = null; this.status = {}; this.phase2Done = false; this.skillTimer = 2.0 + Math.random() * 2.0; this.chargeTimer = 0; this.skillState = null;
@@ -3034,7 +3032,7 @@ function updateSpecialZombie(z, target, dist, ang, dt, speed) {
             if (z.phase2Done) { opts.push('artillery', 'artillery'); if (zombies.length < 90 + extraP * 15) opts.push('elite'); }
             let skill = pickBossSkill(z, opts);
             if (skill === 'reinforce') {
-                spawnAtEdge(12, 4 + Math.floor(Math.random() * 3) + extraP * 2); spawnAtEdge(0, 6 + extraP * 2);
+                spawnBanditTruck(z.x+350,z.y+200,'leader-skill:'+Math.floor((1-z.hp/z.maxHp)*3)); spawnAtEdge(0, 6 + extraP * 2);
                 bossSay(z, 'TIẾP VIỆN!');
             } else if (skill === 'frenzy') {
                 for (let e of zombies) if (e !== z && Math.hypot(e.x - z.x, e.y - z.y) < 900) e.isFrenzied = 5.0;
