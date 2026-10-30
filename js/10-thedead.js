@@ -282,7 +282,7 @@ function deadFamilyDeath(z) {
     createParticles(z.x, z.y, '#c0392b', 80, 520); createParticles(z.x, z.y, '#111', 40, 300);
     hazards = hazards.filter(h => h.type !== 'd_arc' && h.type !== 'd_scythe' && h.type !== 'd_moon');
     for (let o of zombies) if (o.type === OFFERING_T) { o.hp = 0; o._credited = true; o.noLoot = true; }
-    shopScrap += 40;
+    grantScrap(40);
     // Lần đầu hạ Tử Thần: mở khoá vĩnh viễn LIỀM; lần nào cũng rơi một hòm chứa Liềm
     if (!deadSlain) { deadSlain = true; try { localStorage.setItem('zs_dead_slain', '1'); } catch (e) { } netToast('☠ ĐÃ MỞ KHOÁ VŨ KHÍ: LIỀM (có trong Hòm Thính) và 3 thẻ nâng cấp Liềm!', 5000); }
     drops.push({ type: 'SUPERBOX', x: z.x, y: z.y + 90, radius: 16, lifeTime: 900, forceWeapon: 'SCYTHE' });

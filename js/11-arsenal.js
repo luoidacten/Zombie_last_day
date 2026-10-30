@@ -601,7 +601,7 @@ function doReroll(pid) {
 const SAVE_KEY = 'zs_save_v1';
 function savePlayer(p) {
     return {
-        hp: p.hp, maxHp: p.maxHp, hunger: p.hunger, baseSpeed: p.baseSpeed, level: p.level, xp: p.xp, pend: p.pendingUpgrades,
+        uuid:p.playerUUID, name:p.playerName, profile:p.profileUUID, hp: p.hp, maxHp: p.maxHp, hunger: p.hunger, baseSpeed: p.baseSpeed, level: p.level, xp: p.xp, pend: p.pendingUpgrades,
         dmgMult: p.dmgMult, critBonus: p.critBonus, armorMult: p.armorMult, tags: p.tags, perks: p.perks, st: p.perkStacks,
         w: p.weapon ? { k: p.weapon.key, a: p.weapon.ammo, m: p.weapon.maxAmmo, mag:p.weapon.mag, bv:2 } : null,
         sk: p.swordKills, ck: p.cKills, dc: p.dCharge, dk: p.droneKills, lk: p.luckyKills, rc: p.reviveCount, tox: p.caveToxinResist || 0, rage: p.rage || 0, vhp: Math.round(p.vHp || 0), down: p.isDowned ? 1 : 0
@@ -609,7 +609,7 @@ function savePlayer(p) {
 }
 // Gọi ở đầu startLevel (trước khi map mới tiêu thụ các lựa chọn tuyến đường)
 function saveCheckpoint(atHub = false) {
-    if (NET.mode || !players.length) return;
+    if (NET.mode === 'guest' || !players.length) return;
     try {
         localStorage.setItem(SAVE_KEY, JSON.stringify({
             v: 1, when: Date.now(), mode: runMode, diff: difficulty, hub: atHub ? 1 : 0, lvl: currentLevel, scrap: shopScrap, power: hasPowerPlantMap, ppr: powerPlantRun,
@@ -618,9 +618,23 @@ function saveCheckpoint(atHub = false) {
             sgl: shardGrantedLevel, bat: pendingBattery, kills: killCount, lsm: lastSpecialMapLevel, flags: shopFlags,
             runElapsed, regularBossCycle,
             nmap: nextMapPreference, nmis: nextMissionPreference, route: nextRoute, drop: pendingShopDrop, sol: shopOpenedForLevel,
-            story: storySaveState(), base: baseSave(), maps: ownedMaps, pl: players.map(savePlayer)
+            story: storySaveState(), base: baseSave(), maps: ownedMaps, pl: players.map(savePlayer), ...coopSaveExtras(atHub)
         }));
     } catch (e) { console.warn('[save]', e); }
+}
+function restorePlayer(p,d){
+    const num=(v,f)=>typeof v==='number'&&Number.isFinite(v)?v:f;
+    p.maxHp = num(d.maxHp, 100); p.hp = Math.max(1, Math.min(p.maxHp, num(d.hp, p.maxHp))); p.hunger = num(d.hunger, 100); p.baseSpeed = num(d.baseSpeed, 220);
+    p.level = Math.max(1, num(d.level, 1) | 0); p.xp = num(d.xp, 0); p.pendingUpgrades = num(d.pend, 0) | 0;
+    p.dmgMult = num(d.dmgMult, 1); p.critBonus = num(d.critBonus, 0); p.armorMult = num(d.armorMult, 1);
+    if (d.tags) for (let t in TAG_DEFS) if (typeof d.tags[t] === 'number') p.tags[t] = d.tags[t];
+    if (d.perks) for (let k in d.perks) { let v = d.perks[k]; if (/^[a-zA-Z_]\w{0,40}$/.test(k) && (typeof v === 'boolean' || typeof v === 'number')) p.perks[k] = v; }
+    if (d.st) for (let k in STACKABLE_PERKS) if (typeof d.st[k] === 'number') p.perkStacks[k] = d.st[k];
+    if (d.w && WEAPON_TYPES[d.w.k]) { p.weapon = { ...WEAPON_TYPES[d.w.k] }; p.weapon.maxAmmo = restoredAmmoCapacity(d.w); p.weapon.ammo = Math.max(0, Math.min(p.weapon.maxAmmo,num(d.w.a, p.weapon.ammo))); if(Number.isFinite(d.w.mag))p.weapon.mag=Math.max(0,d.w.mag|0); }
+    p.swordKills = num(d.sk, 0); p.cKills = num(d.ck, 0); p.dCharge = num(d.dc, 0); p.droneKills = num(d.dk, 0); p.luckyKills = num(d.lk, 0);
+    p.reviveCount = num(d.rc, 0); p.caveToxinResist = num(d.tox, 0); p.rage = num(d.rage, 0); p.vHp = Math.max(0, num(d.vhp, 0)); p.isDowned = !!d.down;
+    p.playerUUID=validPlayerUUID(d.uuid)?d.uuid:null;p.playerName=cleanPlayerName(d.name);p.profileUUID=validPlayerUUID(d.profile)?d.profile:p.playerUUID;
+    return p;
 }
 function readSave() {
     try { let s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return (s && s.v === 1 && Array.isArray(s.pl) && s.pl.length) ? s : null; } catch (e) { return null; }
@@ -635,20 +649,21 @@ function refreshSaveUI() {
     box.style.display = s ? 'flex' : 'none';
     if (!s) return;
     let d = new Date(s.when), pad = (n) => (n < 10 ? '0' : '') + n;
-    let modeName = (s.mode === 'local2' ? '2 người' : (s.mode === 'mobile' ? 'Mobile' : 'PC')) + (typeof DIFFS !== 'undefined' && DIFFS[s.diff] ? ' · ' + DIFFS[s.diff].name : '');
-    document.getElementById('loadBtn').textContent = `💾 CHƠI TIẾP — ${s.hub ? 'Trại (sau Map ' + s.lvl + ')' : 'Map ' + s.lvl} · Cấp ${s.pl[0].level} · ${modeName} (${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())})`;
+    let modeName = (s.online ? 'Co-op · chủ phòng' : s.mode === 'local2' ? '2 người' : (s.mode === 'mobile' ? 'Mobile' : 'PC')) + (typeof DIFFS !== 'undefined' && DIFFS[s.diff] ? ' · ' + DIFFS[s.diff].name : '');
+    document.getElementById('loadBtn').textContent = `💾 CHƠI TIẾP — ${s.hub ? (s.recovery?.queued?'Trại · chuẩn bị Map '+s.lvl:'Trại (sau Map ' + s.lvl + ')') : 'Map ' + s.lvl} · Cấp ${s.pl[0].level} · ${modeName} (${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())})`;
 }
 function loadGame() {
     let s = readSave();
     if (!s) { netToast('Không có bản lưu nào.', 1800); refreshSaveUI(); return; }
+    if(s.online&&!NET.restoringOnline){netOpenLobby();netHost(true);return;}
     Sound.resume(); Sound.startAmbience(); Sound.play('start');
     clearPcInputs();
     for (let id of ['menu', 'routeShop', 'upgradeScreen', 'netWait']) document.getElementById(id).style.display = 'none';
     resetRunState();
-    let mode = ['pc', 'mobile', 'local2'].includes(s.mode) ? s.mode : 'pc';
+    let mode = ['pc', 'mobile', 'local2', 'online'].includes(s.mode) ? s.mode : 'pc';
     runMode = mode;
-    isSinglePlayer = mode !== 'local2';
-    showTouchUI = mode !== 'pc';
+    isSinglePlayer = mode !== 'local2' && mode !== 'online';
+    showTouchUI = mode === 'mobile' || mode === 'local2';
     if (showTouchUI) PC_INPUT.pointer.active = false;
     const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
 
@@ -676,20 +691,14 @@ function loadGame() {
 
     players = [];
     const colors = ['#3498db', '#e74c3c'];
-    s.pl.slice(0, isSinglePlayer ? 1 : 2).forEach((d, i) => {
+    s.pl.slice(0, s.online ? 4 : isSinglePlayer ? 1 : 2).forEach((d, i) => {
         let p = new Player(i + 1, MAP_SIZE.w / 2, MAP_SIZE.h / 2, colors[i]);
-        p.maxHp = num(d.maxHp, 100); p.hp = Math.max(1, Math.min(p.maxHp, num(d.hp, p.maxHp))); p.hunger = num(d.hunger, 100); p.baseSpeed = num(d.baseSpeed, 220);
-        p.level = Math.max(1, num(d.level, 1) | 0); p.xp = num(d.xp, 0); p.pendingUpgrades = num(d.pend, 0) | 0;
-        p.dmgMult = num(d.dmgMult, 1); p.critBonus = num(d.critBonus, 0); p.armorMult = num(d.armorMult, 1);
-        if (d.tags) for (let t in TAG_DEFS) if (typeof d.tags[t] === 'number') p.tags[t] = d.tags[t];
-        if (d.perks) for (let k in d.perks) { let v = d.perks[k]; if (/^[a-zA-Z_]\w{0,40}$/.test(k) && (typeof v === 'boolean' || typeof v === 'number')) p.perks[k] = v; }
-        if (d.st) for (let k in STACKABLE_PERKS) if (typeof d.st[k] === 'number') p.perkStacks[k] = d.st[k];
-        if (d.w && WEAPON_TYPES[d.w.k]) { p.weapon = { ...WEAPON_TYPES[d.w.k] }; p.weapon.maxAmmo = restoredAmmoCapacity(d.w); p.weapon.ammo = Math.max(0, Math.min(p.weapon.maxAmmo,num(d.w.a, p.weapon.ammo))); if(Number.isFinite(d.w.mag))p.weapon.mag=Math.max(0,d.w.mag|0); }
-        p.swordKills = num(d.sk, 0); p.cKills = num(d.ck, 0); p.dCharge = num(d.dc, 0); p.droneKills = num(d.dk, 0); p.luckyKills = num(d.lk, 0);
-        p.reviveCount = num(d.rc, 0); p.caveToxinResist = num(d.tox, 0); p.rage = num(d.rage, 0); p.vHp = Math.max(0, num(d.vhp, 0)); p.isDowned = !!d.down;
+        restorePlayer(p,d);
         players.push(p);
     });
     if (!isSinglePlayer && players.length < 2) players.push(new Player(2, MAP_SIZE.w / 2, MAP_SIZE.h / 2, colors[1]));
+    if(s.online)coopRestoreLineup(s);
+    restoreRecoverySave(s);
     // Bản lưu được chụp TRƯỚC phần thưởng đầu map của startLevel, nên gọi lại startLevel cho ra đúng trạng thái cũ
     if (s.hub) { enterHub(); netToast('Đã tải bản lưu — bạn đang ở Khu Sống Sót (đã qua Map ' + currentLevel + ').', 3000); return; }
     startLevel();

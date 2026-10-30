@@ -519,7 +519,7 @@ function updateBossExtras(dt) {
 // ---------------------------------------------------------------------------
 let bossWin = null, bossCast = null, slowMoT = 0;
 function bossOnZombieDown(z) {
-    if (z.mutant && NET.mode !== 'guest') { shopScrap += 1; vfxList.push({ type: 'text', text: '☣ +1 ⚙', x: z.x, y: z.y - 26, life: 0.9, color: '#e056fd' }); }
+    if (z.mutant && NET.mode !== 'guest') { grantScrap(1); vfxList.push({ type: 'text', text: '☣ +1 ⚙', x: z.x, y: z.y - 26, life: 0.9, color: '#e056fd' }); }
     if (!isBossType(z.type) || z.type === 46) return;
     let fight = z._t0 !== undefined ? survivalTime - z._t0 : 0;
     bossWin = { name: BOSS_NAMES[z.type] || 'BOSS', color: z.color, at: performance.now(), max: 5.5, time: fight, scrap0: shopScrap, gain: 0 };

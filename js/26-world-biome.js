@@ -55,7 +55,7 @@ function damageFeature(f,damage,w,src){
     if(f.kind==='vault')spawnDrop(f.x,f.y,true);
     if(f.kind==='cocoon'){f.on=false;featureAction(f,src);}
     if(f.kind==='bridge'||f.kind==='pillar')for(let z of zombies)if(!isBossType(z.type)&&Math.hypot(z.x-f.x,z.y-f.y)<250){z.hp=0;zombieDown(z,src);}
-    if(['gland','eggs','mineral'].includes(f.kind)){mineSabotage[f.kind]=true;shopScrap+=f.kind==='eggs'?12:6;if(f.kind==='mineral')base.mat=(base.mat|0)+5;}
+    if(['gland','eggs','mineral'].includes(f.kind)){mineSabotage[f.kind]=true;grantScrap(f.kind==='eggs'?12:6);if(f.kind==='mineral')base.mat=(base.mat|0)+5;}
     if(f.kind==='ceiling'){let q=zombies.find(z=>z.type===45&&z.hp>0);if(q&&Math.hypot(q.x-f.x,q.y-f.y)<300){q.mineStun=4;q.airborne=false;q.hp-=q.maxHp*.025;}}
 }
 const FEATURE_DESTRUCTIBLE=new Set(['fuel','siren','cage','mushroom','vault','bridge','pillar','cocoon','eggs','gland','mineral','ceiling','crackwall','rottenTree']);
@@ -73,7 +73,7 @@ function tickFeatures(dt){
         if(f.anomaly&&!f.eventStarted&&labLiving().some(p=>Math.hypot(p.x-f.x,p.y-f.y)<f.r)){
             f.eventStarted=true;for(let n=0;n<4;n++){let p=findSafePoint(f.x+(Math.random()-.5)*350,f.y+(Math.random()-.5)*350,20),z=new Zombie(p.x,p.y,3);z.anomalyGroup=f.id;zombies.push(z);}
         }
-        if(f.eventStarted&&!f.rewarded&&!zombies.some(z=>z.hp>0&&z.anomalyGroup===f.id)){f.rewarded=true;shopScrap+=10;spawnDrop(f.x,f.y,true);netToast('Đã giải quyết vùng dị biến! +10 phế liệu và hòm hiếm.',2200);}
+        if(f.eventStarted&&!f.rewarded&&!zombies.some(z=>z.hp>0&&z.anomalyGroup===f.id)){f.rewarded=true;grantScrap(10);spawnDrop(f.x,f.y,true);netToast('Đã giải quyết vùng dị biến! +10 phế liệu và hòm hiếm.',2200);}
         if(!f.on&&!FEATURE_DESTRUCTIBLE.has(f.kind)&&!f.anomaly&&f.kind!=='switch'){
             let near=labLiving().find(p=>Math.hypot(p.x-f.x,p.y-f.y)<90);
             f.progress=near?f.progress+dt:0;if(f.progress>=(f.kind==='signal'?5:3))featureAction(f,near);

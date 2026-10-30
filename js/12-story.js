@@ -325,7 +325,7 @@ function updateStoryProps(dt) {
         if (s.kind === 'zgen') { zapGenDestroyed(s); continue; }
         if (s.kind === 'wreck') {
             // Công trình bỏ hoang: phá để nhặt phế liệu
-            let gain = s.scrap || 4; shopScrap += gain;
+            let gain = s.scrap || 4; grantScrap(gain);
             createParticles(s.x, s.y, '#95a5a6', 36, 320); createParticles(s.x, s.y, '#f1c40f', 14, 220); addDecal(s.x, s.y, '#222', 48, 0.45); addScreenShake(6); Sound.play('pickup');
             vfxList.push({ type: 'text', text: `+${gain} ⚙ PHẾ LIỆU`, x: s.x, y: s.y - 40, life: 1.6, color: '#f1c40f' });
             if (Math.random() < 0.35) spawnDrop(s.x, s.y + 20);
@@ -694,12 +694,12 @@ function storyZombieDeath(z) {
     missionItems = []; story.zx = null;
     if (z.type === 35) {
         story.bolt = 3; story.purple = 0;
-        shopScrap += 40;
+        grantScrap(40);
         drops.push({ type: 'SHARD', x: z.x, y: z.y - 50, radius: 16, lifeTime: 900 });
         queueRadio('Tiến sĩ Aegis: Nó đang bị thương và chạy ngược về Trạm Phát Điện Trung Tâm để sạc lại năng lượng! Quay lại Nhà Máy Điện ngay!', null, 8);
         mission.complete = false; completeMission();
     } else if (z.type === 36) {
-        story.bolt = 5; shopScrap += 120;
+        story.bolt = 5; grantScrap(120);
         zapSlain = true; try { localStorage.setItem('zs_zap_slain', '1'); } catch (e) { }
         for (let p of activePlayers()) { p.level++; p.pendingUpgrades++; vfxList.push({ type: 'text', text: 'ĐÃ HẠ ZAP-1624!  +120 ⚙  +2 ◆  +1 CẤP', x: p.x, y: p.y - 96, life: 3.5, color: '#f1c40f' }); }
         for (let k = 0; k < 2; k++) drops.push({ type: 'SHARD', x: z.x + (k ? 50 : -50), y: z.y - 50, radius: 16, lifeTime: 900 });
@@ -1050,7 +1050,7 @@ function storyNetState() {
         x.bp = base.pop | 0;
         x.bg = baseGatesNow();
         x.bgl = base.gate | 0;
-        x.bs = base.turrets.map(t => t ? [TURRET_KEYS.indexOf(t.t), t.l, R((t.ang || 0) * 100)] : 0);
+        x.bs = base.turrets.map(t => t ? [TURRET_KEYS.indexOf(t.t), t.l, R((t.ang || 0) * 100),turretPaths(t)] : 0);
         if (base.def && base.def.barriers) x.bgh = base.def.barriers.map(b => [R(Math.max(0, b.hp)), R(b.maxHp)]);
         if (base.def && base.def.houseNpc) x.bnh = R(Math.min(99, base.def.houseNpc.noHitT || 0) * 10);
     }
@@ -1074,6 +1074,6 @@ function storyNetApply(x) {
     story.bgl = x.bgl | 0;
     story.bgh = Array.isArray(x.bgh) ? x.bgh : null;
     story.bnh = x.bnh !== undefined ? (x.bnh | 0) / 10 : 5;
-    story.bs = Array.isArray(x.bs) ? x.bs.map(e => Array.isArray(e) ? { t: TURRET_KEYS[e[0]] || 'mg', l: e[1] | 0, ang: (e[2] | 0) / 100 } : null) : null;
+    story.bs = Array.isArray(x.bs) ? x.bs.map(e => Array.isArray(e) ? { t: TURRET_KEYS[e[0]] || 'mg', l: e[1] | 0, ang: (e[2] | 0) / 100,p:e[3]||null } : null) : null;
     bossNetApply(x);
 }

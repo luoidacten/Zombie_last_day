@@ -393,7 +393,7 @@ function gardenPropHits(s, dt) {
 function gardenPlantDead(s) {
     createParticles(s.x, s.y, '#e67e22', 40, 360); createParticles(s.x, s.y, '#2d3436', 24, 220); addDecal(s.x, s.y, '#111', 60, 0.5); addScreenShake(8); Sound.play('explode');
     ashZones.push({ x: s.x, y: s.y, rx: 60, ry: 46, rot: 0, life: 9999 });
-    let gain = 5 + Math.floor(currentLevel / 3); shopScrap += gain;
+    let gain = 5 + Math.floor(currentLevel / 3); grantScrap(gain);
     if (Math.random() < 0.5) spawnDrop(s.x, s.y + 30);
     if (mission.type !== 'BURN_PLANTS' || mission.complete) return;
     mission.progress++;

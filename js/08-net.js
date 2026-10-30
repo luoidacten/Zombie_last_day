@@ -43,7 +43,7 @@ function netRenderRoster(slots, myPid) {
             <span style="display:inline-block;width:10px;height:10px;border-radius:999px;background:${joined ? col : '#4b5563'}"></span>
             <div class="text-left leading-tight">
                 <div class="font-bold" style="color:${joined ? col : '#9ca3af'}">P${pid}${me}</div>
-                <div class="text-[10px] text-gray-400">${joined ? '✅ ' + names[pid - 1] : '⏳ Đang chờ...'}</div>
+                <div class="text-[10px] text-gray-400">${joined ? '✅ ' + escapeGameText(NET.lobbyNames?.[pid]||names[pid - 1]) : '⏳ Đang chờ...'}</div>
             </div>
         </div>`;
     }
@@ -58,14 +58,14 @@ function netUpdateLobbyUI() {
     let btn = document.getElementById('netStartBtn');
     let total = slots.length;
     if (btn) {
-        btn.disabled = total < 2;
-        btn.textContent = total >= 2 ? `▶ BẮT ĐẦU TRẬN (${total}/4 NGƯỜI)` : '▶ BẮT ĐẦU TRẬN (CẦN ÍT NHẤT 2 NGƯỜI)';
+        btn.disabled = total < 2 && !NET.resumeSave?.online;
+        btn.textContent = NET.resumeSave?.online ? `▶ TIẾP TỤC ĐỘI ĐÃ LƯU (${total}/4 ĐANG CÓ MẶT)` : total >= 2 ? `▶ BẮT ĐẦU TRẬN (${total}/4 NGƯỜI)` : '▶ BẮT ĐẦU TRẬN (CẦN ÍT NHẤT 2 NGƯỜI)';
     }
     if (total < 2) netSetStatus('Gửi mã phòng cho bạn bè (2–4 người). Đang chờ đồng đội vào...');
     else if (total < 4) netSetStatus(`✅ Đã có ${total}/4 người! Có thể BẮT ĐẦU ngay hoặc chờ thêm bạn.`);
     else netSetStatus('🔥 Đã đủ 4/4 người chơi! Bấm BẮT ĐẦU TRẬN ngay!');
     for (let pr of openPeers) {
-        netSendTo(pr.conn, { t: 'lobby', slots, myPid: pr.pid });
+        netSendTo(pr.conn, { t: 'lobby', slots, myPid: pr.pid,names:coopLobbyNames() });
     }
 }
 
@@ -163,9 +163,13 @@ const NET_ICE = {
     sdpSemantics: 'unified-plan'
 };
 
-async function netHost() {
+async function netHost(resume=false) {
+    if(!coopNameReady())return;
+    let resumeData=resume?readSave():null;
     Sound.resume();
     netTeardown();
+    NET.resumeSave=resumeData?.online?resumeData:null;
+    coopReadName();
     netSetStatus('Đang tạo phòng...');
     document.getElementById('netLobbyMain').style.display = 'none';
     try { await netLoadLib(); } catch (e) { netLobbyReset(); netSetStatus('❌ Không tải được thư viện mạng (cần Internet).'); return; }
@@ -184,22 +188,13 @@ async function netHost() {
     });
     peer.on('connection', (c) => {
         if (NET.peer !== peer) return;
-        let usedPids = new Set(NET.peers.map(x => x.pid));
-        let freePid = [2, 3, 4].find(id => !usedPids.has(id));
-        if (NET.locked || !freePid || NET.peers.length >= 3) {
-            c.on('open', () => {
-                try { c.send({ t: 'full', reason: NET.locked ? 'started' : 'max' }); } catch (e) { }
-                setTimeout(() => { try { c.close(); } catch (e) { } }, 400);
-            });
-            return;
-        }
-        let entry = { conn: c, pid: freePid, remote: { ptr: false, ang: 0 }, lastPt: 0, lastPtAt: 0 };
+        let entry=coopAcceptPeer(c);if(!entry)return;
         NET.peers.push(entry);
         NET.conn = NET.peers[0] ? NET.peers[0].conn : c;
         c.on('open', () => {
             if (!NET.peers.includes(entry)) return;
             Sound.play('level');
-            netUpdateLobbyUI();
+            if(NET.mode==='host')coopPeerReady(entry);else netUpdateLobbyUI();
         });
         c.on('data', (d) => { if (NET.peers.includes(entry)) netOnData(d, entry); });
         c.on('close', () => { if (NET.peers.includes(entry)) netOnGuestLost(entry); });
@@ -212,21 +207,21 @@ async function netHost() {
 function netStartGame() {
     if (NET.role !== 'host') return;
     let openPeers = (NET.peers || []).filter(p => p.conn && p.conn.open);
-    if (!openPeers.length) return;
+    if (!openPeers.length && !NET.resumeSave?.online) return;
     // Dồn lại thứ tự P2..P(N) liên tiếp để mảng players[0..N-1] khớp tuyệt đối
     openPeers.sort((a, b) => a.pid - b.pid);
     openPeers.forEach((pr, i) => { pr.pid = i + 2; pr.remote = { ptr: false, ang: 0 }; });
     NET.peers = openPeers;
-    NET.conn = openPeers[0].conn;
+    NET.conn = openPeers[0]?.conn || null;
     NET.locked = true;
-    NET.playerCount = 1 + openPeers.length;
+    NET.playerCount = Math.max(1 + openPeers.length,NET.resumeSave?.pl?.length||0);
     NET.mode = 'host'; NET.localIdx = 0; NET.seq = 0; NET.ev = []; NET.sendAcc = 0; NET.slowAcc = 0;
     NET.remote = { ptr: false, ang: 0 };
     document.getElementById('onlineModal').style.display = 'none';
     for (let pr of openPeers) {
         netSendTo(pr.conn, { t: 'start', count: NET.playerCount, idx: pr.pid - 1 });
     }
-    beginRun('online');
+    if(!coopStartSaved())beginRun('online');
 }
 
 function netOnGuestLost(entry) {
@@ -312,6 +307,7 @@ function netHostGameOver() {
 
 // ---------------- KHÁCH ----------------
 async function netJoin() {
+    if(!coopNameReady())return;
     Sound.resume();
     let code = (document.getElementById('netCodeInput').value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code.length !== 5) { netSetStatus('Mã phòng gồm 5 ký tự.'); return; }
@@ -325,7 +321,7 @@ async function netJoin() {
     let opened = false;
     peer.on('open', () => {
         if (NET.peer !== peer) return;
-        let c = peer.connect(NET_PREFIX + code, { reliable: true, serialization: 'json' });
+        let c = peer.connect(NET_PREFIX + code, { reliable: true, serialization: 'json',metadata:{uuid:localPlayerUUID(),name:coopReadName()} });
         NET.conn = c;
         c.on('open', () => { if (NET.conn !== c) return; opened = true; netSetStatus('✅ Đã vào phòng ' + code + '. Chờ chủ phòng bắt đầu...'); Sound.play('level'); });
         c.on('data', (d) => { if (NET.conn === c) netOnData(d, null); });
@@ -469,7 +465,7 @@ function netSendSync(reject = 0) {
     netSend({
         t: 'sync', gs: gameState, round: upgradeRound, lvl: currentLevel, scrap: shopScrap, sh: breakthroughShards, ex: activeExclusiveTag,
         cpf: currentPowerFloorCleared, bgl: typeof base !== 'undefined' ? (base.gate | 0) : 0, rej: reject === true ? 2 : (reject | 0), cf,
-        pl: players.map(p => ({ tags: p.tags, perks: p.perks, st: p.perkStacks, pend: p.pendingUpgrades, lvl: p.level, left: p.netLeft ? 1 : 0 }))
+        pl: players.map(p => ({ name:p.playerName, tags: p.tags, perks: p.perks, st: p.perkStacks, pend: p.pendingUpgrades, lvl: p.level, left: p.netLeft ? 1 : 0 }))
     });
     if (gameState === 'UPGRADE' && typeof refreshOnlineUpgradeStatus === 'function') refreshOnlineUpgradeStatus();
 }
@@ -683,7 +679,7 @@ function netApplySync(m) {
         p.perkStacks = {};
         if (src.st) for (let k in STACKABLE_PERKS) if (typeof src.st[k] === 'number') p.perkStacks[k] = src.st[k];
         p.pendingUpgrades = src.pend | 0; p.level = src.lvl | 0 || 1;
-        p.netLeft = !!src.left;
+        p.netLeft = !!src.left;p.playerName=cleanPlayerName(src.name);
     });
     if (Array.isArray(m.cf)) {
         m.cf.forEach((v, i) => { if (i + 1 !== NET.localIdx + 1 && typeof setUpgConfirmed === 'function') setUpgConfirmed(i + 1, !!v); });

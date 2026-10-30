@@ -454,7 +454,7 @@ function completeMission() {
     mission.complete = true;
     let bossMission = ['BOSS', 'POWER_BOSS', 'CITY_BOSS', 'HANGZ_ESCAPE', 'STORM_BOSS', 'ZAP_BOSS'].includes(mission.type);
     let reward = missionReward(mission.type);   // thưởng nhiều hơn + thưởng thêm theo loại nhiệm vụ (15-ops.js)
-    shopScrap += reward;
+    grantScrap(reward);
     Sound.play(bossMission ? 'level' : 'upgrade');
     for (let p of players) {
         vfxList.push({ type: 'text', text: 'NHIỆM VỤ HOÀN THÀNH!', x: p.x, y: p.y - 80, life: 2.0, color: '#f1c40f' });
@@ -488,7 +488,7 @@ function beginEvacCountdown() {
     if(evacTimer<=15)announceLanding();
 
     heliSupport.active = true;
-    let arrival = landingKnown() ? evacZone : teamCenter();
+    let arrival = landingKnown() ? evacZone : recoveryTeamCenter();
     heliSupport.x = arrival.x;
     heliSupport.y = arrival.y;
     heliSupport.fireTimer = 0;

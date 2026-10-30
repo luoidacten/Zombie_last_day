@@ -83,7 +83,7 @@ function labFinish() {
     mission.complete = true;
     if (r.ok) {
         let reward = 90 + currentLevel * 3;
-        shopScrap += reward; breakthroughShards++;
+        grantScrap(reward); breakthroughShards++;
         for (let p of players) { if (p.netLeft) continue; p.level++; p.pendingUpgrades++; if (p.isDowned) { p.isDowned = false; p.hp = p.maxHp * 0.4; } }
         netToast(`🚂 ĐOÀN TÀU ĐÃ VÀO HẦM AN TOÀN! +${reward} ⚙, +1 ◆ Mảnh Bức Phá, cả đội +1 cấp.`, 5000);
         Sound.play('level');
@@ -279,7 +279,7 @@ function updateHucker(z, target, dist, ang, dt, speed) {
     }
     return true;
 }
-function huckerDeath(z) { createParticles(z.x, z.y, '#6d4c41', 60, 420); shopScrap += 30; }
+function huckerDeath(z) { createParticles(z.x, z.y, '#6d4c41', 60, 420); grantScrap(30); }
 function drawHucker(z, T, ang, flash) {
     const r = z.radius;
     ctx.save(); ctx.translate(z.x, z.y); ctx.rotate(ang);

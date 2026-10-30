@@ -101,7 +101,7 @@ function admDo(k, arg) {
     const P = () => players.filter(p => p && !p.netLeft);
     let keepOpen = true;
     switch (k) {
-        case 'scrap': shopScrap += 500; break;
+        case 'scrap': grantScrap(500); break;
         case 'shard': breakthroughShards += 5; break;
         case 'pop': base.pop = (base.pop | 0) + 10; break;
         case 'mat': base.mat = (base.mat | 0) + 50; break;

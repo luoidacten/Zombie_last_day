@@ -49,6 +49,7 @@ Lượt chơi có cấp màn, điểm, số mạng hạ, thời gian sống, đ�
 - Vũ khí dùng **đạn hoặc độ bền**. Có vũ khí tích lực, vũ khí ném và vũ khí đặc biệt.
 - Vật phẩm gồm thức ăn, hộp cứu thương, hộp mù, hòm thính/vũ khí và vật phẩm nhiệm vụ.
 - Đồng đội có thể bị hạ, chờ cứu; trạng thái bị hạ khác với mất kết nối/rời phòng.
+- Cả đội gục ở màn đi cảnh được trực thăng cứu về trại sau cảnh cứu hộ 4 giây: mất 50% phế liệu kiếm trong màn (không tính tiền mang từ trại), mất 25% đạn/độ bền đang cầm, tỉnh dậy với 50% máu và 0 Máu Ảo. Bộ đếm chiến dịch tăng 1 ngay khi rút lui; cờ màn chờ giúp lần xuất phát sau không tăng lần nữa hoặc bỏ qua map phòng thủ. Trong trận thủ nhà, mỗi người gục tự hồi sinh sau 12 giây nếu Nhà Chính còn sống. Chỉ Nhà Chính bị phá mới kết thúc lượt chơi và xóa checkpoint của lượt đó.
 - Hiệu ứng gồm **Thiêu Đốt, Nhiễm Điện, Quá Tải, Ăn Mòn, Sợ Hãi**, cùng choáng, làm chậm, câm lặng và các hiệu ứng riêng của boss.
 - Có khiên chặn đòn và **Máu Ảo** hấp thụ sát thương trước máu thật. Đây là hai cơ chế khác nhau.
 - Acid của địch có luật riêng trong `20-queen.js`: giới hạn việc rút máu người chơi xuống ngưỡng 50%; không áp dụng suy luận này cho mọi loại sát thương khác.
@@ -151,7 +152,7 @@ Môi trường có chướng ngại và tìm đường, vùng độc/cháy/đi�
 - Cư dân còn lại làm thợ, tạo vật liệu sau chiến dịch và hỗ trợ sửa Nhà Chính.
 - Có 5 loại ụ: **Súng Máy, Bắn Tỉa, Phun Lửa, Pháo Cối, Tesla**.
 - Có thuê lính gác, nâng công trình, huấn luyện và Lò Rèn nâng vũ khí.
-- Trong phòng thủ, địch tới theo nhiều đợt; giữ được nhà nhận thưởng, thất thủ mất tài nguyên và một phần phát triển căn cứ.
+- Trong phòng thủ, địch tới theo nhiều đợt; giữ được nhà nhận thưởng. Nhà Chính bị phá là thua hoàn toàn; cả đội gục khi nhà còn sống vẫn được hồi sinh để tiếp tục thủ.
 
 ### Cửa chắn và hồi Nhà Chính
 
@@ -161,6 +162,12 @@ Môi trường có chướng ngại và tìm đường, vùng độc/cháy/đi�
 - Cửa chặn zombie mặt đất và đạn địch; người chơi, đồng minh và đạn phe ta đi xuyên. Cửa đã vỡ không tự phục hồi trong cùng trận.
 - Nhà Chính chỉ tự hồi sau **5 giây không nhận sát thương**. Tốc độ nền 0,07% máu tối đa/giây, cộng 0,08% mỗi thợ, tối đa 8 thợ.
 - Cấp cửa và phát triển căn cứ được giữ qua màn; trạng thái cửa và máu nhà được đồng bộ tới máy khách.
+
+### Nâng ụ súng theo ba nhánh
+
+Cả 5 ụ Súng Máy/Bắn Tỉa/Phun Lửa/Pháo Cối/Tesla có ba nhánh A/B/C, mỗi nhánh 4 bậc: tổng **60 lựa chọn nâng**. Chỉ dùng tối đa hai nhánh, một nhánh vượt bậc 2; tổ hợp cao nhất 4–2–0. Bậc 3 mở kỹ năng, bậc 4 có hình Canvas riêng và cần 2 cư dân vận hành. Thiếu cư dân thì ụ không bắn; các cư dân còn lại làm thợ sửa nhà. Phun Acid C3 cần mở khóa hạ Kiến Chúa.
+
+Các dạng bậc 4 gồm Gatling Plasma / Pháo 30mm / Bão Đạn 360°, Railgun / Xạ Thủ Tinh Nhuệ / Trạm Tiếp Tế, Lò Nhiệt Hạch / Napalm / Sương Bào Tử, Siêu Pháo Nhiệt Áp / Katyusha / EMP, Kình Lôi / Trạm Phát Xung / Lõi Hút. Có xuyên hàng, đẩy lùi/choáng boss, đánh dấu tăng sát thương, thưởng phế liệu, thả đạn/máu, vùng cháy/ăn mòn, xác nổ dây chuyền, bức xạ, phá tàng hình, tê liệt xe cướp/khóa kỹ năng boss 3 giây, hàng rào điện, tăng 35% tốc bắn, giáp năng lượng cho nhà/cửa và gom quái. Giáp năng lượng không dựng lại cửa đã vỡ; sửa nhà/cửa vẫn cần 5 giây không bị đánh. Bản lưu ụ cấp 1–5 cũ chuyển thành A0–A4, giữ loại ụ và tiến trình.
 
 ## 9. Đồng minh, Drone và Chiến Xa
 
@@ -174,14 +181,16 @@ Môi trường có chướng ngại và tìm đường, vùng độc/cháy/đi�
 
 - Bản lưu dùng **`localStorage`**, một ô lưu với khóa `zs_save_v1`.
 - Tự lưu đầu màn và khi về trại; tải lại là tiếp tục từ checkpoint, không khôi phục mọi viên đạn/quái của khung hình vừa thoát.
-- Lưu các chế độ chơi tại máy; `saveCheckpoint()` bỏ qua phiên online.
+- Chơi tại máy tự lưu như cũ; online chỉ **chủ phòng** ghi bản lưu chính. Nhập tên trước khi tạo/vào phòng. Trình duyệt giữ `playerUUID` cố định riêng với tên; reconnect đối chiếu UUID để trả đúng nhân vật, kể cả khi vị trí P2/P3/P4 thay đổi.
+- `partyRoster` giữ tối đa 4 hồ sơ đội hình; `partyArchive` giữ hồ sơ đang nghỉ, tránh mất người cũ khi người mới thay chỗ. Chủ phòng chọn nhân vật mới hoặc cho mượn hồ sơ đang nghỉ ở sảnh/Xưởng Căn Cứ. Người mượn không đổi chủ sở hữu; tiến triển của nhân vật mượn được trả về hồ sơ gốc.
+- Nếu tất cả khách mất mạng, chủ phòng vẫn chơi và giữ phòng mở. Người cũ vào lại ngay giữa màn; người mới vào khi đội ở căn cứ. Khi tải checkpoint online, chủ phòng tạo mã mới bằng **CHƠI TIẾP** hoặc **TIẾP TỤC ĐỘI ĐÃ LƯU**; có thể bắt đầu một mình rồi đợi bạn bè. Không có tự chuyển quyền chủ phòng khi host mất kết nối.
 - Bản lưu chứa nhân vật, thẻ/tag, vũ khí, máu ảo, tài nguyên, căn cứ, tuyến đi và tiến độ nhiệm vụ dài.
 - Có mở khóa lâu dài trên trình duyệt như Hầm Mỏ, hạ The Dead, hạ Kiến Chúa và các phần thưởng tương ứng.
 - Hạ Kiến Chúa mở súng Acid cải tiến, cơ chế cánh bay và 5 thẻ Acid mới; một số phần thưởng được đưa về trại.
 
 ## 11. Kiến trúc và bản đồ mã nguồn
 
-Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `package.json` hoặc bước build ứng dụng trong thư mục hiện tại. `index.html` tải 34 file JavaScript theo thứ tự; chúng dùng chung phạm vi toàn cục, không phải ES modules.
+Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `package.json` hoặc bước build ứng dụng trong thư mục hiện tại. `index.html` tải 37 file JavaScript theo thứ tự; chúng dùng chung phạm vi toàn cục, không phải ES modules.
 
 | File / thư mục | Trách nhiệm chính |
 | --- | --- |
@@ -223,6 +232,9 @@ Game dùng **HTML + CSS + JavaScript thuần và Canvas 2D**. Không có `packag
 | `js/32-resilience.js` | Sáu perk Máu Ảo/giảm sát thương, cooldown và nâng sức chứa súng từ bản lưu cũ |
 | `js/33-expeditions.js` | Map thường lớn, chunk, sông/cầu, rừng/vách chặn, tháp ẩn, đường đến mục tiêu, điểm đáp và đồng bộ địa hình |
 | `js/34-snow-bosses.js` | Rừng Tuyết, lạnh/rét/đóng băng, quái băng, giáp bay Kiến Chúa, HUD và dữ liệu online |
+| `js/35-coop-save.js` | Tên/UUID, checkpoint co-op, kho hồ sơ, nối lại phòng và cho mượn nhân vật |
+| `js/36-recovery.js` | Cứu hộ khẩn cấp, hình phạt, màn chờ, hồi sinh thủ nhà và True Game Over |
+| `js/37-turret-paths.js` | 60 bậc nâng ụ, luật 4–2–0, nhân lực, chiến đấu, hình Canvas và đồng bộ hiệu ứng |
 | `docs/update-implementation.md` | Hành vi thực tế, thông số và giới hạn đợt cập nhật 30/10/2026 |
 | `Audio-SoundEffect/` | Nhạc và hiệu ứng âm thanh chia theo nhóm |
 | `tests/defense-lifesteal.test.cjs` | Kiểm thử hồi quy cơ chế phòng thủ và hút máu |

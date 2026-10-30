@@ -68,6 +68,7 @@ function beginRun(mode) {
         }
     }
 
+    if(mode==='online')coopInitNewParty();
     if (thietXaUnlocked) {
         players[0].weapon = { ...WEAPON_TYPES['RADIO'] };
         levelStartTexts.push({ text: 'THIẾT XA BÁO CÁO!', color: '#f39c12' });
@@ -246,11 +247,7 @@ function gameLoop(time) {
 
     let activeP = activePlayers();
     let allDead = activeP.length > 0 && activeP.every(p => p.isDowned);
-    if (allDead && !tank.active && objState !== 'TRAIN') {   // trên nóc tàu: gục hết thì nhiệm vụ thất bại chứ không game over
-        if (NET.mode === 'host') netHostGameOver();
-        showGameOver(currentLevel, survivalTime);
-        return;
-    }
+    if (allDead && objState !== 'BASE_DEF') { beginEmergencyRetreat('Cả đội đã bị hạ.'); return; }
 
     frameElectricals = zombies.filter(z => z.type === 28 && z.hp > 0);
     syncPcControls();
@@ -322,7 +319,7 @@ function gameLoop(time) {
                 if (powerPlantRun.active && powerPlantRun.floor < powerPlantRun.total) {
                     powerPlantRun.floor++;
                     nextMapPreference = 6;
-                    currentLevel++;
+                    advanceCampaignLevel();
                     startLevel();
                 } else {
                     powerPlantRun = { active: false, floor: 0, total: 3 };
@@ -1093,7 +1090,7 @@ const ROUTE_DEFS = {
 function routeLocked(route) {
     let def = ROUTE_DEFS[route];
     if (!def) return true;
-    if (currentLevel + 1 < def.min) return true;
+    if (nextCampaignLevel() < def.min) return true;
     if (routeNeedsMap(route)) return true;
     if (route === 'mine' && !mineUnlocked) return true;
     return false;
@@ -1134,7 +1131,7 @@ function renderDynamicShopItems() {
 }
 
 function updateRouteShopUI() {
-    document.getElementById('shopScrapText').innerHTML = `Map vừa qua: <span class="highlight">${currentLevel}</span> · Phế liệu: <span class="highlight">⚙ ${shopScrap}</span> · Mảnh Bức Phá: <span class="highlight">◆ ${breakthroughShards}</span> · Bản đồ Nhà Máy Điện: <span class="highlight">${hasPowerPlantMap ? 'ĐÃ CÓ' : 'CHƯA CÓ'}</span>`;
+    document.getElementById('shopScrapText').innerHTML = `${campaignQueued?'Chuẩn bị Map':'Map vừa qua'}: <span class="highlight">${currentLevel}</span> · Phế liệu: <span class="highlight">⚙ ${shopScrap}</span> · Mảnh Bức Phá: <span class="highlight">◆ ${breakthroughShards}</span> · Bản đồ Nhà Máy Điện: <span class="highlight">${hasPowerPlantMap ? 'ĐÃ CÓ' : 'CHƯA CÓ'}</span>`;
 
     document.getElementById('shopScrapText2').innerHTML = `Phế liệu: <span class="highlight">⚙ ${shopScrap}</span> · Mảnh Bức Phá: <span class="highlight">◆ ${breakthroughShards}</span>`;
     hubRouteDetail();
@@ -1172,7 +1169,7 @@ function askConfirm(title, text, onYes) {
 function selectRoute(route, confirmed = false) {
     if (!ROUTE_DEFS[route]) return;
     if (storyForcedRoute()) { Sound.play('hit'); netToast('Cốt truyện đang khoá điểm đến kế tiếp — hãy mua tiếp tế rồi bấm TIẾP TỤC.', 2200); return; }
-    if (routeNeedsMap(route) && currentLevel + 1 >= ROUTE_DEFS[route].min && !(route === 'mine' && !mineUnlocked)) { routeBuyMap(route); return; }
+    if (routeNeedsMap(route) && nextCampaignLevel() >= ROUTE_DEFS[route].min && !(route === 'mine' && !mineUnlocked)) { routeBuyMap(route); return; }
     if (routeLocked(route)) {
         Sound.play('hit');
         netToast(route === 'power' ? 'Cần mua Bản đồ Nhà Máy Điện trước!' : (route === 'mine' && !mineUnlocked) ? 'Hộ tống Tiến Sĩ thoát khỏi Hang Z (tầng 3) để mở Hầm Mỏ!' : `Tuyến này mở từ Map ${ROUTE_DEFS[route].min}.`, 2000);
@@ -1254,6 +1251,7 @@ function openRouteShop() {
 
 function continueAfterShop() {
     document.getElementById('routeShop').style.display = 'none';
+    if(campaignQueued&&currentLevel%5===0){nextRoute='balanced';nextMapPreference=null;nextMissionPreference=null;checkAndTriggerUpgrade();return;}
     if (storyApplyRoute()) { Sound.play('start'); checkAndTriggerUpgrade(); return; }   // tuyến bị khoá theo cốt truyện
     if (baseDefenseNext()) { nextRoute = 'balanced'; nextMapPreference = null; nextMissionPreference = null; Sound.play('start'); checkAndTriggerUpgrade(); return; }   // map kế tiếp là Phòng Thủ Căn Cứ
     if (nextRoute === 'labz') { nextMapPreference = 15; nextMissionPreference = null; }
@@ -1288,7 +1286,7 @@ function checkAndTriggerUpgrade() {
     if (anyHasUpg) {
         triggerUpgradeScreen();
     } else {
-        currentLevel++;
+        advanceCampaignLevel();
         startLevel();
     }
 }
@@ -1359,7 +1357,7 @@ function forceReadyAllUpgrades() {
     let scr = document.getElementById('upgradeScreen');
     if (scr) scr.style.display = 'none';
     if (gameState === 'UPGRADE') {
-        currentLevel++;
+        advanceCampaignLevel();
         startLevel();
     }
 }

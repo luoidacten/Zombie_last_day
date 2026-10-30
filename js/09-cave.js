@@ -605,7 +605,7 @@ function updateCaveProps(dt) {
                 createParticles(p.x, p.y, '#6d4c41', 50, 360); createParticles(p.x, p.y, '#2ecc71', 20, 240); spawnRing(p.x, p.y, '#a1887f', 150, 0.45, 6);
                 addDecal(p.x, p.y, '#2a1d14', 50, 0.5); addScreenShake(10); Sound.play('explode');
                 vfxList.push({ type: 'text', text: 'TỔ KIẾN BỊ PHÁ!', x: p.x, y: p.y - 50, life: 1.6, color: '#f1c40f' });
-                shopScrap += 3; spawnDrop(p.x, p.y);
+                grantScrap(3); spawnDrop(p.x, p.y);
                 continue;
             }
             if (!p.awake) {
